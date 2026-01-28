@@ -1,0 +1,610 @@
+// Cross-platform dependency setup for Sindarin SDK.
+//
+// This script installs dependencies for static linking via vcpkg.
+//
+// Usage:
+//     sn scripts/setup_deps.sn [options]
+//
+// Options:
+//     --vcpkg-root PATH  Path to vcpkg installation (default: ./vcpkg)
+//     --check            Check if dependencies are installed (don't install)
+//     --verbose          Show detailed output
+
+import "sdk/os/process"
+import "sdk/os/env"
+import "sdk/io/path"
+import "sdk/io/directory"
+import "sdk/io/textfile"
+
+// ============================================================================
+// Platform Detection
+// ============================================================================
+
+fn getPlatform(): str =>
+    // Check for Windows first (USERPROFILE is Windows-specific)
+    if Environment.has("USERPROFILE") && !Environment.has("HOME") =>
+        return "windows"
+
+    // Use uname to detect Darwin (macOS) vs Linux
+    var p: Process = Process.run("uname")
+    if p.success() =>
+        var os: str = p.stdout().trim()
+        if os == "Darwin" =>
+            return "darwin"
+        if os == "Linux" =>
+            return "linux"
+
+    return "unknown"
+
+fn getMachine(): str =>
+    var p: Process = Process.run("uname -m")
+    if p.success() =>
+        return p.stdout().trim()
+    return "x86_64"
+
+fn isWindows(): bool =>
+    return getPlatform() == "windows"
+
+fn isMacOS(): bool =>
+    return getPlatform() == "darwin"
+
+fn isLinux(): bool =>
+    return getPlatform() == "linux"
+
+// ============================================================================
+// Command Execution Helpers
+// ============================================================================
+
+struct CommandResult =>
+    exitCode: int
+    stdout: str
+    stderr: str
+
+fn runCommand(cmd: str): CommandResult =>
+    var p: Process = Process.run(cmd)
+    return CommandResult {
+        exitCode: p.exitCode(),
+        stdout: p.stdout(),
+        stderr: p.stderr()
+    }
+
+fn runCommandArgs(cmd: str, args: str[]): CommandResult =>
+    var p: Process = Process.runArgs(cmd, args)
+    return CommandResult {
+        exitCode: p.exitCode(),
+        stdout: p.stdout(),
+        stderr: p.stderr()
+    }
+
+fn runShell(shellCmd: str): CommandResult =>
+    var p: Process = Process.runArgs("sh", {"-c", shellCmd})
+    return CommandResult {
+        exitCode: p.exitCode(),
+        stdout: p.stdout(),
+        stderr: p.stderr()
+    }
+
+fn commandExists(cmd: str): bool =>
+    var p: Process = Process.runArgs("which", {cmd})
+    return p.success()
+
+// ============================================================================
+// Dependency Checker
+// ============================================================================
+
+fn checkTool(name: str): bool =>
+    if !commandExists(name) =>
+        return false
+
+    // Try running --version to verify it works
+    var versionArg: str = "--version"
+    if name == "unzip" =>
+        versionArg = "-v"
+
+    var p: Process = Process.runArgs(name, {versionArg})
+    return p.exitCode() == 0 || p.exitCode() != 127
+
+fn checkCompiler(): str =>
+    // Check for gcc first
+    if commandExists("gcc") =>
+        var p: Process = Process.runArgs("gcc", {"--version"})
+        if p.success() =>
+            return "gcc"
+
+    // Check for clang
+    if commandExists("clang") =>
+        var p: Process = Process.runArgs("clang", {"--version"})
+        if p.success() =>
+            return "clang"
+
+    return ""
+
+fn checkAllDependencies(verbose: bool): bool =>
+    var allOk: bool = true
+
+    print("Checking build tools...\n")
+
+    // NOTE: Tool names are checked inline rather than iterating over an array
+    // returned from a function. This is because Sindarin's arena-based memory
+    // management causes strings in returned arrays to become corrupted after
+    // subsequent function calls.
+    allOk = checkAndPrintTool("cmake", false) && allOk
+    allOk = checkAndPrintTool("git", false) && allOk
+    if !isWindows() =>
+        allOk = checkAndPrintTool("curl", false) && allOk
+        allOk = checkAndPrintTool("zip", false) && allOk
+        allOk = checkAndPrintTool("unzip", false) && allOk
+        allOk = checkAndPrintTool("tar", false) && allOk
+        allOk = checkAndPrintTool("pkg-config", false) && allOk
+
+    // Check optional tools
+    checkAndPrintTool("ninja", true)
+
+    print("\nChecking compilers...\n")
+    var compiler: str = checkCompiler()
+    if compiler != "" =>
+        print($"  Found: {compiler}\n")
+    else =>
+        print("  No C compiler found (need gcc or clang)\n")
+        allOk = false
+
+    return allOk
+
+fn checkAndPrintTool(name: str, optional: bool): bool =>
+    var ok: bool = checkTool(name)
+    if ok =>
+        print($"  {name}: OK\n")
+    else if optional =>
+        print($"  {name}: MISSING (optional)\n")
+    else =>
+        print($"  {name}: MISSING\n")
+    return ok
+
+// ============================================================================
+// Build Tool Installation
+// ============================================================================
+
+fn getPackageName(tool: str, pkgManager: str): str =>
+    // Package name mappings for different package managers
+    if pkgManager == "apt-get" || pkgManager == "dnf" =>
+        if tool == "ninja" =>
+            return "ninja-build"
+        return tool
+
+    if pkgManager == "pacman" =>
+        if tool == "pkg-config" =>
+            return "pkgconf"
+        return tool
+
+    return tool
+
+fn findPackageManager(): str =>
+    if commandExists("apt-get") =>
+        return "apt-get"
+    if commandExists("dnf") =>
+        return "dnf"
+    if commandExists("pacman") =>
+        return "pacman"
+    if commandExists("brew") =>
+        return "brew"
+    return ""
+
+fn installBuildTools(): bool =>
+    // Build list of missing tools inline to avoid arena issues
+    var missing: str[] = {}
+    var commaSpace: str = ", "
+    var space: str = " "
+
+    // Check required tools
+    if !checkTool("cmake") =>
+        missing.push("cmake")
+    if !checkTool("git") =>
+        missing.push("git")
+    if !isWindows() =>
+        if !checkTool("curl") =>
+            missing.push("curl")
+        if !checkTool("zip") =>
+            missing.push("zip")
+        if !checkTool("unzip") =>
+            missing.push("unzip")
+        if !checkTool("tar") =>
+            missing.push("tar")
+        if !checkTool("pkg-config") =>
+            missing.push("pkg-config")
+
+    // Check optional tools
+    if !checkTool("ninja") =>
+        missing.push("ninja")
+
+    if missing.length == 0 =>
+        return true
+
+    var missingList: str = missing.join(commaSpace)
+    print($"\nInstalling missing tools: {missingList}\n")
+
+    if isLinux() =>
+        var pkgManager: str = findPackageManager()
+        if pkgManager == "" =>
+            print("Error: No supported package manager found (apt, dnf, pacman)\n")
+            return false
+
+        // Map tool names to package names
+        var packages: str[] = {}
+        var i: int = 0
+        while i < missing.length =>
+            var tool: str = missing[i]
+            var pkg: str = getPackageName(tool, pkgManager)
+            packages.push(pkg)
+            i = i + 1
+
+        var pkgList: str = packages.join(space)
+        var pkgListComma: str = packages.join(commaSpace)
+        var cmd: str = ""
+        if pkgManager == "apt-get" =>
+            print("Updating package lists...\n")
+            var updateResult: CommandResult = runShell("sudo apt-get update")
+            cmd = $"sudo apt-get install -y {pkgList}"
+        else if pkgManager == "dnf" =>
+            cmd = $"sudo dnf install -y {pkgList}"
+        else if pkgManager == "pacman" =>
+            cmd = $"sudo pacman -S --noconfirm {pkgList}"
+
+        print($"Installing: {pkgListComma}\n")
+        var result: CommandResult = runShell(cmd)
+        return result.exitCode == 0
+
+    if isMacOS() =>
+        if !commandExists("brew") =>
+            print("Error: Homebrew not found. Install from https://brew.sh\n")
+            return false
+
+        var missingSpace: str = missing.join(space)
+        var cmd: str = $"brew install {missingSpace}"
+        print($"Installing: {missingList}\n")
+        var result: CommandResult = runShell(cmd)
+        return result.exitCode == 0
+
+    if isWindows() =>
+        print("Windows: Please install missing tools manually:\n")
+        var j: int = 0
+        while j < missing.length =>
+            var tool: str = missing[j]
+            if tool == "cmake" =>
+                print("  CMake: https://cmake.org/download/\n")
+            else if tool == "ninja" =>
+                print("  Ninja: https://github.com/ninja-build/ninja/releases\n")
+            else if tool == "git" =>
+                print("  Git: https://git-scm.com/download/win\n")
+            j = j + 1
+        return false
+
+    return false
+
+// ============================================================================
+// Vcpkg Installer
+// ============================================================================
+
+fn getVcpkgTriplet(): str =>
+    if isWindows() =>
+        return "x64-mingw-static"
+
+    if isMacOS() =>
+        var machine: str = getMachine()
+        if machine == "arm64" =>
+            return "arm64-osx"
+        return "x64-osx"
+
+    return "x64-linux"
+
+fn getVcpkgExe(vcpkgRoot: str): str =>
+    if isWindows() =>
+        return Path.join(vcpkgRoot, "vcpkg.exe")
+    return Path.join(vcpkgRoot, "vcpkg")
+
+fn setupVcpkg(vcpkgRoot: str, verbose: bool): bool =>
+    var vcpkgExe: str = getVcpkgExe(vcpkgRoot)
+
+    // Check if already bootstrapped
+    if Path.isDirectory(vcpkgRoot) && Path.isFile(vcpkgExe) =>
+        print($"vcpkg already bootstrapped at: {vcpkgRoot}\n")
+        return true
+
+    // Clone if needed
+    if Path.isDirectory(vcpkgRoot) =>
+        print("vcpkg directory exists, bootstrapping...\n")
+    else =>
+        print("Cloning vcpkg...\n")
+        var result: CommandResult = runCommandArgs("git", {
+            "clone",
+            "https://github.com/microsoft/vcpkg.git",
+            vcpkgRoot
+        })
+        if result.exitCode != 0 =>
+            print($"Error cloning vcpkg: {result.stderr}\n")
+            return false
+
+    // Bootstrap
+    print("Bootstrapping vcpkg...\n")
+    var bootstrapCmd: str = ""
+    if isWindows() =>
+        bootstrapCmd = $"cd {vcpkgRoot} && bootstrap-vcpkg.bat -disableMetrics"
+    else =>
+        bootstrapCmd = $"cd {vcpkgRoot} && sh bootstrap-vcpkg.sh -disableMetrics"
+
+    var result: CommandResult = runShell(bootstrapCmd)
+    if result.exitCode != 0 =>
+        print($"Error bootstrapping vcpkg: {result.stderr}\n")
+        return false
+
+    print("vcpkg bootstrapped successfully!\n")
+    return true
+
+fn installPackages(vcpkgRoot: str, verbose: bool): bool =>
+    var vcpkgExe: str = getVcpkgExe(vcpkgRoot)
+
+    if !Path.isFile(vcpkgExe) =>
+        print("Error: vcpkg not found\n")
+        return false
+
+    var triplet: str = getVcpkgTriplet()
+
+    // Check for manifest mode (vcpkg.json in parent directory)
+    var projectRoot: str = Path.directory(vcpkgRoot)
+    var manifestPath: str = Path.join(projectRoot, "vcpkg.json")
+
+    if Path.isFile(manifestPath) =>
+        // Manifest mode
+        print($"\nInstalling packages from vcpkg.json for triplet: {triplet}\n")
+        print("This will compile packages from source...\n")
+
+        var cmd: str = $"cd {projectRoot} && {vcpkgExe} install --triplet={triplet}"
+        var result: CommandResult = runShell(cmd)
+
+        if result.exitCode != 0 =>
+            print("Error installing packages:\n")
+            if result.stderr != "" =>
+                print(result.stderr)
+            else =>
+                print(result.stdout)
+            return false
+
+        print("Packages installed successfully\n")
+    else =>
+        // Classic mode - install individual packages
+        var packages: str[] = {$"zlib:{triplet}", $"yyjson:{triplet}"}
+
+        print($"\nInstalling packages for triplet: {triplet}\n")
+        print("This will compile packages from source...\n")
+
+        for package in packages =>
+            print($"\nInstalling {package}...\n")
+            var result: CommandResult = runCommandArgs(vcpkgExe, {"install", package})
+
+            if result.exitCode != 0 =>
+                print($"Error installing {package}:\n")
+                if result.stderr != "" =>
+                    print(result.stderr)
+                else =>
+                    print(result.stdout)
+                return false
+
+            print($"  {package} installed successfully\n")
+
+    return true
+
+fn getInstalledDir(vcpkgRoot: str): str =>
+    var triplet: str = getVcpkgTriplet()
+
+    // Check manifest mode first (vcpkg_installed in project root)
+    var projectRoot: str = Path.directory(vcpkgRoot)
+    var vcpkgInstalled: str = Path.join(projectRoot, "vcpkg_installed")
+    var manifestInstalled: str = Path.join(vcpkgInstalled, triplet)
+    if Path.isDirectory(manifestInstalled) =>
+        return manifestInstalled
+
+    // Classic mode
+    var installed: str = Path.join(vcpkgRoot, "installed")
+    return Path.join(installed, triplet)
+
+fn verifyInstallation(vcpkgRoot: str): bool =>
+    var installedDir: str = getInstalledDir(vcpkgRoot)
+
+    print($"\nVerifying installation in: {installedDir}\n")
+
+    // Check required headers
+    var includeDir: str = Path.join(installedDir, "include")
+    var requiredHeaders: str[] = {
+        "zlib.h",
+        "yyjson.h",
+        "libxml2/libxml/parser.h",
+        "yaml.h",
+        "git2.h"
+    }
+
+    for header in requiredHeaders =>
+        var headerPath: str = Path.join(includeDir, header)
+        if Path.isFile(headerPath) =>
+            print($"  {header}: OK\n")
+        else =>
+            print($"  {header}: MISSING\n")
+            return false
+
+    // Check libraries
+    var libDir: str = Path.join(installedDir, "lib")
+
+    // Define library patterns for each dependency
+    var deps: str[] = {"zlib", "yyjson", "libxml2", "libyaml", "openssl", "libgit2"}
+
+    for dep in deps =>
+        var found: bool = false
+        var foundName: str = ""
+
+        // Common library patterns to check
+        var patterns: str[] = {}
+        if dep == "zlib" =>
+            patterns = {"libz.a", "libzlib.a", "z.lib", "zlib.lib", "libz.so", "libz.dylib"}
+        else if dep == "openssl" =>
+            patterns = {"libssl.a", "ssl.lib", "libssl.so", "libssl.dylib"}
+        else =>
+            var baseName: str = dep
+            if dep == "libxml2" =>
+                baseName = "xml2"
+            else if dep == "libyaml" =>
+                baseName = "yaml"
+            else if dep == "libgit2" =>
+                baseName = "git2"
+            patterns = {
+                $"lib{baseName}.a",
+                $"lib{baseName}.dll.a",
+                $"{baseName}.lib",
+                $"lib{baseName}.lib",
+                $"lib{baseName}.so",
+                $"lib{baseName}.dylib"
+            }
+
+        for pattern in patterns =>
+            var libPath: str = Path.join(libDir, pattern)
+            if Path.isFile(libPath) =>
+                found = true
+                foundName = pattern
+
+        if found =>
+            print($"  {dep}: OK ({foundName})\n")
+        else =>
+            print($"  {dep}: MISSING\n")
+            return false
+
+    return true
+
+fn installVcpkg(vcpkgRoot: str, verbose: bool): bool =>
+    if !setupVcpkg(vcpkgRoot, verbose) =>
+        return false
+
+    if !installPackages(vcpkgRoot, verbose) =>
+        return false
+
+    if !verifyInstallation(vcpkgRoot) =>
+        return false
+
+    // Print helpful info
+    var installedDir: str = getInstalledDir(vcpkgRoot)
+    var includeDir: str = Path.join(installedDir, "include")
+    var libDir: str = Path.join(installedDir, "lib")
+
+    print("\n============================================================\n")
+    print("Dependencies installed successfully!\n")
+    print("============================================================\n")
+    print($"\nVCPKG installed packages to: {installedDir}\n")
+    print($"  Include dir: {includeDir}\n")
+    print($"  Library dir: {libDir}\n")
+    print("\nTo use these dependencies, run 'make build' which will\n")
+    print("automatically detect and use the vcpkg packages.\n")
+
+    return true
+
+// ============================================================================
+// Argument Parsing
+// ============================================================================
+
+struct Args =>
+    vcpkgRoot: str = ""
+    checkOnly: bool = false
+    verbose: bool = false
+    showHelp: bool = false
+
+fn parseArgs(args: str[]): Args =>
+    var result: Args = Args {}
+    var i: int = 0
+
+    while i < args.length =>
+        var arg: str = args[i]
+
+        if arg == "--vcpkg-root" =>
+            if i + 1 < args.length =>
+                i = i + 1
+                result.vcpkgRoot = args[i]
+        else if arg == "--check" =>
+            result.checkOnly = true
+        else if arg == "--verbose" || arg == "-v" =>
+            result.verbose = true
+        else if arg == "--help" || arg == "-h" =>
+            result.showHelp = true
+
+        i = i + 1
+
+    return result
+
+fn printUsage(): void =>
+    print("Cross-platform dependency setup for Sindarin SDK using vcpkg\n\n")
+    print("Usage: sn setup_deps.sn [options]\n\n")
+    print("Options:\n")
+    print("  --vcpkg-root PATH  Path to vcpkg installation (default: ./vcpkg)\n")
+    print("  --check            Check dependencies without installing\n")
+    print("  --verbose, -v      Show detailed output\n")
+    print("  --help, -h         Show this help message\n")
+
+// ============================================================================
+// Main
+// ============================================================================
+
+fn main(args: str[]): int =>
+    var parsedArgs: Args = parseArgs(args)
+
+    if parsedArgs.showHelp =>
+        printUsage()
+        return 0
+
+    // Determine vcpkg root
+    var vcpkgRoot: str = parsedArgs.vcpkgRoot
+    if vcpkgRoot == "" =>
+        var cwd: Process = Process.run("pwd")
+        vcpkgRoot = Path.join(cwd.stdout().trim(), "vcpkg")
+
+    // Print platform info
+    var platform: str = getPlatform()
+    var machine: str = getMachine()
+    print($"Platform: {platform} ({machine})\n\n")
+
+    if parsedArgs.checkOnly =>
+        // Check mode
+        if checkAllDependencies(parsedArgs.verbose) =>
+            // Also check vcpkg packages
+            var installedDir: str = getInstalledDir(vcpkgRoot)
+            if Path.isDirectory(installedDir) =>
+                print("\nChecking vcpkg packages...\n")
+                if verifyInstallation(vcpkgRoot) =>
+                    print("\nAll dependencies are installed!\n")
+                    return 0
+                else =>
+                    print("\nvcpkg packages need to be installed.\n")
+                    return 1
+            else =>
+                print("\nvcpkg packages not yet installed.\n")
+                return 1
+        else =>
+            print("\nSome build tools are missing.\n")
+            return 1
+
+    // Full install mode
+    // Check build tools first
+    if !checkAllDependencies(parsedArgs.verbose) =>
+        print("\n")
+        if !installBuildTools() =>
+            return 1
+
+        // Re-check after installation
+        if !checkAllDependencies(false) =>
+            print("\nPlease install the missing tools and run this script again.\n")
+            return 1
+
+    // Install vcpkg dependencies
+    print("\n============================================================\n")
+    print("Setting up vcpkg and installing dependencies...\n")
+    print("============================================================\n\n")
+
+    if installVcpkg(vcpkgRoot, parsedArgs.verbose) =>
+        print("\nSetup completed successfully!\n")
+        return 0
+    else =>
+        print("\nSetup encountered errors.\n")
+        return 1
