@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "sindarin-pkg-sdk",
+  "version": "1.0.0",
+  "description": "Sindarin SDK - Dependencies for static linking",
+  "homepage": "https://github.com/sindarinsdk/sindarin-pkg-sdk",
+  "license": "MIT",
+  "supports": "!uwp",
+  "dependencies": [
+    "zlib",
+    "yyjson",
+    {
+        "name": "libxml2",
+        "default-features": false,
+        "features": ["zlib"]
+    },
+    "libyaml",
+    "openssl",
+    {
+        "name": "ngtcp2",
+        "features": ["openssl"]
+    },
+    {
+        "name": "libssh",
+        "default-features": false,
+        "features": ["server"]
+    },
+    {
+        "name": "libgit2",
+        "default-features": false,
+        "features": ["ssh", "openssl", "pcre2"]
+    },
+    {
+        "name": "curl",
+        "default-features": false,
+        "features": ["ssl"]
+    }
+  ]
+}
