@@ -1,0 +1,9 @@
+=== SDK SSH Server Tests ===
+
+test_listener_bind: PASS
+test_password_auth_and_exec: PASS
+test_exec_with_exit_code: PASS
+test_simple_bind_form: PASS
+test_bidirectional_comm: PASS
+
+All SSH server tests passed!

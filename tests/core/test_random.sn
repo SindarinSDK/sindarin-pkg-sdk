@@ -1,0 +1,336 @@
+# ==============================================================================
+# test_random.sn - Tests for SDK Random Type
+# ==============================================================================
+# Tests the Random struct and its methods.
+# ==============================================================================
+
+import "../../../sdk/core/random"
+
+fn test_create(): void =>
+    print("test_create: ")
+    var rng: Random = Random.create()
+    print("PASS\n")
+
+fn test_create_with_seed(): void =>
+    print("test_create_with_seed: ")
+    var rng: Random = Random.createWithSeed(42l)
+    var n1: int = rng.nextInt(1, 100)
+
+    var rng2: Random = Random.createWithSeed(42l)
+    var n2: int = rng2.nextInt(1, 100)
+
+    assert(n1 == n2, "Same seed should produce same value")
+    print("PASS\n")
+
+fn test_static_int(): void =>
+    print("test_static_int: ")
+    var n: int = Random.randInt(1, 100)
+    assert(n >= 1, "int should be >= min")
+    assert(n <= 100, "int should be <= max")
+    print("PASS\n")
+
+fn test_static_long(): void =>
+    print("test_static_long: ")
+    var n: long = Random.randLong(1l, 1000000l)
+    assert(n >= 1l, "long should be >= min")
+    assert(n <= 1000000l, "long should be <= max")
+    print("PASS\n")
+
+fn test_static_double(): void =>
+    print("test_static_double: ")
+    var n: double = Random.randDouble(0.0, 1.0)
+    assert(n >= 0.0, "double should be >= min")
+    assert(n < 1.0, "double should be < max")
+    print("PASS\n")
+
+fn test_static_bool(): void =>
+    print("test_static_bool: ")
+    var b: bool = Random.randBool()
+    print("PASS\n")
+
+fn test_static_byte(): void =>
+    print("test_static_byte: ")
+    var b: byte = Random.randByte()
+    print("PASS\n")
+
+fn test_static_bytes(): void =>
+    print("test_static_bytes: ")
+    var bytes: byte[] = Random.randBytes(16)
+    assert(bytes.length == 16, "Should return 16 bytes")
+    print("PASS\n")
+
+fn test_static_gaussian(): void =>
+    print("test_static_gaussian: ")
+    var n: double = Random.randGaussian(0.0, 1.0)
+    print("PASS\n")
+
+fn test_static_int_many(): void =>
+    print("test_static_int_many: ")
+    var nums: int[] = Random.randIntMany(1, 10, 5)
+    assert(nums.length == 5, "Should return 5 values")
+    for num in nums =>
+        assert(num >= 1, "Value should be >= min")
+        assert(num <= 10, "Value should be <= max")
+    print("PASS\n")
+
+fn test_static_long_many(): void =>
+    print("test_static_long_many: ")
+    var nums: long[] = Random.randLongMany(1l, 100l, 5)
+    assert(nums.length == 5, "Should return 5 values")
+    print("PASS\n")
+
+fn test_static_double_many(): void =>
+    print("test_static_double_many: ")
+    var nums: double[] = Random.randDoubleMany(0.0, 1.0, 5)
+    assert(nums.length == 5, "Should return 5 values")
+    print("PASS\n")
+
+fn test_static_bool_many(): void =>
+    print("test_static_bool_many: ")
+    var bools: bool[] = Random.randBoolMany(10)
+    assert(bools.length == 10, "Should return 10 values")
+    print("PASS\n")
+
+fn test_static_gaussian_many(): void =>
+    print("test_static_gaussian_many: ")
+    var nums: double[] = Random.randGaussianMany(0.0, 1.0, 5)
+    assert(nums.length == 5, "Should return 5 values")
+    print("PASS\n")
+
+fn test_static_choice_int(): void =>
+    print("test_static_choice_int: ")
+    var arr: int[] = {10, 20, 30, 40, 50}
+    var chosen: int = Random.randChoiceInt(arr)
+    assert(arr.contains(chosen), "Chosen value should be in array")
+    print("PASS\n")
+
+fn test_static_choice_str(): void =>
+    print("test_static_choice_str: ")
+    var arr: str[] = {"red", "green", "blue"}
+    var chosen: str = Random.randChoiceStr(arr)
+    assert(arr.contains(chosen), "Chosen value should be in array")
+    print("PASS\n")
+
+fn test_static_shuffle_int(): void =>
+    print("test_static_shuffle_int: ")
+    var arr: int[] = {1, 2, 3, 4, 5}
+    Random.randShuffleInt(arr)
+    assert(arr.length == 5, "Length should remain 5")
+    assert(arr.contains(1), "Should contain 1")
+    assert(arr.contains(2), "Should contain 2")
+    assert(arr.contains(3), "Should contain 3")
+    assert(arr.contains(4), "Should contain 4")
+    assert(arr.contains(5), "Should contain 5")
+    print("PASS\n")
+
+fn test_static_shuffle_str(): void =>
+    print("test_static_shuffle_str: ")
+    var arr: str[] = {"a", "b", "c"}
+    Random.randShuffleStr(arr)
+    assert(arr.length == 3, "Length should remain 3")
+    assert(arr.contains("a"), "Should contain 'a'")
+    assert(arr.contains("b"), "Should contain 'b'")
+    assert(arr.contains("c"), "Should contain 'c'")
+    print("PASS\n")
+
+fn test_static_sample_int(): void =>
+    print("test_static_sample_int: ")
+    var arr: int[] = {10, 20, 30, 40, 50}
+    var sample: int[] = Random.randSampleInt(arr, 3)
+    assert(sample.length == 3, "Sample should have 3 elements")
+    for item in sample =>
+        assert(arr.contains(item), "Sample element should be from original")
+    print("PASS\n")
+
+fn test_static_weighted_choice_int(): void =>
+    print("test_static_weighted_choice_int: ")
+    var arr: int[] = {10, 20, 30}
+    var weights: double[] = {0.5, 0.3, 0.2}
+    var chosen: int = Random.randWeightedChoiceInt(arr, weights)
+    assert(arr.contains(chosen), "Chosen value should be in array")
+    print("PASS\n")
+
+fn test_static_weighted_choice_str(): void =>
+    print("test_static_weighted_choice_str: ")
+    var arr: str[] = {"common", "rare", "legendary"}
+    var weights: double[] = {0.7, 0.25, 0.05}
+    var chosen: str = Random.randWeightedChoiceStr(arr, weights)
+    assert(arr.contains(chosen), "Chosen value should be in array")
+    print("PASS\n")
+
+fn test_instance_int(): void =>
+    print("test_instance_int: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var n: int = rng.nextInt(1, 100)
+    assert(n >= 1, "int should be >= min")
+    assert(n <= 100, "int should be <= max")
+    print("PASS\n")
+
+fn test_instance_long(): void =>
+    print("test_instance_long: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var n: long = rng.nextLong(1l, 1000000l)
+    assert(n >= 1l, "long should be >= min")
+    assert(n <= 1000000l, "long should be <= max")
+    print("PASS\n")
+
+fn test_instance_double(): void =>
+    print("test_instance_double: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var n: double = rng.nextDouble(0.0, 1.0)
+    assert(n >= 0.0, "double should be >= min")
+    assert(n < 1.0, "double should be < max")
+    print("PASS\n")
+
+fn test_instance_bool(): void =>
+    print("test_instance_bool: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var b: bool = rng.nextBool()
+    print("PASS\n")
+
+fn test_instance_byte(): void =>
+    print("test_instance_byte: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var b: byte = rng.nextByte()
+    print("PASS\n")
+
+fn test_instance_bytes(): void =>
+    print("test_instance_bytes: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var bytes: byte[] = rng.nextBytes(16)
+    assert(bytes.length == 16, "Should return 16 bytes")
+    print("PASS\n")
+
+fn test_instance_gaussian(): void =>
+    print("test_instance_gaussian: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var n: double = rng.gaussian(0.0, 1.0)
+    print("PASS\n")
+
+fn test_instance_int_many(): void =>
+    print("test_instance_int_many: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var nums: int[] = rng.intMany(1, 10, 5)
+    assert(nums.length == 5, "Should return 5 values")
+    print("PASS\n")
+
+fn test_instance_choice_int(): void =>
+    print("test_instance_choice_int: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var arr: int[] = {10, 20, 30, 40, 50}
+    var chosen: int = rng.choiceInt(arr)
+    assert(arr.contains(chosen), "Chosen value should be in array")
+    print("PASS\n")
+
+fn test_instance_choice_str(): void =>
+    print("test_instance_choice_str: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var arr: str[] = {"red", "green", "blue"}
+    var chosen: str = rng.choiceStr(arr)
+    assert(arr.contains(chosen), "Chosen value should be in array")
+    print("PASS\n")
+
+fn test_instance_shuffle_int(): void =>
+    print("test_instance_shuffle_int: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var arr: int[] = {1, 2, 3, 4, 5}
+    rng.shuffleInt(arr)
+    assert(arr.length == 5, "Length should remain 5")
+    assert(arr.contains(1), "Should contain 1")
+    assert(arr.contains(5), "Should contain 5")
+    print("PASS\n")
+
+fn test_instance_sample_int(): void =>
+    print("test_instance_sample_int: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var arr: int[] = {10, 20, 30, 40, 50}
+    var sample: int[] = rng.sampleInt(arr, 3)
+    assert(sample.length == 3, "Sample should have 3 elements")
+    print("PASS\n")
+
+fn test_instance_weighted_choice_str(): void =>
+    print("test_instance_weighted_choice_str: ")
+    var rng: Random = Random.createWithSeed(123l)
+    var arr: str[] = {"common", "rare", "legendary"}
+    var weights: double[] = {0.7, 0.25, 0.05}
+    var chosen: str = rng.weightedChoiceStr(arr, weights)
+    assert(arr.contains(chosen), "Chosen value should be in array")
+    print("PASS\n")
+
+fn test_seeded_determinism(): void =>
+    print("test_seeded_determinism: ")
+    var rng1: Random = Random.createWithSeed(42l)
+    var rng2: Random = Random.createWithSeed(42l)
+
+    var all_same: bool = true
+    for i in 0..10 =>
+        var a: int = rng1.nextInt(1, 1000)
+        var b: int = rng2.nextInt(1, 1000)
+        if a != b =>
+            all_same = false
+
+    assert(all_same, "Same seed should produce identical sequences")
+    print("PASS\n")
+
+fn test_different_seeds(): void =>
+    print("test_different_seeds: ")
+    var rng1: Random = Random.createWithSeed(100l)
+    var rng2: Random = Random.createWithSeed(200l)
+
+    var same_count: int = 0
+    for i in 0..10 =>
+        var a: int = rng1.nextInt(1, 1000000)
+        var b: int = rng2.nextInt(1, 1000000)
+        if a == b =>
+            same_count = same_count + 1
+
+    assert(same_count < 10, "Different seeds should produce different sequences")
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Random Tests ===\n\n")
+
+    test_create()
+    test_create_with_seed()
+
+    test_static_int()
+    test_static_long()
+    test_static_double()
+    test_static_bool()
+    test_static_byte()
+    test_static_bytes()
+    test_static_gaussian()
+
+    test_static_int_many()
+    test_static_long_many()
+    test_static_double_many()
+    test_static_bool_many()
+    test_static_gaussian_many()
+
+    test_static_choice_int()
+    test_static_choice_str()
+    test_static_shuffle_int()
+    test_static_shuffle_str()
+    test_static_sample_int()
+    test_static_weighted_choice_int()
+    test_static_weighted_choice_str()
+
+    test_instance_int()
+    test_instance_long()
+    test_instance_double()
+    test_instance_bool()
+    test_instance_byte()
+    test_instance_bytes()
+    test_instance_gaussian()
+    test_instance_int_many()
+
+    test_instance_choice_int()
+    test_instance_choice_str()
+    test_instance_shuffle_int()
+    test_instance_sample_int()
+    test_instance_weighted_choice_str()
+
+    test_seeded_determinism()
+    test_different_seeds()
+
+    print("\nAll random tests passed!\n")

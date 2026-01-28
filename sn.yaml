@@ -1,0 +1,5 @@
+name: sindarin-pkg-sdk
+version: 1.0.0
+author: realorko
+description: A package which is decoupled from the sdk shipped with the sindarin compiler
+license: MIT

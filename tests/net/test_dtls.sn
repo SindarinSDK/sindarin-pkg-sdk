@@ -1,0 +1,96 @@
+# ==============================================================================
+# test_dtls.sn - Tests for SDK DTLS Types (DtlsListener, DtlsConnection)
+# ==============================================================================
+# Tests the DTLS implementation using a local server and client.
+# Self-contained: starts a listener, connects a client, tests send/receive.
+# ==============================================================================
+
+import "../../../sdk/net/dtls"
+
+fn test_listener_bind(): void =>
+    print("test_listener_bind: ")
+    var cert_path: str = "tests/sdk/net/test_dtls_cert.pem"
+    var key_path: str = "tests/sdk/net/test_dtls_key.pem"
+
+    var server: DtlsListener = DtlsListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    assert(port > 0, "Port should be assigned")
+    assert(port < 65536, "Port should be valid")
+
+    server.close()
+    print("PASS\n")
+
+fn test_dtls_connect_and_close(): void =>
+    print("test_dtls_connect_and_close: ")
+    var cert_path: str = "tests/sdk/net/test_dtls_cert.pem"
+    var key_path: str = "tests/sdk/net/test_dtls_key.pem"
+
+    var server: DtlsListener = DtlsListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    # Client connects
+    var client: DtlsConnection = DtlsConnection.connect($"127.0.0.1:{port}")
+
+    # Server accepts
+    var serverConn: DtlsConnection = server.accept()
+
+    # Check remote address
+    var remoteAddr: str = serverConn.remoteAddress()
+    assert(remoteAddr.startsWith("127.0.0.1:"), "Remote should be localhost")
+
+    # Clean up
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_dtls_send_receive(): void =>
+    print("test_dtls_send_receive: ")
+    var cert_path: str = "tests/sdk/net/test_dtls_cert.pem"
+    var key_path: str = "tests/sdk/net/test_dtls_key.pem"
+
+    var server: DtlsListener = DtlsListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    # Client connects
+    var client: DtlsConnection = DtlsConnection.connect($"127.0.0.1:{port}")
+
+    # Server accepts
+    var serverConn: DtlsConnection = server.accept()
+
+    # Client sends datagram
+    var msg: byte[] = "Hello DTLS".toBytes()
+    var sent: int = client.send(msg)
+    assert(sent == 10, $"Should send 10 bytes, got {sent}")
+
+    # Server receives
+    var received: byte[] = serverConn.receive(1024)
+    assert(received.length == 10, $"Should receive 10 bytes, got {received.length}")
+    assert(received.toString() == "Hello DTLS", $"Should receive 'Hello DTLS', got '{received.toString()}'")
+
+    # Server echoes back
+    var echoSent: int = serverConn.send(received)
+    assert(echoSent == 10, $"Echo should send 10 bytes, got {echoSent}")
+
+    # Client receives echo
+    var echo: byte[] = client.receive(1024)
+    assert(echo.length == 10, $"Should receive echo of 10 bytes, got {echo.length}")
+    assert(echo.toString() == "Hello DTLS", $"Should receive 'Hello DTLS', got '{echo.toString()}'")
+
+    # Clean up
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK DTLS Tests ===\n\n")
+
+    test_listener_bind()
+    test_dtls_connect_and_close()
+    test_dtls_send_receive()
+
+    print("\nAll DTLS tests passed!\n")

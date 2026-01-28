@@ -1,0 +1,148 @@
+# ==============================================================================
+# test_path.sn - Tests for SDK Path Type
+# ==============================================================================
+# Tests the Path struct and its methods.
+# Cross-platform: works on Windows, Linux, and macOS
+# ==============================================================================
+
+import "../../../sdk/io/path"
+import "../../../sdk/os/env"
+
+# Cross-platform temp directory helper
+fn getTempDir(): str =>
+    # Windows uses TEMP, Unix uses TMPDIR or /tmp
+    return Environment.getOr("TEMP", Environment.getOr("TMPDIR", "/tmp")).replace("\\", "/")
+
+# Check if a path is absolute (cross-platform)
+fn isAbsolutePath(path: str): bool =>
+    if path.length < 1 =>
+        return false
+    # Unix: starts with /
+    if path.startsWith("/") =>
+        return true
+    # Windows: starts with drive letter like C:\ or C:/
+    if path.length >= 3 =>
+        var firstChar: char = path.charAt(0)
+        var secondChar: char = path.charAt(1)
+        var thirdChar: char = path.charAt(2)
+        if (firstChar >= 'A' && firstChar <= 'Z') || (firstChar >= 'a' && firstChar <= 'z') =>
+            if secondChar == ':' && (thirdChar == '/' || thirdChar == '\\') =>
+                return true
+    return false
+
+fn test_directory(): void =>
+    print("test_directory: ")
+
+    # Unix-style paths
+    assert(Path.directory("/home/user/file.txt") == "/home/user", "Unix directory")
+    assert(Path.directory("/file.txt") == "/", "Root directory")
+    assert(Path.directory("file.txt") == ".", "No directory")
+    assert(Path.directory("a/b/c") == "a/b", "Relative directory")
+    assert(Path.directory("") == ".", "Empty path")
+
+    print("PASS\n")
+
+fn test_filename(): void =>
+    print("test_filename: ")
+
+    assert(Path.filename("/home/user/file.txt") == "file.txt", "Unix filename")
+    assert(Path.filename("/file.txt") == "file.txt", "Root filename")
+    assert(Path.filename("file.txt") == "file.txt", "No directory")
+    assert(Path.filename("a/b/c") == "c", "Relative filename")
+    assert(Path.filename("") == "", "Empty path")
+
+    print("PASS\n")
+
+fn test_extension(): void =>
+    print("test_extension: ")
+
+    assert(Path.extension("/home/user/file.txt") == "txt", "Simple extension")
+    assert(Path.extension("file.tar.gz") == "gz", "Multiple dots")
+    assert(Path.extension("file") == "", "No extension")
+    assert(Path.extension(".bashrc") == "", "Hidden file")
+    assert(Path.extension("a/b/.gitignore") == "", "Hidden file in path")
+    assert(Path.extension("") == "", "Empty path")
+
+    print("PASS\n")
+
+fn test_join(): void =>
+    print("test_join: ")
+
+    # Basic joins
+    assert(Path.join("/home", "user") == "/home/user", "Basic join")
+    assert(Path.join("/home/", "user") == "/home/user", "Join with trailing slash")
+    assert(Path.join("", "user") == "user", "Join with empty first")
+    assert(Path.join("/home", "") == "/home/", "Join with empty second")
+
+    # Join three
+    assert(Path.join3("/home", "user", "file.txt") == "/home/user/file.txt", "Join three")
+
+    print("PASS\n")
+
+fn test_absolute(): void =>
+    print("test_absolute: ")
+
+    # Use cross-platform temp directory
+    var tempDir: str = getTempDir()
+
+    # Absolute paths should return themselves (mostly)
+    var abs: str = Path.absolute(tempDir)
+    assert(isAbsolutePath(abs), "Absolute should be absolute path")
+
+    # Relative paths should become absolute
+    var rel: str = Path.absolute(".")
+    assert(isAbsolutePath(rel), "Relative should become absolute")
+
+    print("PASS\n")
+
+fn test_exists(): void =>
+    print("test_exists: ")
+
+    # Temp directory should exist
+    var tempDir: str = getTempDir()
+    assert(Path.exists(tempDir), "Temp directory should exist")
+
+    # Random path should not exist
+    assert(!Path.exists("/nonexistent_path_12345_xyzabc"), "Nonexistent should not exist")
+
+    print("PASS\n")
+
+fn test_is_file(): void =>
+    print("test_is_file: ")
+
+    # Get cross-platform temp directory
+    var tempDir: str = getTempDir()
+
+    # Temp directory should not be a file
+    assert(!Path.isFile(tempDir), "Temp directory should not be a file")
+
+    # Nonexistent path should not be a file
+    assert(!Path.isFile("/nonexistent_path_12345_xyzabc"), "Nonexistent should not be a file")
+
+    print("PASS\n")
+
+fn test_is_directory(): void =>
+    print("test_is_directory: ")
+
+    # Temp directory should be a directory
+    var tempDir: str = getTempDir()
+    assert(Path.isDirectory(tempDir), "Temp directory should be a directory")
+
+    # A nonexistent path should not be a directory
+    assert(!Path.isDirectory("/nonexistent_path_12345_xyzabc"), "Nonexistent should not be directory")
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Path Tests ===\n\n")
+
+    test_directory()
+    test_filename()
+    test_extension()
+    test_join()
+    test_absolute()
+    test_exists()
+    test_is_file()
+    test_is_directory()
+
+    print("\nAll Path tests passed!\n")

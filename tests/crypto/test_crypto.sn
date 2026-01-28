@@ -1,0 +1,270 @@
+// Test SDK crypto module
+
+import "../../../sdk/crypto/crypto"
+
+fn test_sha256_str(): void =>
+    print("test_sha256_str: ")
+
+    var hash: byte[] = Crypto.sha256Str("hello")
+    assert(hash.length == 32, "SHA-256 should produce 32 bytes")
+
+    // Known SHA-256("hello") first bytes: 2cf24dba...
+    assert(hash[0] == 44, "SHA-256 first byte should be 0x2c (44)")
+    assert(hash[1] == 242, "SHA-256 second byte should be 0xf2 (242)")
+    assert(hash[2] == 77, "SHA-256 third byte should be 0x4d (77)")
+
+    print("PASS\n")
+
+fn test_sha384_str(): void =>
+    print("test_sha384_str: ")
+
+    var hash: byte[] = Crypto.sha384Str("hello")
+    assert(hash.length == 48, "SHA-384 should produce 48 bytes")
+
+    print("PASS\n")
+
+fn test_sha512_str(): void =>
+    print("test_sha512_str: ")
+
+    var hash: byte[] = Crypto.sha512Str("hello")
+    assert(hash.length == 64, "SHA-512 should produce 64 bytes")
+
+    print("PASS\n")
+
+fn test_sha1_str(): void =>
+    print("test_sha1_str: ")
+
+    var hash: byte[] = Crypto.sha1Str("hello")
+    assert(hash.length == 20, "SHA-1 should produce 20 bytes")
+
+    // Known SHA-1("hello") first byte: 0xaa (170)
+    assert(hash[0] == 170, "SHA-1 first byte should be 0xaa (170)")
+
+    print("PASS\n")
+
+fn test_md5_str(): void =>
+    print("test_md5_str: ")
+
+    var hash: byte[] = Crypto.md5Str("hello")
+    assert(hash.length == 16, "MD5 should produce 16 bytes")
+
+    // Known MD5("hello") first byte: 0x5d (93)
+    assert(hash[0] == 93, "MD5 first byte should be 0x5d (93)")
+
+    print("PASS\n")
+
+fn test_sha256_bytes(): void =>
+    print("test_sha256_bytes: ")
+
+    // "hello" as bytes
+    var data: byte[] = {104, 101, 108, 108, 111}
+    var hash: byte[] = Crypto.sha256(data)
+    assert(hash.length == 32, "SHA-256 of bytes should produce 32 bytes")
+
+    // Should match sha256Str("hello")
+    var strHash: byte[] = Crypto.sha256Str("hello")
+    var i: int = 0
+    while i < 32 =>
+        assert(hash[i] == strHash[i], "byte[] and str hash should match")
+        i = i + 1
+
+    print("PASS\n")
+
+fn test_hmac_sha256(): void =>
+    print("test_hmac_sha256: ")
+
+    var key: byte[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+    var data: byte[] = {104, 101, 108, 108, 111}
+
+    var mac: byte[] = Crypto.hmacSha256(key, data)
+    assert(mac.length == 32, "HMAC-SHA256 should produce 32 bytes")
+
+    print("PASS\n")
+
+fn test_hmac_sha512(): void =>
+    print("test_hmac_sha512: ")
+
+    var key: byte[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+    var data: byte[] = {104, 101, 108, 108, 111}
+
+    var mac: byte[] = Crypto.hmacSha512(key, data)
+    assert(mac.length == 64, "HMAC-SHA512 should produce 64 bytes")
+
+    print("PASS\n")
+
+fn test_encrypt_decrypt(): void =>
+    print("test_encrypt_decrypt: ")
+
+    // 32-byte key for AES-256
+    var key: byte[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+    var plaintext: byte[] = {72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33}
+
+    var encrypted: byte[] = Crypto.encrypt(key, plaintext)
+    // Encrypted: IV(12) + ciphertext(13) + tag(16) = 41 bytes
+    assert(encrypted.length == 41, "Encrypted output should be IV+ciphertext+tag")
+
+    var decrypted: byte[] = Crypto.decrypt(key, encrypted)
+    assert(decrypted.length == 13, "Decrypted should match plaintext length")
+
+    var i: int = 0
+    while i < 13 =>
+        assert(decrypted[i] == plaintext[i], "Decrypted content should match plaintext")
+        i = i + 1
+
+    print("PASS\n")
+
+fn test_encrypt_decrypt_with_iv(): void =>
+    print("test_encrypt_decrypt_with_iv: ")
+
+    var key: byte[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+    var iv: byte[] = {10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120}
+    var plaintext: byte[] = {1, 2, 3, 4, 5}
+
+    var encrypted: byte[] = Crypto.encryptWithIv(key, iv, plaintext)
+    // Output: ciphertext(5) + tag(16) = 21 bytes
+    assert(encrypted.length == 21, "Encrypted with IV should be ciphertext+tag")
+
+    var decrypted: byte[] = Crypto.decryptWithIv(key, iv, encrypted)
+    assert(decrypted.length == 5, "Decrypted should match plaintext length")
+
+    var i: int = 0
+    while i < 5 =>
+        assert(decrypted[i] == plaintext[i], "Decrypted content should match")
+        i = i + 1
+
+    print("PASS\n")
+
+fn test_encrypt_empty(): void =>
+    print("test_encrypt_empty: ")
+
+    var key: byte[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+    var plaintext: byte[] = {}
+
+    var encrypted: byte[] = Crypto.encrypt(key, plaintext)
+    // IV(12) + tag(16) = 28 bytes
+    assert(encrypted.length == 28, "Encrypted empty should be IV+tag")
+
+    var decrypted: byte[] = Crypto.decrypt(key, encrypted)
+    assert(decrypted.length == 0, "Decrypted empty should be 0 bytes")
+
+    print("PASS\n")
+
+fn test_pbkdf2(): void =>
+    print("test_pbkdf2: ")
+
+    var salt: byte[] = {1, 2, 3, 4, 5, 6, 7, 8}
+    var derived: byte[] = Crypto.pbkdf2("password", salt, 1000, 32)
+    assert(derived.length == 32, "PBKDF2 should produce requested key length")
+
+    // Derive again with same params - should get same result
+    var derived2: byte[] = Crypto.pbkdf2("password", salt, 1000, 32)
+    var i: int = 0
+    while i < 32 =>
+        assert(derived[i] == derived2[i], "PBKDF2 should be deterministic")
+        i = i + 1
+
+    // Different password should give different result
+    var derived3: byte[] = Crypto.pbkdf2("other", salt, 1000, 32)
+    var differs: bool = false
+    i = 0
+    while i < 32 =>
+        if derived[i] != derived3[i] =>
+            differs = true
+        i = i + 1
+    assert(differs, "Different passwords should produce different keys")
+
+    print("PASS\n")
+
+fn test_pbkdf2_sha512(): void =>
+    print("test_pbkdf2_sha512: ")
+
+    var salt: byte[] = {10, 20, 30, 40}
+    var derived: byte[] = Crypto.pbkdf2Sha512("secret", salt, 2000, 64)
+    assert(derived.length == 64, "PBKDF2-SHA512 should produce requested key length")
+
+    print("PASS\n")
+
+fn test_random_bytes(): void =>
+    print("test_random_bytes: ")
+
+    var rand1: byte[] = Crypto.randomBytes(32)
+    assert(rand1.length == 32, "randomBytes should produce requested count")
+
+    var rand2: byte[] = Crypto.randomBytes(32)
+    assert(rand2.length == 32, "Second randomBytes should also be 32")
+
+    // Two random byte arrays should almost certainly differ
+    var differs: bool = false
+    var i: int = 0
+    while i < 32 =>
+        if rand1[i] != rand2[i] =>
+            differs = true
+        i = i + 1
+    assert(differs, "Two random byte arrays should differ")
+
+    print("PASS\n")
+
+fn test_random_bytes_sizes(): void =>
+    print("test_random_bytes_sizes: ")
+
+    var r1: byte[] = Crypto.randomBytes(1)
+    assert(r1.length == 1, "randomBytes(1) should produce 1 byte")
+
+    var r16: byte[] = Crypto.randomBytes(16)
+    assert(r16.length == 16, "randomBytes(16) should produce 16 bytes")
+
+    var r64: byte[] = Crypto.randomBytes(64)
+    assert(r64.length == 64, "randomBytes(64) should produce 64 bytes")
+
+    print("PASS\n")
+
+fn test_constant_time_equal(): void =>
+    print("test_constant_time_equal: ")
+
+    var a: byte[] = {1, 2, 3, 4, 5}
+    var b: byte[] = {1, 2, 3, 4, 5}
+    var c: byte[] = {1, 2, 3, 4, 6}
+    var d: byte[] = {1, 2, 3}
+
+    assert(Crypto.constantTimeEqual(a, b), "Equal arrays should compare equal")
+    assert(!Crypto.constantTimeEqual(a, c), "Different arrays should not compare equal")
+    assert(!Crypto.constantTimeEqual(a, d), "Different length arrays should not compare equal")
+
+    print("PASS\n")
+
+fn test_decrypt_wrong_key(): void =>
+    print("test_decrypt_wrong_key: ")
+
+    var key1: byte[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+    var key2: byte[] = {32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1}
+    var plaintext: byte[] = {72, 101, 108, 108, 111}
+
+    var encrypted: byte[] = Crypto.encrypt(key1, plaintext)
+    var decrypted: byte[] = Crypto.decrypt(key2, encrypted)
+    // Should fail authentication and return empty
+    assert(decrypted.length == 0, "Decrypt with wrong key should fail")
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Crypto Tests ===\n\n")
+
+    test_sha256_str()
+    test_sha384_str()
+    test_sha512_str()
+    test_sha1_str()
+    test_md5_str()
+    test_sha256_bytes()
+    test_hmac_sha256()
+    test_hmac_sha512()
+    test_encrypt_decrypt()
+    test_encrypt_decrypt_with_iv()
+    test_encrypt_empty()
+    test_pbkdf2()
+    test_pbkdf2_sha512()
+    test_random_bytes()
+    test_random_bytes_sizes()
+    test_constant_time_equal()
+    test_decrypt_wrong_key()
+
+    print("\nAll crypto tests passed!\n")

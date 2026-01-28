@@ -1,0 +1,324 @@
+// Test SDK JSON module
+
+import "../../../sdk/encoding/json"
+import "../../../sdk/os/env"
+
+fn test_create_object(): void =>
+    print("test_create_object: ")
+
+    var obj: Json = Json.object()
+    assert(obj.isObject(), "Should be an object")
+    assert(obj.length() == 0, "Should be empty")
+    assert(obj.isEmpty(), "isEmpty should return true")
+
+    obj.set("name", Json.ofString("Alice"))
+    assert(obj.length() == 1, "Should have 1 key")
+    assert(obj.has("name"), "Should have 'name' key")
+
+    print("PASS\n")
+
+fn test_create_array(): void =>
+    print("test_create_array: ")
+
+    var arr: Json = Json.array()
+    assert(arr.isArray(), "Should be an array")
+    assert(arr.length() == 0, "Should be empty")
+
+    arr.append(Json.ofInt(1))
+    arr.append(Json.ofInt(2))
+    arr.append(Json.ofInt(3))
+    assert(arr.length() == 3, "Should have 3 elements")
+
+    print("PASS\n")
+
+fn test_primitive_values(): void =>
+    print("test_primitive_values: ")
+
+    var strVal: Json = Json.ofString("hello")
+    assert(strVal.isString(), "Should be string")
+    assert(strVal.asString() == "hello", "String value should match")
+
+    var intVal: Json = Json.ofInt(42)
+    assert(intVal.isNumber(), "Should be number")
+    assert(intVal.isInt(), "Should be int")
+    assert(intVal.asInt() == 42, "Int value should match")
+
+    var floatVal: Json = Json.ofFloat(3.14)
+    assert(floatVal.isNumber(), "Should be number")
+    assert(floatVal.isFloat(), "Should be float")
+
+    var boolVal: Json = Json.ofBool(true)
+    assert(boolVal.isBool(), "Should be bool")
+    assert(boolVal.asBool() == true, "Bool value should be true")
+
+    var nullVal: Json = Json.ofNull()
+    assert(nullVal.isNull(), "Should be null")
+
+    print("PASS\n")
+
+fn test_object_access(): void =>
+    print("test_object_access: ")
+
+    var obj: Json = Json.object()
+    obj.set("name", Json.ofString("Bob"))
+    obj.set("age", Json.ofInt(30))
+    obj.set("active", Json.ofBool(true))
+
+    assert(obj.get("name").asString() == "Bob", "Name should be Bob")
+    assert(obj.get("age").asInt() == 30, "Age should be 30")
+    assert(obj.get("active").asBool() == true, "Active should be true")
+
+    // Test has()
+    assert(obj.has("name"), "Should have name")
+    assert(obj.has("missing") == false, "Should not have missing")
+
+    print("PASS\n")
+
+fn test_array_access(): void =>
+    print("test_array_access: ")
+
+    var arr: Json = Json.array()
+    arr.append(Json.ofInt(10))
+    arr.append(Json.ofInt(20))
+    arr.append(Json.ofInt(30))
+
+    assert(arr.getAt(0).asInt() == 10, "First element should be 10")
+    assert(arr.getAt(1).asInt() == 20, "Second element should be 20")
+    assert(arr.getAt(2).asInt() == 30, "Third element should be 30")
+
+    assert(arr.first().asInt() == 10, "first() should return 10")
+    assert(arr.last().asInt() == 30, "last() should return 30")
+
+    print("PASS\n")
+
+fn test_object_mutation(): void =>
+    print("test_object_mutation: ")
+
+    var obj: Json = Json.object()
+    obj.set("key1", Json.ofString("value1"))
+    assert(obj.length() == 1, "Should have 1 key")
+
+    obj.set("key2", Json.ofString("value2"))
+    assert(obj.length() == 2, "Should have 2 keys")
+
+    // Overwrite existing key
+    obj.set("key1", Json.ofString("updated"))
+    assert(obj.length() == 2, "Should still have 2 keys")
+    assert(obj.get("key1").asString() == "updated", "Value should be updated")
+
+    // Remove key
+    obj.remove("key1")
+    assert(obj.length() == 1, "Should have 1 key after removal")
+    assert(obj.has("key1") == false, "key1 should be removed")
+
+    print("PASS\n")
+
+fn test_array_mutation(): void =>
+    print("test_array_mutation: ")
+
+    var arr: Json = Json.array()
+
+    // Append
+    arr.append(Json.ofInt(2))
+    assert(arr.length() == 1, "Should have 1 element")
+
+    // Prepend
+    arr.prepend(Json.ofInt(1))
+    assert(arr.length() == 2, "Should have 2 elements")
+    assert(arr.first().asInt() == 1, "First should be 1")
+
+    // Append more
+    arr.append(Json.ofInt(4))
+    assert(arr.length() == 3, "Should have 3 elements")
+
+    // Insert at index
+    arr.insert(2, Json.ofInt(3))
+    assert(arr.length() == 4, "Should have 4 elements")
+    assert(arr.getAt(2).asInt() == 3, "Element at index 2 should be 3")
+
+    // Remove at index
+    arr.removeAt(0)
+    assert(arr.length() == 3, "Should have 3 elements after removal")
+    assert(arr.first().asInt() == 2, "First should now be 2")
+
+    print("PASS\n")
+
+fn test_nested_structures(): void =>
+    print("test_nested_structures: ")
+
+    var root: Json = Json.object()
+
+    var person: Json = Json.object()
+    person.set("name", Json.ofString("Charlie"))
+    person.set("age", Json.ofInt(25))
+
+    var hobbies: Json = Json.array()
+    hobbies.append(Json.ofString("reading"))
+    hobbies.append(Json.ofString("coding"))
+    person.set("hobbies", hobbies)
+
+    root.set("person", person)
+
+    // Access nested values
+    assert(root.get("person").isObject(), "person should be object")
+    assert(root.get("person").get("name").asString() == "Charlie", "Name should be Charlie")
+    assert(root.get("person").get("hobbies").isArray(), "hobbies should be array")
+    assert(root.get("person").get("hobbies").length() == 2, "Should have 2 hobbies")
+
+    print("PASS\n")
+
+fn test_keys(): void =>
+    print("test_keys: ")
+
+    var obj: Json = Json.object()
+    obj.set("a", Json.ofInt(1))
+    obj.set("b", Json.ofInt(2))
+    obj.set("c", Json.ofInt(3))
+
+    var keys: str[] = obj.keys()
+    assert(keys.length == 3, "Should have 3 keys")
+
+    // Keys should contain a, b, c (order may vary)
+    var foundA: bool = false
+    var foundB: bool = false
+    var foundC: bool = false
+    var i: int = 0
+    while i < keys.length =>
+        if keys[i] == "a" =>
+            foundA = true
+        if keys[i] == "b" =>
+            foundB = true
+        if keys[i] == "c" =>
+            foundC = true
+        i += 1
+
+    assert(foundA, "Should find key 'a'")
+    assert(foundB, "Should find key 'b'")
+    assert(foundC, "Should find key 'c'")
+
+    print("PASS\n")
+
+fn test_type_names(): void =>
+    print("test_type_names: ")
+
+    var objVal: Json = Json.object()
+    var arrVal: Json = Json.array()
+    var strVal: Json = Json.ofString("test")
+    var numVal: Json = Json.ofInt(42)
+    var boolVal: Json = Json.ofBool(true)
+    var nullVal: Json = Json.ofNull()
+
+    assert(objVal.typeName() == "object", "Object type name")
+    assert(arrVal.typeName() == "array", "Array type name")
+    assert(strVal.typeName() == "string", "String type name")
+    assert(numVal.typeName() == "number", "Number type name")
+    assert(boolVal.typeName() == "bool", "Bool type name")
+    assert(nullVal.typeName() == "null", "Null type name")
+
+    print("PASS\n")
+
+fn test_serialization(): void =>
+    print("test_serialization: ")
+
+    var obj: Json = Json.object()
+    obj.set("name", Json.ofString("Test"))
+    obj.set("value", Json.ofInt(123))
+
+    var compact: str = obj.toString()
+    // Should contain the key-value pairs (order may vary)
+    assert(compact.length > 0, "Should produce output")
+
+    var pretty: str = obj.toPrettyString()
+    assert(pretty.length > compact.length, "Pretty should be longer than compact")
+
+    print("PASS\n")
+
+fn test_parse_array(): void =>
+    print("test_parse_array: ")
+
+    var arr: Json = Json.parse("[1, 2, 3, 4, 5]")
+    assert(arr.isArray(), "Should parse as array")
+    assert(arr.length() == 5, "Should have 5 elements")
+    assert(arr.getAt(0).asInt() == 1, "First element should be 1")
+    assert(arr.getAt(4).asInt() == 5, "Last element should be 5")
+
+    print("PASS\n")
+
+fn test_parse_nested(): void =>
+    print("test_parse_nested: ")
+
+    var nested: Json = Json.parse("[[1, 2], [3, 4]]")
+    assert(nested.isArray(), "Should be array")
+    assert(nested.length() == 2, "Should have 2 sub-arrays")
+    assert(nested.getAt(0).isArray(), "First element should be array")
+    assert(nested.getAt(0).getAt(0).asInt() == 1, "Nested access should work")
+
+    print("PASS\n")
+
+fn test_copy(): void =>
+    print("test_copy: ")
+
+    var original: Json = Json.object()
+    original.set("key", Json.ofString("value"))
+
+    var copied: Json = original.copy()
+
+    // Modify original
+    original.set("key", Json.ofString("modified"))
+
+    // Copy should be unchanged
+    assert(copied.get("key").asString() == "value", "Copy should be independent")
+    assert(original.get("key").asString() == "modified", "Original should be modified")
+
+    print("PASS\n")
+
+fn test_file_io(): void =>
+    print("test_file_io: ")
+
+    // Create JSON
+    var data: Json = Json.object()
+    data.set("title", Json.ofString("Test"))
+    data.set("count", Json.ofInt(42))
+
+    var items: Json = Json.array()
+    items.append(Json.ofString("one"))
+    items.append(Json.ofString("two"))
+    data.set("items", items)
+
+    // Use platform temp directory (TEMP on Windows, /tmp on Unix)
+    var tmpDir: str = Environment.getOr("TEMP", "/tmp")
+    var filePath: str = $"{tmpDir}/test_json_sdk.json"
+
+    // Write to file
+    data.writeFilePretty(filePath)
+
+    // Read back
+    var loaded: Json = Json.parseFile(filePath)
+    assert(loaded.isObject(), "Loaded should be object")
+    assert(loaded.get("title").asString() == "Test", "Title should match")
+    assert(loaded.get("count").asInt() == 42, "Count should match")
+    assert(loaded.get("items").length() == 2, "Items should have 2 elements")
+
+    print("PASS\n")
+
+fn main(): int =>
+    print("=== SDK JSON Tests ===\n\n")
+
+    test_create_object()
+    test_create_array()
+    test_primitive_values()
+    test_object_access()
+    test_array_access()
+    test_object_mutation()
+    test_array_mutation()
+    test_nested_structures()
+    test_keys()
+    test_type_names()
+    test_serialization()
+    test_parse_array()
+    test_parse_nested()
+    test_copy()
+    test_file_io()
+
+    print("\nAll JSON tests passed!\n")
+    return 0

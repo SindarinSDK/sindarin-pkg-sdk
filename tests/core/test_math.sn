@@ -1,0 +1,153 @@
+# Test sdk/math module
+
+import "../../../sdk/core/math" as math
+
+fn main(): int =>
+    print("=== SDK Math Module Test ===\n\n")
+
+    # Test constants
+    print("--- Constants ---\n")
+    print($"pi = {math.pi()}\n")
+    print($"e = {math.e()}\n")
+    print($"tau = {math.tau()}\n")
+    print($"phi = {math.phi()}\n")
+    print($"sqrt2 = {math.sqrt2()}\n")
+
+    # Test basic trig
+    print("\n--- Trigonometry ---\n")
+    var angle: double = math.degToRad(45.0)
+    print($"sin(45deg) = {math.sin(angle)}\n")
+    print($"cos(45deg) = {math.cos(angle)}\n")
+    print($"tan(45deg) = {math.tan(angle)}\n")
+
+    # Test sqrt and pow
+    print("\n--- Power Functions ---\n")
+    print($"sqrt(2) = {math.sqrt(2.0)}\n")
+    print($"cbrt(8) = {math.cbrt(8.0)}\n")
+    print($"pow(2, 10) = {math.pow(2.0, 10.0)}\n")
+    print($"hypot(3, 4) = {math.hypot(3.0, 4.0)}\n")
+
+    # Test log and exp
+    print("\n--- Exponential/Logarithmic ---\n")
+    print($"exp(1) = {math.exp(1.0)}\n")
+    print($"log(e) = {math.log(math.e())}\n")
+    print($"log10(100) = {math.log10(100.0)}\n")
+    print($"log2(8) = {math.log2(8.0)}\n")
+
+    # Test rounding
+    print("\n--- Rounding ---\n")
+    print($"floor(2.7) = {math.floor(2.7)}\n")
+    print($"ceil(2.3) = {math.ceil(2.3)}\n")
+    print($"round(2.5) = {math.round(2.5)}\n")
+    print($"trunc(-2.7) = {math.trunc(-2.7)}\n")
+
+    # Test integer helpers
+    print("\n--- Integer Helpers ---\n")
+    print($"absInt(-42) = {math.absInt(-42)}\n")
+    print($"minInt(10, 20) = {math.minInt(10, 20)}\n")
+    print($"maxInt(10, 20) = {math.maxInt(10, 20)}\n")
+    print($"clampInt(15, 0, 10) = {math.clampInt(15, 0, 10)}\n")
+    print($"signInt(-5) = {math.signInt(-5)}\n")
+
+    # Test double helpers
+    print("\n--- Double Helpers ---\n")
+    print($"absDouble(-3.14) = {math.absDouble(-3.14)}\n")
+    print($"minDouble(1.5, 2.5) = {math.minDouble(1.5, 2.5)}\n")
+    print($"maxDouble(1.5, 2.5) = {math.maxDouble(1.5, 2.5)}\n")
+    print($"clampDouble(1.5, 0.0, 1.0) = {math.clampDouble(1.5, 0.0, 1.0)}\n")
+
+    # Test safe wrappers
+    print("\n--- Safe Wrappers ---\n")
+    print($"safeSqrt(-1) = {math.safeSqrt(-1.0)}\n")
+    print($"safeSqrt(4) = {math.safeSqrt(4.0)}\n")
+    print($"safeAsin(2.0) = {math.safeAsin(2.0)}\n")
+
+    # Test utility functions
+    print("\n--- Utilities ---\n")
+    print($"lerp(0, 100, 0.5) = {math.lerp(0.0, 100.0, 0.5)}\n")
+    print($"distance2D(0,0,3,4) = {math.distance2D(0.0, 0.0, 3.0, 4.0)}\n")
+    print($"smoothstep(0, 1, 0.5) = {math.smoothstep(0.0, 1.0, 0.5)}\n")
+
+    # Test hyperbolic
+    print("\n--- Hyperbolic ---\n")
+    print($"sinh(1) = {math.sinh(1.0)}\n")
+    print($"cosh(1) = {math.cosh(1.0)}\n")
+    print($"tanh(1) = {math.tanh(1.0)}\n")
+
+    print("=== SDK Math Float Test ===\n\n")
+
+    # Test float constants
+    print("--- Float Constants ---\n")
+    print($"piF = {math.piF()}\n")
+    print($"eF = {math.eF()}\n")
+    print($"tauF = {math.tauF()}\n")
+    print($"phiF = {math.phiF()}\n")
+    print($"sqrt2F = {math.sqrt2F()}\n")
+
+    # Test basic trig (float)
+    print("\n--- Trigonometry (float) ---\n")
+    var angleF: float = math.degToRadF(45.0)
+    print($"sinF(45deg) = {math.sinF(angleF)}\n")
+    print($"cosF(45deg) = {math.cosF(angleF)}\n")
+    print($"tanF(45deg) = {math.tanF(angleF)}\n")
+
+    # Test sqrt and pow (float)
+    print("\n--- Power Functions (float) ---\n")
+    print($"sqrtF(2) = {math.sqrtF(2.0)}\n")
+    print($"cbrtF(8) = {math.cbrtF(8.0)}\n")
+    print($"powF(2, 10) = {math.powF(2.0, 10.0)}\n")
+    print($"hypotF(3, 4) = {math.hypotF(3.0, 4.0)}\n")
+
+    # Test log and exp (float)
+    print("\n--- Exponential/Logarithmic (float) ---\n")
+    print($"expF(1) = {math.expF(1.0)}\n")
+    print($"logF(eF) = {math.logF(math.eF())}\n")
+    print($"log10F(100) = {math.log10F(100.0)}\n")
+    print($"log2F(8) = {math.log2F(8.0)}\n")
+
+    # Test rounding (float)
+    print("\n--- Rounding (float) ---\n")
+    print($"floorF(2.7) = {math.floorF(2.7)}\n")
+    print($"ceilF(2.3) = {math.ceilF(2.3)}\n")
+    print($"roundF(2.5) = {math.roundF(2.5)}\n")
+    print($"truncF(-2.7) = {math.truncF(-2.7)}\n")
+
+    # Test float helpers
+    print("\n--- Float Helpers ---\n")
+    print($"absF(-3.14) = {math.absF(-3.14)}\n")
+    print($"minF(1.5, 2.5) = {math.minF(1.5, 2.5)}\n")
+    print($"maxF(1.5, 2.5) = {math.maxF(1.5, 2.5)}\n")
+    print($"clampF(1.5, 0.0, 1.0) = {math.clampF(1.5, 0.0, 1.0)}\n")
+    print($"signF(-5.0) = {math.signF(-5.0)}\n")
+
+    # Test safe wrappers (float)
+    print("\n--- Safe Wrappers (float) ---\n")
+    print($"safeSqrtF(-1) = {math.safeSqrtF(-1.0)}\n")
+    print($"safeSqrtF(4) = {math.safeSqrtF(4.0)}\n")
+    print($"safeAsinF(2.0) = {math.safeAsinF(2.0)}\n")
+    print($"safeLogF(-1) = {math.safeLogF(-1.0)}\n")
+
+    # Test utility functions (float)
+    print("\n--- Utilities (float) ---\n")
+    print($"lerpF(0, 100, 0.5) = {math.lerpF(0.0, 100.0, 0.5)}\n")
+    print($"distance2DF(0,0,3,4) = {math.distance2DF(0.0, 0.0, 3.0, 4.0)}\n")
+    print($"smoothstepF(0, 1, 0.5) = {math.smoothstepF(0.0, 1.0, 0.5)}\n")
+
+    # Test hyperbolic (float)
+    print("\n--- Hyperbolic (float) ---\n")
+    print($"sinhF(1) = {math.sinhF(1.0)}\n")
+    print($"coshF(1) = {math.coshF(1.0)}\n")
+    print($"tanhF(1) = {math.tanhF(1.0)}\n")
+
+    # Verify float vs double precision difference
+    print("\n--- Float vs Double Precision ---\n")
+    var dPi: double = math.pi()
+    var fPi: float = math.piF()
+    print($"double pi = {dPi}\n")
+    print($"float pi  = {fPi}\n")
+
+    print("\n=== All float tests completed! ===\n")
+
+    print("\n=== All tests completed! ===\n")
+
+    return 0

@@ -1,0 +1,9 @@
+=== SDK Directory Tests ===
+
+test_create_and_delete: PASS
+test_create_nested: PASS
+test_list: PASS
+test_list_recursive: PASS
+test_delete_recursive: PASS
+
+All Directory tests passed!

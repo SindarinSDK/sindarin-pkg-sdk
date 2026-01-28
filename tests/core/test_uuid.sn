@@ -1,0 +1,246 @@
+# ==============================================================================
+# test_uuid.sn - Tests for SDK UUID Type
+# ==============================================================================
+# Tests the UUID struct and its methods.
+# ==============================================================================
+
+import "../../../sdk/core/uuid"
+
+fn test_create(): void =>
+    print("test_create: ")
+    var id: UUID = UUID.create()
+    var uuidStr: str = id.toString()
+
+    # Verify length is 36 characters (8-4-4-4-12 with dashes)
+    assert(uuidStr.length == 36, "toString() should return 36-char string")
+
+    print("PASS\n")
+
+fn test_new(): void =>
+    print("test_new: ")
+    var id: UUID = UUID.new()
+    var uuidStr: str = id.toString()
+
+    assert(uuidStr.length == 36, "new() should create valid UUID")
+
+    print("PASS\n")
+
+fn test_v4(): void =>
+    print("test_v4: ")
+    var id: UUID = UUID.v4()
+
+    assert(id.version() == 4, "v4 UUID should report version 4")
+    assert(id.variant() == 1, "v4 UUID should have variant 1 (RFC 9562)")
+
+    print("PASS\n")
+
+fn test_v7(): void =>
+    print("test_v7: ")
+    var id: UUID = UUID.v7()
+
+    assert(id.version() == 7, "v7 UUID should report version 7")
+    assert(id.variant() == 1, "v7 UUID should have variant 1 (RFC 9562)")
+
+    # v7 timestamp should be valid (after year 2020)
+    var ts: long = id.timestamp()
+    assert(ts > 1577836800000l, "v7 timestamp should be valid")
+
+    print("PASS\n")
+
+fn test_v5(): void =>
+    print("test_v5: ")
+
+    # Get namespace UUID
+    var nsUrl: UUID = UUID.namespaceUrl()
+    var nsUrlStr: str = nsUrl.toString()
+    assert(nsUrlStr == "6ba7b811-9dad-11d1-80b4-00c04fd430c8", "Namespace URL should be correct")
+
+    # Generate v5 UUID from namespace and name
+    var v5id1: UUID = UUID.v5(nsUrl, "https://example.com/test")
+    var v5id2: UUID = UUID.v5(nsUrl, "https://example.com/test")
+
+    # Same input should produce same UUID
+    assert(v5id1.equals(v5id2), "v5 with same input should produce same UUID")
+
+    # Different input should produce different UUID
+    var v5id3: UUID = UUID.v5(nsUrl, "https://example.com/other")
+    assert(!v5id1.equals(v5id3), "v5 with different input should produce different UUID")
+
+    # v5 should report version 5
+    assert(v5id1.version() == 5, "v5 UUID should report version 5")
+
+    print("PASS\n")
+
+fn test_from_string(): void =>
+    print("test_from_string: ")
+
+    var parsed: UUID = UUID.fromString("01234567-89ab-7def-8123-456789abcdef")
+    var parsedStr: str = parsed.toString()
+    assert(parsedStr == "01234567-89ab-7def-8123-456789abcdef", "fromString() should round-trip correctly")
+
+    print("PASS\n")
+
+fn test_uniqueness(): void =>
+    print("test_uniqueness: ")
+
+    var id1: UUID = UUID.create()
+    var id2: UUID = UUID.create()
+
+    assert(!id1.equals(id2), "Different UUIDs should not be equal")
+
+    # Same UUID should equal itself
+    assert(id1.equals(id1), "Same UUID should equal itself")
+
+    print("PASS\n")
+
+fn test_to_hex(): void =>
+    print("test_to_hex: ")
+
+    var id: UUID = UUID.create()
+    var hexStr: str = id.toHex()
+
+    assert(hexStr.length == 32, "toHex() should return 32-char string")
+
+    print("PASS\n")
+
+fn test_to_base64(): void =>
+    print("test_to_base64: ")
+
+    var id: UUID = UUID.create()
+    var b64Str: str = id.toBase64()
+
+    assert(b64Str.length == 22, "toBase64() should return 22-char string")
+
+    print("PASS\n")
+
+fn test_nil_uuid(): void =>
+    print("test_nil_uuid: ")
+
+    var zeroUuid: UUID = UUID.zero()
+    var zeroStr: str = zeroUuid.toString()
+    assert(zeroStr == "00000000-0000-0000-0000-000000000000", "zero() should be all zeros")
+
+    # Test isNil()
+    assert(zeroUuid.isNil(), "zero UUID should report isNil() == true")
+
+    # Test regular UUID is NOT nil
+    var regular: UUID = UUID.create()
+    assert(!regular.isNil(), "regular UUID should report isNil() == false")
+
+    print("PASS\n")
+
+fn test_max_uuid(): void =>
+    print("test_max_uuid: ")
+
+    var maxUuid: UUID = UUID.max()
+    var maxStr: str = maxUuid.toString()
+    assert(maxStr == "ffffffff-ffff-ffff-ffff-ffffffffffff", "max() should be all ones")
+
+    print("PASS\n")
+
+fn test_namespaces(): void =>
+    print("test_namespaces: ")
+
+    var nsDns: UUID = UUID.namespaceDns()
+    assert(nsDns.toString() == "6ba7b810-9dad-11d1-80b4-00c04fd430c8", "DNS namespace should be correct")
+
+    var nsUrl: UUID = UUID.namespaceUrl()
+    assert(nsUrl.toString() == "6ba7b811-9dad-11d1-80b4-00c04fd430c8", "URL namespace should be correct")
+
+    var nsOid: UUID = UUID.namespaceOid()
+    assert(nsOid.toString() == "6ba7b812-9dad-11d1-80b4-00c04fd430c8", "OID namespace should be correct")
+
+    var nsX500: UUID = UUID.namespaceX500()
+    assert(nsX500.toString() == "6ba7b814-9dad-11d1-80b4-00c04fd430c8", "X500 namespace should be correct")
+
+    print("PASS\n")
+
+fn test_comparison(): void =>
+    print("test_comparison: ")
+
+    var zeroUuid: UUID = UUID.zero()
+    var maxUuid: UUID = UUID.max()
+
+    # Test compare()
+    assert(zeroUuid.compare(maxUuid) < 0, "zero should compare less than max")
+    assert(maxUuid.compare(zeroUuid) > 0, "max should compare greater than zero")
+    assert(zeroUuid.compare(zeroUuid) == 0, "same UUID should compare equal")
+
+    # Test isLessThan() and isGreaterThan()
+    assert(zeroUuid.isLessThan(maxUuid), "zero should be less than max")
+    assert(maxUuid.isGreaterThan(zeroUuid), "max should be greater than zero")
+    assert(!zeroUuid.isGreaterThan(maxUuid), "zero should not be greater than max")
+    assert(!maxUuid.isLessThan(zeroUuid), "max should not be less than zero")
+
+    print("PASS\n")
+
+fn test_from_hex(): void =>
+    print("test_from_hex: ")
+
+    # Create a known UUID and convert to hex
+    var original: UUID = UUID.fromString("01234567-89ab-cdef-0123-456789abcdef")
+    var hexStr: str = original.toHex()
+
+    # Parse back from hex
+    var parsed: UUID = UUID.fromHex(hexStr)
+    assert(original.equals(parsed), "fromHex() should round-trip correctly")
+
+    print("PASS\n")
+
+fn test_from_base64(): void =>
+    print("test_from_base64: ")
+
+    # Create a UUID and convert to base64
+    var original: UUID = UUID.create()
+    var b64Str: str = original.toBase64()
+
+    # Parse back from base64
+    var parsed: UUID = UUID.fromBase64(b64Str)
+    assert(original.equals(parsed), "fromBase64() should round-trip correctly")
+
+    print("PASS\n")
+
+fn test_multiple_uuids(): void =>
+    print("test_multiple_uuids: ")
+
+    # Generate multiple IDs
+    var record1: UUID = UUID.create()
+    var record2: UUID = UUID.create()
+    var record3: UUID = UUID.create()
+
+    # All should be unique
+    var allUnique: bool = true
+    if record1.equals(record2) =>
+        allUnique = false
+
+    if record2.equals(record3) =>
+        allUnique = false
+
+    if record1.equals(record3) =>
+        allUnique = false
+
+    assert(allUnique, "Multiple generated UUIDs should all be unique")
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK UUID Tests ===\n\n")
+
+    test_create()
+    test_new()
+    test_v4()
+    test_v7()
+    test_v5()
+    test_from_string()
+    test_uniqueness()
+    test_to_hex()
+    test_to_base64()
+    test_nil_uuid()
+    test_max_uuid()
+    test_namespaces()
+    test_comparison()
+    test_from_hex()
+    test_from_base64()
+    test_multiple_uuids()
+
+    print("\nAll UUID tests passed!\n")

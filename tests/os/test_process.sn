@@ -1,0 +1,172 @@
+# ==============================================================================
+# test_process.sn - Tests for SDK Process Type
+# ==============================================================================
+# Tests the Process struct and its methods.
+# Cross-platform: works on Windows, Linux, and macOS
+# ==============================================================================
+
+import "../../../sdk/os/process"
+import "../../../sdk/os/env"
+
+# Check if running on Windows by looking for COMSPEC environment variable
+fn isWindows(): bool =>
+    var comspec: str = Environment.getOr("COMSPEC", "")
+    return comspec.length > 0
+
+fn test_run_simple(): void =>
+    print("test_run_simple: ")
+
+    # Run a simple command that should succeed
+    # On Windows, use cmd /c echo; on Unix, echo is a standalone command
+    var p: Process
+    if isWindows() =>
+        p = Process.runArgs("cmd", {"/c", "echo."})
+    else =>
+        p = Process.run("echo")
+
+    # Exit code 0 means success
+    assert(p.exitCode() == 0, "echo should succeed")
+    assert(p.success(), "success() should be true")
+    assert(!p.failed(), "failed() should be false")
+
+    print("PASS\n")
+
+fn test_run_with_args(): void =>
+    print("test_run_with_args: ")
+
+    # Run echo with an argument
+    var p: Process
+    if isWindows() =>
+        p = Process.runArgs("cmd", {"/c", "echo hello"})
+    else =>
+        p = Process.runArgs("echo", {"hello"})
+
+    assert(p.exitCode() == 0, "echo hello should succeed")
+    assert(p.success(), "success() should be true")
+
+    # stdout should contain 'hello'
+    var out: str = p.stdout()
+    assert(out.contains("hello"), "stdout should contain 'hello'")
+
+    print("PASS\n")
+
+fn test_run_multiple_args(): void =>
+    print("test_run_multiple_args: ")
+
+    # Run echo with multiple arguments
+    var p: Process
+    if isWindows() =>
+        p = Process.runArgs("cmd", {"/c", "echo one two three"})
+    else =>
+        p = Process.runArgs("echo", {"one", "two", "three"})
+
+    assert(p.exitCode() == 0, "echo with multiple args should succeed")
+
+    var out: str = p.stdout()
+    assert(out.contains("one"), "stdout should contain 'one'")
+    assert(out.contains("two"), "stdout should contain 'two'")
+    assert(out.contains("three"), "stdout should contain 'three'")
+
+    print("PASS\n")
+
+fn test_command_not_found(): void =>
+    print("test_command_not_found: ")
+
+    # Run a non-existent command
+    var p: Process = Process.run("nonexistent_command_xyz123")
+
+    # Should fail - exit code 127 on Unix, 1 or 9009 on Windows
+    assert(p.failed(), "failed() should be true")
+    assert(!p.success(), "success() should be false")
+
+    # On Windows, exit code may differ, so just check non-zero
+    if !isWindows() =>
+        assert(p.exitCode() == 127, "nonexistent command should have exit code 127")
+        assert(p.notFound(), "notFound() should be true")
+
+    print("PASS\n")
+
+fn test_exit_code(): void =>
+    print("test_exit_code: ")
+
+    # Run a command that returns a specific exit code
+    var p: Process
+    if isWindows() =>
+        p = Process.runArgs("cmd", {"/c", "exit 42"})
+    else =>
+        p = Process.runArgs("sh", {"-c", "exit 42"})
+
+    assert(p.exitCode() == 42, "exit code should be 42")
+    assert(p.failed(), "non-zero exit code means failed")
+
+    print("PASS\n")
+
+fn test_stderr_capture(): void =>
+    print("test_stderr_capture: ")
+
+    # Run a command that writes to stderr
+    var p: Process
+    if isWindows() =>
+        p = Process.runArgs("cmd", {"/c", "echo error message 1>&2"})
+    else =>
+        p = Process.runArgs("sh", {"-c", "echo error message >&2"})
+
+    assert(p.exitCode() == 0, "command should succeed")
+
+    var err: str = p.stderr()
+    assert(err.contains("error"), "stderr should contain 'error'")
+
+    print("PASS\n")
+
+fn test_stdout_stderr_separate(): void =>
+    print("test_stdout_stderr_separate: ")
+
+    # Run a command that writes to both stdout and stderr
+    var p: Process
+    if isWindows() =>
+        p = Process.runArgs("cmd", {"/c", "echo stdout_msg && echo stderr_msg 1>&2"})
+    else =>
+        p = Process.runArgs("sh", {"-c", "echo stdout_msg; echo stderr_msg >&2"})
+
+    assert(p.exitCode() == 0, "command should succeed")
+
+    var out: str = p.stdout()
+    var err: str = p.stderr()
+
+    assert(out.contains("stdout_msg"), "stdout should contain 'stdout_msg'")
+    assert(err.contains("stderr_msg"), "stderr should contain 'stderr_msg'")
+
+    print("PASS\n")
+
+fn test_empty_stdout(): void =>
+    print("test_empty_stdout: ")
+
+    # Run a command with no output
+    var p: Process
+    if isWindows() =>
+        p = Process.runArgs("cmd", {"/c", "rem"})
+    else =>
+        p = Process.runArgs("sh", {"-c", "true"})
+
+    assert(p.exitCode() == 0, "command should succeed")
+
+    var out: str = p.stdout()
+
+    # stdout should be empty or nearly empty
+    assert(out.length <= 2, "stdout should be empty or minimal")
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Process Tests ===\n\n")
+
+    test_run_simple()
+    test_run_with_args()
+    test_run_multiple_args()
+    test_command_not_found()
+    test_exit_code()
+    test_stderr_capture()
+    test_stdout_stderr_separate()
+    test_empty_stdout()
+
+    print("\nAll process tests passed!\n")

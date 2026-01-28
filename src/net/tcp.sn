@@ -1,0 +1,161 @@
+# ==============================================================================
+# sdk/net/tcp.sn - TCP Types for Sindarin (TcpListener + TcpStream)
+# ==============================================================================
+# Provides TCP socket types for network communication.
+# Drop-in replacement for the builtin TcpListener and TcpStream types.
+#
+# Usage:
+#   import "sdk/net/tcp"
+#
+#   # Server
+#   var server: TcpListener = TcpListener.bind(":8080")
+#   print($"Listening on port {server.port()}\n")
+#   while true =>
+#       var client: TcpStream = server.accept()
+#       var line: str = client.readLine()
+#       client.writeLine($"Echo: {line}")
+#       client.close()
+#   server.close()
+#
+#   # Client
+#   var conn: TcpStream = TcpStream.connect("example.com:80")
+#   conn.writeLine("GET / HTTP/1.0")
+#   conn.writeLine("")
+#   var response: byte[] = conn.readAll()
+#   conn.close()
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "tcp.sn.c"
+
+# ==============================================================================
+# TcpStream Native Struct Definition
+# ==============================================================================
+# A TCP connection for bidirectional communication.
+
+@alias "RtTcpStream"
+native struct TcpStream as ref =>
+    @alias "socket_fd"
+    _socket_fd: int
+
+    @alias "remote_addr"
+    _remote_addr: *byte
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    # Connect to a remote address (host:port)
+    static fn connect(address: str): TcpStream =>
+        return sn_tcp_stream_connect(address)
+
+    # ==========================================================================
+    # Read Methods
+    # ==========================================================================
+
+    # Read up to maxBytes from the stream (may return fewer)
+    fn read(maxBytes: int): byte[] =>
+        return sn_tcp_stream_read(self, maxBytes)
+
+    # Read until connection closes
+    fn readAll(): byte[] =>
+        return sn_tcp_stream_read_all(self)
+
+    # Read until newline
+    fn readLine(): str =>
+        return sn_tcp_stream_read_line(self)
+
+    # ==========================================================================
+    # Write Methods
+    # ==========================================================================
+
+    # Write bytes, return count written
+    @alias "sn_tcp_stream_write"
+    native fn write(data: byte[]): int
+
+    # Write string + newline
+    @alias "sn_tcp_stream_write_line"
+    native fn writeLine(text: str): void
+
+    # ==========================================================================
+    # Getter Methods
+    # ==========================================================================
+
+    # Get remote peer address
+    fn remoteAddress(): str =>
+        return sn_tcp_stream_get_remote_address(self)
+
+    # ==========================================================================
+    # Lifecycle Methods
+    # ==========================================================================
+
+    # Close the connection
+    @alias "sn_tcp_stream_close"
+    native fn close(): void
+
+# ==============================================================================
+# TcpListener Native Struct Definition
+# ==============================================================================
+# A TCP socket that listens for incoming connections.
+
+@alias "RtTcpListener"
+native struct TcpListener as ref =>
+    @alias "socket_fd"
+    _socket_fd: int
+
+    @alias "bound_port"
+    _bound_port: int
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    # Create listener bound to address (host:port or :port)
+    static fn bind(address: str): TcpListener =>
+        return sn_tcp_listener_bind(address)
+
+    # ==========================================================================
+    # Connection Methods
+    # ==========================================================================
+
+    # Wait for and accept a connection, returns TcpStream
+    fn accept(): TcpStream =>
+        return sn_tcp_listener_accept(self)
+
+    # ==========================================================================
+    # Getter Methods
+    # ==========================================================================
+
+    # Get bound port number
+    @alias "sn_tcp_listener_get_port"
+    native fn port(): int
+
+    # ==========================================================================
+    # Lifecycle Methods
+    # ==========================================================================
+
+    # Close the listener
+    @alias "sn_tcp_listener_close"
+    native fn close(): void
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# TcpStream factory functions
+native fn sn_tcp_stream_connect(arena, address: str): TcpStream
+
+# TcpStream read functions
+native fn sn_tcp_stream_read(arena, s: TcpStream, maxBytes: int): byte[]
+native fn sn_tcp_stream_read_all(arena, s: TcpStream): byte[]
+native fn sn_tcp_stream_read_line(arena, s: TcpStream): str
+
+# TcpStream getter functions
+native fn sn_tcp_stream_get_remote_address(arena, s: TcpStream): str
+
+# TcpListener factory functions
+native fn sn_tcp_listener_bind(arena, address: str): TcpListener
+
+# TcpListener accept function
+native fn sn_tcp_listener_accept(arena, listener: TcpListener): TcpStream

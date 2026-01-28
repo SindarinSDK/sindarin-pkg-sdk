@@ -1,0 +1,12 @@
+=== SDK Path Tests ===
+
+test_directory: PASS
+test_filename: PASS
+test_extension: PASS
+test_join: PASS
+test_absolute: PASS
+test_exists: PASS
+test_is_file: PASS
+test_is_directory: PASS
+
+All Path tests passed!

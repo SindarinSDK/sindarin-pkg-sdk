@@ -1,0 +1,425 @@
+# ==============================================================================
+# sdk/core/random.sn - Random Type for Sindarin
+# ==============================================================================
+# Provides random number generation with OS entropy or seeded PRNG.
+# Drop-in replacement for the builtin Random type (with type-specific collection methods).
+#
+# Usage:
+#   import "sdk/core/random"
+#
+#   # Static methods use OS entropy (secure by default)
+#   var dice: int = Random.randInt(1, 6)
+#   var coin: bool = Random.randBool()
+#
+#   # Create seeded instance for reproducible sequences
+#   var rng: Random = Random.createWithSeed(42l)
+#   var value: int = rng.nextInt(1, 100)
+#
+# Note: Method names like 'int', 'long', 'double', 'bool', 'byte' are reserved
+# keywords in Sindarin, so we use 'randInt'/'nextInt', 'randLong'/'nextLong', etc.
+# Static methods use 'rand*' prefix, instance methods use 'next*' prefix.
+# Collection operations (choice, shuffle, sample, weightedChoice) use
+# type-specific method names (e.g., choiceInt, shuffleStr) since the SDK
+# type system doesn't support the polymorphism of the builtin Random type.
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "random.sn.c"
+
+# ==============================================================================
+# Random Native Struct Definition
+# ==============================================================================
+# Uses @alias to map Random to RtRandom in the runtime.
+# The 'as ref' modifier means native methods receive self by pointer.
+# Random represents an opaque handle type.
+
+@alias "RtRandom"
+native struct Random as ref =>
+    @alias "is_seeded"
+    _is_seeded: int32
+
+    @alias "state"
+    _state: long
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    # Create an OS-entropy backed random instance
+    static fn create(): Random =>
+        return sn_random_create()
+
+    # Create a seeded PRNG instance for reproducible sequences
+    static fn createWithSeed(seed: long): Random =>
+        return sn_random_create_with_seed(seed)
+
+    # ==========================================================================
+    # Static Value Generation (OS Entropy) - Use 'rand*' prefix
+    # ==========================================================================
+
+    # Random integer in range [min, max] inclusive
+    static fn randInt(min: int, max: int): int =>
+        return sn_random_static_int(min, max)
+
+    # Random long in range [min, max] inclusive
+    static fn randLong(min: long, max: long): long =>
+        return sn_random_static_long(min, max)
+
+    # Random double in range [min, max)
+    static fn randDouble(min: double, max: double): double =>
+        return sn_random_static_double(min, max)
+
+    # Random boolean (50/50)
+    static fn randBool(): bool =>
+        return sn_random_static_bool() != 0
+
+    # Random byte (0-255)
+    static fn randByte(): byte =>
+        return sn_random_static_byte()
+
+    # Array of random bytes
+    static fn randBytes(count: int): byte[] =>
+        return sn_random_static_bytes(count)
+
+    # Sample from normal distribution
+    static fn randGaussian(mean: double, stddev: double): double =>
+        return sn_random_static_gaussian(mean, stddev)
+
+    # ==========================================================================
+    # Static Batch Generation (OS Entropy)
+    # ==========================================================================
+
+    # Array of random integers in range [min, max] inclusive
+    static fn randIntMany(min: int, max: int, count: int): int[] =>
+        return sn_random_static_int_many(min, max, count)
+
+    # Array of random longs in range [min, max] inclusive
+    static fn randLongMany(min: long, max: long, count: int): long[] =>
+        return sn_random_static_long_many(min, max, count)
+
+    # Array of random doubles in range [min, max)
+    static fn randDoubleMany(min: double, max: double, count: int): double[] =>
+        return sn_random_static_double_many(min, max, count)
+
+    # Array of random booleans
+    static fn randBoolMany(count: int): bool[] =>
+        return sn_random_static_bool_many(count)
+
+    # Array of gaussian samples
+    static fn randGaussianMany(mean: double, stddev: double, count: int): double[] =>
+        return sn_random_static_gaussian_many(mean, stddev, count)
+
+    # ==========================================================================
+    # Static Collection Operations (OS Entropy) - Type-specific methods
+    # ==========================================================================
+
+    # Random element from int array
+    static fn randChoiceInt(arr: int[]): int =>
+        return sn_random_static_choice_int(arr)
+
+    # Random element from long array
+    static fn randChoiceLong(arr: long[]): long =>
+        return sn_random_static_choice_long(arr)
+
+    # Random element from double array
+    static fn randChoiceDouble(arr: double[]): double =>
+        return sn_random_static_choice_double(arr)
+
+    # Random element from string array
+    static fn randChoiceStr(arr: str[]): str =>
+        return sn_random_static_choice_str(arr)
+
+    # Random element from bool array
+    static fn randChoiceBool(arr: bool[]): bool =>
+        return sn_random_static_choice_bool(arr) != 0
+
+    # Random element from byte array
+    static fn randChoiceByte(arr: byte[]): byte =>
+        return sn_random_static_choice_byte(arr)
+
+    # Weighted random element from int array
+    static fn randWeightedChoiceInt(arr: int[], weights: double[]): int =>
+        return sn_random_static_weighted_choice_int(arr, weights)
+
+    # Weighted random element from long array
+    static fn randWeightedChoiceLong(arr: long[], weights: double[]): long =>
+        return sn_random_static_weighted_choice_long(arr, weights)
+
+    # Weighted random element from double array
+    static fn randWeightedChoiceDouble(arr: double[], weights: double[]): double =>
+        return sn_random_static_weighted_choice_double(arr, weights)
+
+    # Weighted random element from string array
+    static fn randWeightedChoiceStr(arr: str[], weights: double[]): str =>
+        return sn_random_static_weighted_choice_str(arr, weights)
+
+    # Shuffle int array in place
+    static fn randShuffleInt(arr: int[]): void =>
+        sn_random_static_shuffle_int(arr)
+
+    # Shuffle long array in place
+    static fn randShuffleLong(arr: long[]): void =>
+        sn_random_static_shuffle_long(arr)
+
+    # Shuffle double array in place
+    static fn randShuffleDouble(arr: double[]): void =>
+        sn_random_static_shuffle_double(arr)
+
+    # Shuffle string array in place
+    static fn randShuffleStr(arr: str[]): void =>
+        sn_random_static_shuffle_str(arr)
+
+    # Shuffle bool array in place
+    static fn randShuffleBool(arr: bool[]): void =>
+        sn_random_static_shuffle_bool(arr)
+
+    # Shuffle byte array in place
+    static fn randShuffleByte(arr: byte[]): void =>
+        sn_random_static_shuffle_byte(arr)
+
+    # Random sample from int array without replacement
+    static fn randSampleInt(arr: int[], count: int): int[] =>
+        return sn_random_static_sample_int(arr, count)
+
+    # Random sample from long array without replacement
+    static fn randSampleLong(arr: long[], count: int): long[] =>
+        return sn_random_static_sample_long(arr, count)
+
+    # Random sample from double array without replacement
+    static fn randSampleDouble(arr: double[], count: int): double[] =>
+        return sn_random_static_sample_double(arr, count)
+
+    # Random sample from string array without replacement
+    static fn randSampleStr(arr: str[], count: int): str[] =>
+        return sn_random_static_sample_str(arr, count)
+
+    # ==========================================================================
+    # Instance Value Generation (Seeded PRNG) - Use 'next*' prefix
+    # ==========================================================================
+
+    # Random integer in range [min, max] inclusive
+    fn nextInt(min: int, max: int): int =>
+        return sn_random_int(self, min, max)
+
+    # Random long in range [min, max] inclusive
+    fn nextLong(min: long, max: long): long =>
+        return sn_random_long(self, min, max)
+
+    # Random double in range [min, max)
+    fn nextDouble(min: double, max: double): double =>
+        return sn_random_double(self, min, max)
+
+    # Random boolean (50/50)
+    fn nextBool(): bool =>
+        return sn_random_bool(self) != 0
+
+    # Random byte (0-255)
+    fn nextByte(): byte =>
+        return sn_random_byte(self)
+
+    # Array of random bytes
+    fn nextBytes(count: int): byte[] =>
+        return sn_random_bytes(self, count)
+
+    # Sample from normal distribution
+    fn gaussian(mean: double, stddev: double): double =>
+        return sn_random_gaussian(self, mean, stddev)
+
+    # ==========================================================================
+    # Instance Batch Generation (Seeded PRNG)
+    # ==========================================================================
+
+    # Array of random integers in range [min, max] inclusive
+    fn intMany(min: int, max: int, count: int): int[] =>
+        return sn_random_int_many(self, min, max, count)
+
+    # Array of random longs in range [min, max] inclusive
+    fn longMany(min: long, max: long, count: int): long[] =>
+        return sn_random_long_many(self, min, max, count)
+
+    # Array of random doubles in range [min, max)
+    fn doubleMany(min: double, max: double, count: int): double[] =>
+        return sn_random_double_many(self, min, max, count)
+
+    # Array of random booleans
+    fn boolMany(count: int): bool[] =>
+        return sn_random_bool_many(self, count)
+
+    # Array of gaussian samples
+    fn gaussianMany(mean: double, stddev: double, count: int): double[] =>
+        return sn_random_gaussian_many(self, mean, stddev, count)
+
+    # ==========================================================================
+    # Instance Collection Operations (Seeded PRNG) - Type-specific methods
+    # ==========================================================================
+
+    # Random element from int array
+    fn choiceInt(arr: int[]): int =>
+        return sn_random_choice_int(self, arr)
+
+    # Random element from long array
+    fn choiceLong(arr: long[]): long =>
+        return sn_random_choice_long(self, arr)
+
+    # Random element from double array
+    fn choiceDouble(arr: double[]): double =>
+        return sn_random_choice_double(self, arr)
+
+    # Random element from string array
+    fn choiceStr(arr: str[]): str =>
+        return sn_random_choice_str(self, arr)
+
+    # Random element from bool array
+    fn choiceBool(arr: bool[]): bool =>
+        return sn_random_choice_bool(self, arr) != 0
+
+    # Random element from byte array
+    fn choiceByte(arr: byte[]): byte =>
+        return sn_random_choice_byte(self, arr)
+
+    # Weighted random element from int array
+    fn weightedChoiceInt(arr: int[], weights: double[]): int =>
+        return sn_random_weighted_choice_int(self, arr, weights)
+
+    # Weighted random element from long array
+    fn weightedChoiceLong(arr: long[], weights: double[]): long =>
+        return sn_random_weighted_choice_long(self, arr, weights)
+
+    # Weighted random element from double array
+    fn weightedChoiceDouble(arr: double[], weights: double[]): double =>
+        return sn_random_weighted_choice_double(self, arr, weights)
+
+    # Weighted random element from string array
+    fn weightedChoiceStr(arr: str[], weights: double[]): str =>
+        return sn_random_weighted_choice_str(self, arr, weights)
+
+    # Shuffle int array in place
+    fn shuffleInt(arr: int[]): void =>
+        sn_random_shuffle_int(self, arr)
+
+    # Shuffle long array in place
+    fn shuffleLong(arr: long[]): void =>
+        sn_random_shuffle_long(self, arr)
+
+    # Shuffle double array in place
+    fn shuffleDouble(arr: double[]): void =>
+        sn_random_shuffle_double(self, arr)
+
+    # Shuffle string array in place
+    fn shuffleStr(arr: str[]): void =>
+        sn_random_shuffle_str(self, arr)
+
+    # Shuffle bool array in place
+    fn shuffleBool(arr: bool[]): void =>
+        sn_random_shuffle_bool(self, arr)
+
+    # Shuffle byte array in place
+    fn shuffleByte(arr: byte[]): void =>
+        sn_random_shuffle_byte(self, arr)
+
+    # Random sample from int array without replacement
+    fn sampleInt(arr: int[], count: int): int[] =>
+        return sn_random_sample_int(self, arr, count)
+
+    # Random sample from long array without replacement
+    fn sampleLong(arr: long[], count: int): long[] =>
+        return sn_random_sample_long(self, arr, count)
+
+    # Random sample from double array without replacement
+    fn sampleDouble(arr: double[], count: int): double[] =>
+        return sn_random_sample_double(self, arr, count)
+
+    # Random sample from string array without replacement
+    fn sampleStr(arr: str[], count: int): str[] =>
+        return sn_random_sample_str(self, arr, count)
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Factory functions
+native fn sn_random_create(arena): Random
+native fn sn_random_create_with_seed(arena, seed: long): Random
+
+# Static value generation (OS entropy)
+native fn sn_random_static_int(min: int, max: int): int
+native fn sn_random_static_long(min: long, max: long): long
+native fn sn_random_static_double(min: double, max: double): double
+native fn sn_random_static_bool(): int
+native fn sn_random_static_byte(): byte
+native fn sn_random_static_bytes(arena, count: int): byte[]
+native fn sn_random_static_gaussian(mean: double, stddev: double): double
+
+# Static batch generation (OS entropy)
+native fn sn_random_static_int_many(arena, min: int, max: int, count: int): int[]
+native fn sn_random_static_long_many(arena, min: long, max: long, count: int): long[]
+native fn sn_random_static_double_many(arena, min: double, max: double, count: int): double[]
+native fn sn_random_static_bool_many(arena, count: int): bool[]
+native fn sn_random_static_gaussian_many(arena, mean: double, stddev: double, count: int): double[]
+
+# Static collection operations (OS entropy)
+native fn sn_random_static_choice_int(arr: int[]): int
+native fn sn_random_static_choice_long(arr: long[]): long
+native fn sn_random_static_choice_double(arr: double[]): double
+native fn sn_random_static_choice_str(arena, arr: str[]): str
+native fn sn_random_static_choice_bool(arr: bool[]): int
+native fn sn_random_static_choice_byte(arr: byte[]): byte
+
+native fn sn_random_static_weighted_choice_int(arr: int[], weights: double[]): int
+native fn sn_random_static_weighted_choice_long(arr: long[], weights: double[]): long
+native fn sn_random_static_weighted_choice_double(arr: double[], weights: double[]): double
+native fn sn_random_static_weighted_choice_str(arena, arr: str[], weights: double[]): str
+
+native fn sn_random_static_shuffle_int(arr: int[]): void
+native fn sn_random_static_shuffle_long(arr: long[]): void
+native fn sn_random_static_shuffle_double(arr: double[]): void
+native fn sn_random_static_shuffle_str(arr: str[]): void
+native fn sn_random_static_shuffle_bool(arr: bool[]): void
+native fn sn_random_static_shuffle_byte(arr: byte[]): void
+
+native fn sn_random_static_sample_int(arena, arr: int[], count: int): int[]
+native fn sn_random_static_sample_long(arena, arr: long[], count: int): long[]
+native fn sn_random_static_sample_double(arena, arr: double[], count: int): double[]
+native fn sn_random_static_sample_str(arena, arr: str[], count: int): str[]
+
+# Instance value generation (seeded PRNG)
+native fn sn_random_int(rng: Random, min: int, max: int): int
+native fn sn_random_long(rng: Random, min: long, max: long): long
+native fn sn_random_double(rng: Random, min: double, max: double): double
+native fn sn_random_bool(rng: Random): int
+native fn sn_random_byte(rng: Random): byte
+native fn sn_random_bytes(arena, rng: Random, count: int): byte[]
+native fn sn_random_gaussian(rng: Random, mean: double, stddev: double): double
+
+# Instance batch generation (seeded PRNG)
+native fn sn_random_int_many(arena, rng: Random, min: int, max: int, count: int): int[]
+native fn sn_random_long_many(arena, rng: Random, min: long, max: long, count: int): long[]
+native fn sn_random_double_many(arena, rng: Random, min: double, max: double, count: int): double[]
+native fn sn_random_bool_many(arena, rng: Random, count: int): bool[]
+native fn sn_random_gaussian_many(arena, rng: Random, mean: double, stddev: double, count: int): double[]
+
+# Instance collection operations (seeded PRNG)
+native fn sn_random_choice_int(rng: Random, arr: int[]): int
+native fn sn_random_choice_long(rng: Random, arr: long[]): long
+native fn sn_random_choice_double(rng: Random, arr: double[]): double
+native fn sn_random_choice_str(arena, rng: Random, arr: str[]): str
+native fn sn_random_choice_bool(rng: Random, arr: bool[]): int
+native fn sn_random_choice_byte(rng: Random, arr: byte[]): byte
+
+native fn sn_random_weighted_choice_int(rng: Random, arr: int[], weights: double[]): int
+native fn sn_random_weighted_choice_long(rng: Random, arr: long[], weights: double[]): long
+native fn sn_random_weighted_choice_double(rng: Random, arr: double[], weights: double[]): double
+native fn sn_random_weighted_choice_str(arena, rng: Random, arr: str[], weights: double[]): str
+
+native fn sn_random_shuffle_int(rng: Random, arr: int[]): void
+native fn sn_random_shuffle_long(rng: Random, arr: long[]): void
+native fn sn_random_shuffle_double(rng: Random, arr: double[]): void
+native fn sn_random_shuffle_str(rng: Random, arr: str[]): void
+native fn sn_random_shuffle_bool(rng: Random, arr: bool[]): void
+native fn sn_random_shuffle_byte(rng: Random, arr: byte[]): void
+
+native fn sn_random_sample_int(arena, rng: Random, arr: int[], count: int): int[]
+native fn sn_random_sample_long(arena, rng: Random, arr: long[], count: int): long[]
+native fn sn_random_sample_double(arena, rng: Random, arr: double[], count: int): double[]
+native fn sn_random_sample_str(arena, rng: Random, arr: str[], count: int): str[]

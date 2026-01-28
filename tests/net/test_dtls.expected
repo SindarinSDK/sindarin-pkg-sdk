@@ -1,0 +1,7 @@
+=== SDK DTLS Tests ===
+
+test_listener_bind: PASS
+test_dtls_connect_and_close: PASS
+test_dtls_send_receive: PASS
+
+All DTLS tests passed!

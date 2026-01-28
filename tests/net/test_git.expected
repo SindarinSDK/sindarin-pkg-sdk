@@ -1,0 +1,23 @@
+=== SDK Git Tests ===
+
+test_init: PASS
+test_init_bare: PASS
+test_status_empty: PASS
+test_add_and_status: PASS
+test_commit: PASS
+test_head: PASS
+test_log: PASS
+test_add_all_and_commit: PASS
+test_branches: PASS
+test_create_branch: PASS
+test_checkout: PASS
+test_delete_branch: PASS
+test_tags_lightweight: PASS
+test_tags_annotated: PASS
+test_delete_tag: PASS
+test_remotes: PASS
+test_diff: PASS
+test_unstage: PASS
+test_open: PASS
+
+All Git tests passed!

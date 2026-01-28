@@ -1,0 +1,93 @@
+# ==============================================================================
+# sdk/path.sn - Path Utilities for Sindarin
+# ==============================================================================
+# Provides path manipulation functions.
+# Drop-in replacement for the builtin Path type.
+#
+# Usage:
+#   import "sdk/path"
+#
+#   var dir: str = Path.directory("/home/user/file.txt")   # "/home/user"
+#   var name: str = Path.filename("/home/user/file.txt")   # "file.txt"
+#   var ext: str = Path.extension("/home/user/file.txt")   # "txt"
+#   var full: str = Path.join("/home", "user", "file.txt") # "/home/user/file.txt"
+#   var abs: str = Path.absolute("./file.txt")
+#   var exists: bool = Path.exists("/some/path")
+#   var isFile: bool = Path.isFile("/some/path")
+#   var isDir: bool = Path.isDirectory("/some/path")
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "path.sn.c"
+
+# ==============================================================================
+# Path Static Class
+# ==============================================================================
+# Path is a utility class with only static methods.
+# We use a native struct with no fields just to have a namespace.
+
+@alias "RtPath"
+native struct Path =>
+    _unused: int32
+
+    # ==========================================================================
+    # Path Manipulation
+    # ==========================================================================
+
+    # Extract directory portion of a path
+    static fn directory(path: str): str =>
+        return sn_path_directory(path)
+
+    # Extract filename (with extension) from a path
+    static fn filename(path: str): str =>
+        return sn_path_filename(path)
+
+    # Extract file extension (without dot) from a path
+    static fn extension(path: str): str =>
+        return sn_path_extension(path)
+
+    # Join two path components
+    static fn join(path1: str, path2: str): str =>
+        return sn_path_join2(path1, path2)
+
+    # Join three path components
+    static fn join3(path1: str, path2: str, path3: str): str =>
+        return sn_path_join3(path1, path2, path3)
+
+    # Resolve to absolute path
+    static fn absolute(path: str): str =>
+        return sn_path_absolute(path)
+
+    # ==========================================================================
+    # Path Queries
+    # ==========================================================================
+
+    # Check if a path exists
+    static fn exists(path: str): bool =>
+        return sn_path_exists(path) != 0
+
+    # Check if a path points to a regular file
+    static fn isFile(path: str): bool =>
+        return sn_path_is_file(path) != 0
+
+    # Check if a path points to a directory
+    static fn isDirectory(path: str): bool =>
+        return sn_path_is_directory(path) != 0
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Path manipulation functions
+native fn sn_path_directory(arena, path: str): str
+native fn sn_path_filename(arena, path: str): str
+native fn sn_path_extension(arena, path: str): str
+native fn sn_path_join2(arena, path1: str, path2: str): str
+native fn sn_path_join3(arena, path1: str, path2: str, path3: str): str
+native fn sn_path_absolute(arena, path: str): str
+
+# Path query functions
+native fn sn_path_exists(path: str): int
+native fn sn_path_is_file(path: str): int
+native fn sn_path_is_directory(path: str): int

@@ -1,0 +1,18 @@
+import "../../../sdk/os/process"
+
+fn main(): void =>
+    var p: Process = Process.runArgs("echo", {"hello"})
+    print("Exit code: ")
+    print(p.exitCode())
+    print("\n")
+    print("stdout length: ")
+    print(p.stdout().length)
+    print("\n")
+    print("stdout: '")
+    print(p.stdout())
+    print("'\n")
+    print("contains hello: ")
+    if p.stdout().contains("hello") =>
+        print("yes\n")
+    else =>
+        print("no\n")

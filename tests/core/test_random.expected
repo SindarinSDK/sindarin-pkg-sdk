@@ -1,0 +1,40 @@
+=== SDK Random Tests ===
+
+test_create: PASS
+test_create_with_seed: PASS
+test_static_int: PASS
+test_static_long: PASS
+test_static_double: PASS
+test_static_bool: PASS
+test_static_byte: PASS
+test_static_bytes: PASS
+test_static_gaussian: PASS
+test_static_int_many: PASS
+test_static_long_many: PASS
+test_static_double_many: PASS
+test_static_bool_many: PASS
+test_static_gaussian_many: PASS
+test_static_choice_int: PASS
+test_static_choice_str: PASS
+test_static_shuffle_int: PASS
+test_static_shuffle_str: PASS
+test_static_sample_int: PASS
+test_static_weighted_choice_int: PASS
+test_static_weighted_choice_str: PASS
+test_instance_int: PASS
+test_instance_long: PASS
+test_instance_double: PASS
+test_instance_bool: PASS
+test_instance_byte: PASS
+test_instance_bytes: PASS
+test_instance_gaussian: PASS
+test_instance_int_many: PASS
+test_instance_choice_int: PASS
+test_instance_choice_str: PASS
+test_instance_shuffle_int: PASS
+test_instance_sample_int: PASS
+test_instance_weighted_choice_str: PASS
+test_seeded_determinism: PASS
+test_different_seeds: PASS
+
+All random tests passed!

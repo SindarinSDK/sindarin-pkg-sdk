@@ -1,0 +1,18 @@
+=== SDK Time Tests ===
+
+test_now: PASS
+test_from_millis: PASS
+test_from_seconds: PASS
+test_epoch: PASS
+test_weekday: PASS
+test_comparison: PASS
+test_diff: PASS
+test_format: PASS
+test_add: PASS
+test_add_seconds: PASS
+test_add_minutes: PASS
+test_add_hours: PASS
+test_add_days: PASS
+test_components: PASS
+
+All time tests passed!

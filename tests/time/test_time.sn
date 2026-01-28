@@ -1,0 +1,212 @@
+# ==============================================================================
+# test_time.sn - Tests for SDK Time Type
+# ==============================================================================
+# Tests the Time struct and its methods.
+# ==============================================================================
+
+import "../../../sdk/time/time"
+
+fn test_now(): void =>
+    print("test_now: ")
+    var now: Time = Time.now()
+    var year: int = now.year()
+    var month: int = now.month()
+    var day: int = now.day()
+    var hour: int = now.hour()
+    var minute: int = now.minute()
+    var second: int = now.second()
+
+    # Basic sanity checks
+    assert(year >= 2020, "Year should be reasonable")
+    assert(month >= 1, "Month should be >= 1")
+    assert(month <= 12, "Month should be <= 12")
+    assert(day >= 1, "Day should be >= 1")
+    assert(day <= 31, "Day should be <= 31")
+    assert(hour >= 0, "Hour should be >= 0")
+    assert(hour <= 23, "Hour should be <= 23")
+    assert(minute >= 0, "Minute should be >= 0")
+    assert(minute <= 59, "Minute should be <= 59")
+    assert(second >= 0, "Second should be >= 0")
+    assert(second <= 59, "Second should be <= 59")
+
+    print("PASS\n")
+
+fn test_from_millis(): void =>
+    print("test_from_millis: ")
+    # 2024-01-15 12:30:45.123 UTC = 1705321845123 ms since epoch
+    var t: Time = Time.fromMillis(1705321845123L)
+
+    # Note: exact values depend on timezone, but millis should round-trip
+    var millis: long = t.millis()
+    assert(millis == 1705321845123L, "Millis should round-trip")
+
+    print("PASS\n")
+
+fn test_from_seconds(): void =>
+    print("test_from_seconds: ")
+    # 1705321845 seconds = 2024-01-15 12:30:45 UTC
+    var t: Time = Time.fromSeconds(1705321845L)
+
+    var seconds: long = t.seconds()
+    assert(seconds == 1705321845L, "Seconds should round-trip")
+
+    print("PASS\n")
+
+fn test_epoch(): void =>
+    print("test_epoch: ")
+    # Unix epoch: 1970-01-01 00:00:00 UTC
+    var epoch: Time = Time.fromMillis(0L)
+
+    assert(epoch.year() == 1970, "Epoch year should be 1970")
+    assert(epoch.month() == 1, "Epoch month should be 1")
+    assert(epoch.day() == 1, "Epoch day should be 1")
+    assert(epoch.hour() == 0, "Epoch hour should be 0")
+    assert(epoch.minute() == 0, "Epoch minute should be 0")
+    assert(epoch.second() == 0, "Epoch second should be 0")
+
+    print("PASS\n")
+
+fn test_weekday(): void =>
+    print("test_weekday: ")
+    # 2024-01-01 was Monday (weekday 1)
+    # Using midnight UTC
+    var jan1: Time = Time.fromSeconds(1704067200L)  # 2024-01-01 00:00:00 UTC
+    assert(jan1.weekday() == 1, "2024-01-01 should be Monday (1)")
+
+    # 2024-01-06 was Saturday (weekday 6)
+    var sat: Time = Time.fromSeconds(1704499200L)  # 2024-01-06 00:00:00 UTC
+    assert(sat.weekday() == 6, "2024-01-06 should be Saturday (6)")
+
+    # 2024-01-07 was Sunday (weekday 0)
+    var sun: Time = Time.fromSeconds(1704585600L)  # 2024-01-07 00:00:00 UTC
+    assert(sun.weekday() == 0, "2024-01-07 should be Sunday (0)")
+
+    print("PASS\n")
+
+fn test_comparison(): void =>
+    print("test_comparison: ")
+    var t1: Time = Time.fromMillis(1000000000000L)
+    var t2: Time = Time.fromMillis(1000000000001L)
+    var t3: Time = Time.fromMillis(1000000000000L)
+
+    assert(t1.isBefore(t2), "t1 should be before t2")
+    assert(!t2.isBefore(t1), "t2 should not be before t1")
+    assert(!t1.isBefore(t3), "t1 should not be before t3 (equal)")
+
+    assert(t2.isAfter(t1), "t2 should be after t1")
+    assert(!t1.isAfter(t2), "t1 should not be after t2")
+
+    assert(t1.equals(t3), "t1 should equal t3")
+    assert(!t1.equals(t2), "t1 should not equal t2")
+
+    print("PASS\n")
+
+fn test_diff(): void =>
+    print("test_diff: ")
+    var t1: Time = Time.fromMillis(1000000000000L)
+    var t2: Time = Time.fromMillis(1000000001000L)
+
+    assert(t2.diff(t1) == 1000L, "Difference should be 1000 ms")
+    assert(t1.diff(t2) == -1000L, "Reverse difference should be -1000 ms")
+    assert(t1.diff(t1) == 0L, "Same time diff should be 0")
+
+    print("PASS\n")
+
+fn test_format(): void =>
+    print("test_format: ")
+    # Use a known UTC time: 2024-12-25 14:30:45.123 UTC
+    var t: Time = Time.fromMillis(1735137045123L)
+
+    # Test date portion
+    var dateStr: str = t.toDate()
+    assert(dateStr == "2024-12-25", "Date should be 2024-12-25")
+
+    # Test time portion
+    var timeStr: str = t.toTime()
+    assert(timeStr == "14:30:45", "Time should be 14:30:45")
+
+    print("PASS\n")
+
+fn test_add(): void =>
+    print("test_add: ")
+    var t: Time = Time.fromMillis(1000000000000L)
+
+    var plus1000: Time = t.add(1000L)
+    assert(plus1000.millis() == 1000000001000L, "Adding 1000ms")
+
+    var minus1000: Time = t.add(-1000L)
+    assert(minus1000.millis() == 999999999000L, "Subtracting 1000ms")
+
+    print("PASS\n")
+
+fn test_add_seconds(): void =>
+    print("test_add_seconds: ")
+    var t: Time = Time.fromMillis(1000000000000L)
+
+    var plus60: Time = t.addSeconds(60)
+    assert(plus60.millis() == 1000000060000L, "Adding 60 seconds")
+
+    print("PASS\n")
+
+fn test_add_minutes(): void =>
+    print("test_add_minutes: ")
+    var t: Time = Time.fromMillis(1000000000000L)
+
+    var plus5: Time = t.addMinutes(5)
+    assert(plus5.millis() == 1000000300000L, "Adding 5 minutes (300000ms)")
+
+    print("PASS\n")
+
+fn test_add_hours(): void =>
+    print("test_add_hours: ")
+    var t: Time = Time.fromMillis(1000000000000L)
+
+    var plus2: Time = t.addHours(2)
+    assert(plus2.millis() == 1000007200000L, "Adding 2 hours (7200000ms)")
+
+    print("PASS\n")
+
+fn test_add_days(): void =>
+    print("test_add_days: ")
+    var t: Time = Time.fromMillis(1000000000000L)
+
+    var plus1: Time = t.addDays(1)
+    assert(plus1.millis() == 1000086400000L, "Adding 1 day (86400000ms)")
+
+    print("PASS\n")
+
+fn test_components(): void =>
+    print("test_components: ")
+    # 2024-06-15 09:30:45 UTC
+    # Unix timestamp: 1718443845
+    var t: Time = Time.fromSeconds(1718443845L)
+
+    assert(t.year() == 2024, "Year should be 2024")
+    assert(t.month() == 6, "Month should be 6")
+    assert(t.day() == 15, "Day should be 15")
+    assert(t.hour() == 9, "Hour should be 9")
+    assert(t.minute() == 30, "Minute should be 30")
+    assert(t.second() == 45, "Second should be 45")
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Time Tests ===\n\n")
+
+    test_now()
+    test_from_millis()
+    test_from_seconds()
+    test_epoch()
+    test_weekday()
+    test_comparison()
+    test_diff()
+    test_format()
+    test_add()
+    test_add_seconds()
+    test_add_minutes()
+    test_add_hours()
+    test_add_days()
+    test_components()
+
+    print("\nAll time tests passed!\n")
+

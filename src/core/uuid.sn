@@ -1,0 +1,199 @@
+# ==============================================================================
+# sdk/core/uuid.sn - UUID Type for Sindarin
+# ==============================================================================
+# Provides a UUID type for generating and manipulating Universally Unique
+# Identifiers. Supports v4 (random), v5 (SHA-1 hash), and v7 (time-ordered).
+# Drop-in replacement for the builtin UUID type.
+#
+# Usage:
+#   import "sdk/core/uuid"
+#
+#   var id: UUID = UUID.create()
+#   print($"UUID: {id.toString()}\n")
+#   print($"Version: {id.version()}\n")
+#
+#   var v5id: UUID = UUID.v5(UUID.namespaceUrl(), "https://example.com")
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "uuid.sn.c"
+
+# ==============================================================================
+# UUID Native Struct Definition
+# ==============================================================================
+# Uses @alias to map UUID to RtUuid in the runtime.
+# The 'as ref' modifier means native methods receive self by pointer.
+# UUID represents an opaque handle type (like built-in UUID).
+
+@alias "RtUuid"
+native struct UUID as ref =>
+    @alias "high"
+    _high: long
+
+    @alias "low"
+    _low: long
+
+    # ==========================================================================
+    # Static Factory Methods - UUID Generation
+    # ==========================================================================
+
+    # Create a UUIDv7 (time-ordered) - recommended default
+    static fn create(): UUID =>
+        return sn_uuid_create()
+
+    # Alias for create() - matches common convention
+    static fn new(): UUID =>
+        return sn_uuid_create()
+
+    # Generate a UUIDv4 (random)
+    static fn v4(): UUID =>
+        return sn_uuid_v4()
+
+    # Generate a UUIDv5 (SHA-1 hash of namespace + name)
+    static fn v5(namespace: UUID, name: str): UUID =>
+        return sn_uuid_v5(namespace, name)
+
+    # Generate a UUIDv7 (timestamp + random)
+    static fn v7(): UUID =>
+        return sn_uuid_v7()
+
+    # ==========================================================================
+    # Static Factory Methods - Parsing
+    # ==========================================================================
+
+    # Parse from standard 36-char format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+    static fn fromString(s: str): UUID =>
+        return sn_uuid_from_string(s)
+
+    # Parse from 32-char hex format (no dashes)
+    static fn fromHex(s: str): UUID =>
+        return sn_uuid_from_hex(s)
+
+    # Parse from 22-char URL-safe base64 format
+    static fn fromBase64(s: str): UUID =>
+        return sn_uuid_from_base64(s)
+
+    # ==========================================================================
+    # Static Factory Methods - Special UUIDs
+    # ==========================================================================
+
+    # Get nil UUID (all zeros: 00000000-0000-0000-0000-000000000000)
+    static fn zero(): UUID =>
+        return sn_uuid_nil()
+
+    # Get max UUID (all ones: ffffffff-ffff-ffff-ffff-ffffffffffff)
+    static fn max(): UUID =>
+        return sn_uuid_max()
+
+    # ==========================================================================
+    # Static Factory Methods - Namespace Constants
+    # ==========================================================================
+
+    # Get DNS namespace UUID (6ba7b810-9dad-11d1-80b4-00c04fd430c8)
+    static fn namespaceDns(): UUID =>
+        return sn_uuid_namespace_dns()
+
+    # Get URL namespace UUID (6ba7b811-9dad-11d1-80b4-00c04fd430c8)
+    static fn namespaceUrl(): UUID =>
+        return sn_uuid_namespace_url()
+
+    # Get OID namespace UUID (6ba7b812-9dad-11d1-80b4-00c04fd430c8)
+    static fn namespaceOid(): UUID =>
+        return sn_uuid_namespace_oid()
+
+    # Get X.500 namespace UUID (6ba7b814-9dad-11d1-80b4-00c04fd430c8)
+    static fn namespaceX500(): UUID =>
+        return sn_uuid_namespace_x500()
+
+    # ==========================================================================
+    # Property Getters (native - pass self by pointer via 'as ref')
+    # ==========================================================================
+
+    # Get UUID version (1-8)
+    @alias "sn_uuid_get_version"
+    native fn version(): int
+
+    # Get UUID variant
+    @alias "sn_uuid_get_variant"
+    native fn variant(): int
+
+    # Check if UUID is nil (all zeros)
+    @alias "sn_uuid_is_nil"
+    native fn isNil(): bool
+
+    # ==========================================================================
+    # Time Extraction (v7 only)
+    # ==========================================================================
+
+    # Get Unix timestamp in milliseconds (v7 only, throws on non-v7)
+    @alias "sn_uuid_get_timestamp"
+    native fn timestamp(): long
+
+    # ==========================================================================
+    # Conversion Methods (non-native - need arena for string allocation)
+    # ==========================================================================
+
+    # Format as standard 36-char string (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+    fn toString(): str =>
+        return sn_uuid_to_string(self)
+
+    # Format as 32-char hex string (no dashes)
+    fn toHex(): str =>
+        return sn_uuid_to_hex(self)
+
+    # Format as 22-char URL-safe base64 string
+    fn toBase64(): str =>
+        return sn_uuid_to_base64(self)
+
+    # ==========================================================================
+    # Comparison Methods (native - pass self by pointer)
+    # ==========================================================================
+
+    # Check if two UUIDs are equal
+    @alias "sn_uuid_equals"
+    native fn equals(other: UUID): bool
+
+    # Compare two UUIDs (returns -1, 0, or 1)
+    @alias "sn_uuid_compare"
+    native fn compare(other: UUID): int
+
+    # Check if uuid < other
+    @alias "sn_uuid_is_less_than"
+    native fn isLessThan(other: UUID): bool
+
+    # Check if uuid > other
+    @alias "sn_uuid_is_greater_than"
+    native fn isGreaterThan(other: UUID): bool
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+# These declare the runtime functions directly.
+# UUID is an opaque handle type that generates as RtUuid* in C.
+
+# Factory functions - return UUID (which is RtUuid*)
+native fn sn_uuid_create(arena): UUID
+native fn sn_uuid_v4(arena): UUID
+native fn sn_uuid_v5(arena, namespace: UUID, name: str): UUID
+native fn sn_uuid_v7(arena): UUID
+
+# Parsing functions - return UUID
+native fn sn_uuid_from_string(arena, s: str): UUID
+native fn sn_uuid_from_hex(arena, s: str): UUID
+native fn sn_uuid_from_base64(arena, s: str): UUID
+
+# Special UUIDs
+native fn sn_uuid_nil(arena): UUID
+native fn sn_uuid_max(arena): UUID
+
+# Namespace UUIDs
+native fn sn_uuid_namespace_dns(arena): UUID
+native fn sn_uuid_namespace_url(arena): UUID
+native fn sn_uuid_namespace_oid(arena): UUID
+native fn sn_uuid_namespace_x500(arena): UUID
+
+# Conversion functions - take UUID (which is RtUuid*)
+native fn sn_uuid_to_string(arena, u: UUID): str
+native fn sn_uuid_to_hex(arena, u: UUID): str
+native fn sn_uuid_to_base64(arena, u: UUID): str

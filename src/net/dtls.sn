@@ -1,0 +1,151 @@
+# ==============================================================================
+# sdk/net/dtls.sn - DTLS Connection Type for Sindarin
+# ==============================================================================
+# Provides DTLS-encrypted UDP connections using OpenSSL.
+# DTLS (Datagram TLS) provides TLS security over UDP datagrams.
+#
+# Usage:
+#   import "sdk/net/dtls"
+#
+#   var conn: DtlsConnection = DtlsConnection.connect("server:4433")
+#   conn.send("Hello".toBytes())
+#   var response: byte[] = conn.receive(1024)
+#   conn.close()
+#
+# Certificate loading priority:
+#   1. SN_CERTS environment variable (path to PEM file or directory)
+#   2. Platform-native certificate store
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "dtls.sn.c"
+@link ssl
+@link crypto
+
+# ==============================================================================
+# DtlsConnection Native Struct Definition
+# ==============================================================================
+# A DTLS-encrypted UDP connection for secure datagram communication.
+# Unlike TlsStream, DTLS preserves message boundaries - each send()
+# corresponds to exactly one receive() on the other end.
+
+@alias "RtDtlsConnection"
+native struct DtlsConnection as ref =>
+    @alias "socket_fd"
+    _socket_fd: int
+
+    @alias "ssl_ptr"
+    _ssl_ptr: *byte
+
+    @alias "remote_addr"
+    _remote_addr: *byte
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    # Connect to a remote address (host:port) with DTLS
+    static fn connect(address: str): DtlsConnection =>
+        return sn_dtls_connection_connect(address)
+
+    # ==========================================================================
+    # Send/Receive Methods
+    # ==========================================================================
+
+    # Send an encrypted datagram, return bytes sent
+    @alias "sn_dtls_connection_send"
+    native fn send(data: byte[]): int
+
+    # Receive an encrypted datagram (up to maxBytes)
+    fn receive(maxBytes: int): byte[] =>
+        return sn_dtls_connection_receive(self, maxBytes)
+
+    # ==========================================================================
+    # Getter Methods
+    # ==========================================================================
+
+    # Get remote peer address
+    fn remoteAddress(): str =>
+        return sn_dtls_connection_get_remote_address(self)
+
+    # ==========================================================================
+    # Lifecycle Methods
+    # ==========================================================================
+
+    # Close the DTLS connection and underlying socket
+    @alias "sn_dtls_connection_close"
+    native fn close(): void
+
+# ==============================================================================
+# DtlsListener Native Struct Definition
+# ==============================================================================
+# A DTLS server that listens for incoming encrypted datagram connections.
+# Uses OpenSSL DTLS cookie exchange for DoS protection.
+#
+# Usage:
+#   var server: DtlsListener = DtlsListener.bind(":4433", "cert.pem", "key.pem")
+#   var conn: DtlsConnection = server.accept()
+#   var data: byte[] = conn.receive(1024)
+#   conn.send("Echo".toBytes())
+#   conn.close()
+#   server.close()
+
+@alias "RtDtlsListener"
+native struct DtlsListener as ref =>
+    @alias "socket_fd"
+    _socket_fd: int
+
+    @alias "bound_port"
+    _bound_port: int
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    # Bind to address with TLS certificate and key files
+    static fn bind(address: str, certFile: str, keyFile: str): DtlsListener =>
+        return sn_dtls_listener_bind(address, certFile, keyFile)
+
+    # ==========================================================================
+    # Connection Methods
+    # ==========================================================================
+
+    # Wait for and accept a new DTLS connection (blocks until client connects)
+    fn accept(): DtlsConnection =>
+        return sn_dtls_listener_accept(self)
+
+    # ==========================================================================
+    # Getter Methods
+    # ==========================================================================
+
+    # Get bound port number
+    @alias "sn_dtls_listener_get_port"
+    native fn port(): int
+
+    # ==========================================================================
+    # Lifecycle Methods
+    # ==========================================================================
+
+    # Close the listener
+    @alias "sn_dtls_listener_close"
+    native fn close(): void
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# DtlsConnection factory functions
+native fn sn_dtls_connection_connect(arena, address: str): DtlsConnection
+
+# DtlsConnection receive function
+native fn sn_dtls_connection_receive(arena, conn: DtlsConnection, maxBytes: int): byte[]
+
+# DtlsConnection getter functions
+native fn sn_dtls_connection_get_remote_address(arena, conn: DtlsConnection): str
+
+# DtlsListener factory functions
+native fn sn_dtls_listener_bind(arena, address: str, certFile: str, keyFile: str): DtlsListener
+
+# DtlsListener accept function
+native fn sn_dtls_listener_accept(arena, listener: DtlsListener): DtlsConnection

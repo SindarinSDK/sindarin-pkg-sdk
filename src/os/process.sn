@@ -1,0 +1,95 @@
+# ==============================================================================
+# sdk/os/process.sn - Process Type for Sindarin
+# ==============================================================================
+# Provides process execution with stdout/stderr capture.
+# Drop-in replacement for the builtin Process type.
+#
+# Usage:
+#   import "sdk/os/process"
+#
+#   var p: Process = Process.run("pwd")
+#   print(p.stdout())
+#   print($"Exit code: {p.exitCode()}\n")
+#
+#   var p2: Process = Process.run("ls", {"-la", "/tmp"})
+#   if p2.exitCode() == 0 =>
+#       print(p2.stdout())
+#   else =>
+#       print(p2.stderr())
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "process.sn.c"
+
+# ==============================================================================
+# Process Native Struct Definition
+# ==============================================================================
+# Uses @alias to map Process to RtProcess in the runtime.
+# The 'as ref' modifier means native methods receive self by pointer.
+# Process represents a completed process with captured output.
+
+@alias "RtProcess"
+native struct Process as ref =>
+    @alias "exit_code"
+    _exitCode: int32
+
+    @alias "stdout_h"
+    _stdout: str
+
+    @alias "stderr_h"
+    _stderr: str
+
+    # ==========================================================================
+    # Static Factory Methods (non-native - receive arena)
+    # ==========================================================================
+
+    # Run a command with no arguments
+    static fn run(cmd: str): Process =>
+        return sn_process_run(cmd)
+
+    # Run a command with arguments
+    static fn runArgs(cmd: str, args: str[]): Process =>
+        return sn_process_run_args(cmd, args)
+
+    # ==========================================================================
+    # Getter Methods (native - pass self by pointer via 'as ref')
+    # ==========================================================================
+
+    # Get exit code (0 typically means success)
+    @alias "sn_process_get_exit_code"
+    native fn exitCode(): int
+
+    # Get captured standard output
+    @alias "sn_process_get_stdout"
+    native fn stdout(): str
+
+    # Get captured standard error
+    @alias "sn_process_get_stderr"
+    native fn stderr(): str
+
+    # ==========================================================================
+    # Convenience Methods (non-native)
+    # ==========================================================================
+
+    # Check if process succeeded (exit code 0)
+    fn success(): bool =>
+        return self.exitCode() == 0
+
+    # Check if process failed (exit code non-zero)
+    fn failed(): bool =>
+        return self.exitCode() != 0
+
+    # Check if command was not found (exit code 127)
+    fn notFound(): bool =>
+        return self.exitCode() == 127
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+# These declare the runtime functions directly.
+# Process is an opaque handle type that generates as RtProcess* in C.
+
+# Factory functions - return Process (which is RtProcess*)
+native fn sn_process_run(arena, cmd: str): Process
+native fn sn_process_run_args(arena, cmd: str, args: str[]): Process

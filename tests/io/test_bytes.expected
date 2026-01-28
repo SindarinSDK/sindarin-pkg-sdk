@@ -1,0 +1,13 @@
+=== SDK Bytes Tests ===
+
+test_from_hex: PASS
+test_from_hex_empty: PASS
+test_from_base64: PASS
+test_from_base64_no_padding: PASS
+test_from_base64_one_pad: PASS
+test_from_base64_two_pad: PASS
+test_from_base64_empty: PASS
+test_roundtrip_hex: PASS
+test_roundtrip_base64: PASS
+
+All Bytes tests passed!

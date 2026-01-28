@@ -1,0 +1,468 @@
+# Test sdk/core/version module - Semantic Versioning
+
+import "../../../sdk/core/version"
+
+fn test_parse_basic(): int =>
+    print("  Parse basic version 1.2.3... ")
+    var v: Version = Version.parse("1.2.3")
+    if v.major != 1 =>
+        print("FAIL (major)\n")
+        return 1
+    if v.minor != 2 =>
+        print("FAIL (minor)\n")
+        return 1
+    if v.patch != 3 =>
+        print("FAIL (patch)\n")
+        return 1
+    if v.prerelease != "" =>
+        print("FAIL (prerelease)\n")
+        return 1
+    if v.build != "" =>
+        print("FAIL (build)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_parse_prerelease(): int =>
+    print("  Parse with prerelease 1.2.3-alpha.1... ")
+    var v: Version = Version.parse("1.2.3-alpha.1")
+    if v.major != 1 =>
+        print("FAIL (major)\n")
+        return 1
+    if v.minor != 2 =>
+        print("FAIL (minor)\n")
+        return 1
+    if v.patch != 3 =>
+        print("FAIL (patch)\n")
+        return 1
+    if v.prerelease != "alpha.1" =>
+        print($"FAIL (prerelease={v.prerelease})\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_parse_build(): int =>
+    print("  Parse with build 1.2.3+build.42... ")
+    var v: Version = Version.parse("1.2.3+build.42")
+    if v.major != 1 =>
+        print("FAIL (major)\n")
+        return 1
+    if v.build != "build.42" =>
+        print($"FAIL (build={v.build})\n")
+        return 1
+    if v.prerelease != "" =>
+        print("FAIL (prerelease)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_parse_v_prefix(): int =>
+    print("  Parse with v-prefix v2.0.0... ")
+    var v: Version = Version.parse("v2.0.0")
+    if v.major != 2 =>
+        print("FAIL (major)\n")
+        return 1
+    if v.minor != 0 =>
+        print("FAIL (minor)\n")
+        return 1
+    if v.patch != 0 =>
+        print("FAIL (patch)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_parse_full(): int =>
+    print("  Parse full 1.2.3-beta.1+build.5... ")
+    var v: Version = Version.parse("1.2.3-beta.1+build.5")
+    if v.major != 1 =>
+        print("FAIL (major)\n")
+        return 1
+    if v.minor != 2 =>
+        print("FAIL (minor)\n")
+        return 1
+    if v.patch != 3 =>
+        print("FAIL (patch)\n")
+        return 1
+    if v.prerelease != "beta.1" =>
+        print($"FAIL (prerelease={v.prerelease})\n")
+        return 1
+    if v.build != "build.5" =>
+        print($"FAIL (build={v.build})\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_toString(): int =>
+    print("  toString round-trip... ")
+    var v1: Version = Version.parse("1.2.3")
+    if v1.toString() != "1.2.3" =>
+        print($"FAIL (got {v1.toString()})\n")
+        return 1
+    var v2: Version = Version.parse("1.2.3-beta.1")
+    if v2.toString() != "1.2.3-beta.1" =>
+        print($"FAIL (got {v2.toString()})\n")
+        return 1
+    var v3: Version = Version.parse("1.2.3-beta.1+build.5")
+    if v3.toString() != "1.2.3-beta.1+build.5" =>
+        print($"FAIL (got {v3.toString()})\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_compare_major(): int =>
+    print("  Compare major ordering... ")
+    var v1: Version = Version.parse("1.0.0")
+    var v2: Version = Version.parse("2.0.0")
+    if v1.compare(v2) != -1 =>
+        print("FAIL (1.0.0 should be < 2.0.0)\n")
+        return 1
+    if v2.compare(v1) != 1 =>
+        print("FAIL (2.0.0 should be > 1.0.0)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_compare_minor(): int =>
+    print("  Compare minor ordering... ")
+    var v1: Version = Version.parse("1.1.0")
+    var v2: Version = Version.parse("1.2.0")
+    if v1.compare(v2) != -1 =>
+        print("FAIL (1.1.0 should be < 1.2.0)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_compare_patch(): int =>
+    print("  Compare patch ordering... ")
+    var v1: Version = Version.parse("1.2.3")
+    var v2: Version = Version.parse("1.2.4")
+    if v1.compare(v2) != -1 =>
+        print("FAIL (1.2.3 should be < 1.2.4)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_compare_prerelease_vs_release(): int =>
+    print("  Compare prerelease < release... ")
+    var v1: Version = Version.parse("1.0.0-alpha")
+    var v2: Version = Version.parse("1.0.0")
+    if v1.compare(v2) != -1 =>
+        print("FAIL (1.0.0-alpha should be < 1.0.0)\n")
+        return 1
+    if v2.compare(v1) != 1 =>
+        print("FAIL (1.0.0 should be > 1.0.0-alpha)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_compare_prerelease_ordering(): int =>
+    print("  Compare prerelease ordering... ")
+    # alpha < beta (lexicographic)
+    var v1: Version = Version.parse("1.0.0-alpha")
+    var v2: Version = Version.parse("1.0.0-beta")
+    if v1.compare(v2) != -1 =>
+        print("FAIL (alpha should be < beta)\n")
+        return 1
+    # numeric ordering: 1 < 2
+    var v3: Version = Version.parse("1.0.0-alpha.1")
+    var v4: Version = Version.parse("1.0.0-alpha.2")
+    if v3.compare(v4) != -1 =>
+        print("FAIL (alpha.1 should be < alpha.2)\n")
+        return 1
+    # numeric < alphanumeric
+    var v5: Version = Version.parse("1.0.0-1")
+    var v6: Version = Version.parse("1.0.0-alpha")
+    if v5.compare(v6) != -1 =>
+        print("FAIL (1 should be < alpha)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_equality(): int =>
+    print("  Equality check... ")
+    var v1: Version = Version.parse("1.2.3")
+    var v2: Version = Version.parse("1.2.3")
+    if !v1.eq(v2) =>
+        print("FAIL (1.2.3 should eq 1.2.3)\n")
+        return 1
+    if v1.compare(v2) != 0 =>
+        print("FAIL (compare should be 0)\n")
+        return 1
+    # Build metadata should be ignored in comparison
+    var v3: Version = Version.parse("1.2.3+build.1")
+    var v4: Version = Version.parse("1.2.3+build.2")
+    if !v3.eq(v4) =>
+        print("FAIL (build metadata should be ignored)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_bump_major(): int =>
+    print("  Bump major... ")
+    var v: Version = Version.parse("1.2.3-beta")
+    var bumped: Version = v.bumpMajor()
+    if bumped.major != 2 =>
+        print("FAIL (major)\n")
+        return 1
+    if bumped.minor != 0 =>
+        print("FAIL (minor)\n")
+        return 1
+    if bumped.patch != 0 =>
+        print("FAIL (patch)\n")
+        return 1
+    if bumped.prerelease != "" =>
+        print("FAIL (prerelease)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_bump_minor(): int =>
+    print("  Bump minor... ")
+    var v: Version = Version.parse("1.2.3")
+    var bumped: Version = v.bumpMinor()
+    if bumped.major != 1 =>
+        print("FAIL (major)\n")
+        return 1
+    if bumped.minor != 3 =>
+        print("FAIL (minor)\n")
+        return 1
+    if bumped.patch != 0 =>
+        print("FAIL (patch)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_bump_patch(): int =>
+    print("  Bump patch... ")
+    var v: Version = Version.parse("1.2.3")
+    var bumped: Version = v.bumpPatch()
+    if bumped.major != 1 =>
+        print("FAIL (major)\n")
+        return 1
+    if bumped.minor != 2 =>
+        print("FAIL (minor)\n")
+        return 1
+    if bumped.patch != 4 =>
+        print("FAIL (patch)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_isPrerelease(): int =>
+    print("  isPrerelease... ")
+    var v1: Version = Version.parse("1.0.0-alpha")
+    if !v1.isPrerelease() =>
+        print("FAIL (1.0.0-alpha should be prerelease)\n")
+        return 1
+    var v2: Version = Version.parse("1.0.0")
+    if v2.isPrerelease() =>
+        print("FAIL (1.0.0 should not be prerelease)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_isStable(): int =>
+    print("  isStable... ")
+    var v1: Version = Version.parse("1.0.0")
+    if !v1.isStable() =>
+        print("FAIL (1.0.0 should be stable)\n")
+        return 1
+    var v2: Version = Version.parse("0.9.0")
+    if v2.isStable() =>
+        print("FAIL (0.9.0 should not be stable)\n")
+        return 1
+    var v3: Version = Version.parse("1.0.0-beta")
+    if v3.isStable() =>
+        print("FAIL (1.0.0-beta should not be stable)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_caret_constraint(): int =>
+    print("  Caret constraints... ")
+    # ^1.2.3 -> >=1.2.3, <2.0.0
+    var v1: Version = Version.parse("1.5.0")
+    if !version_satisfies(v1, "^1.2.3") =>
+        print("FAIL (1.5.0 should satisfy ^1.2.3)\n")
+        return 1
+    var v2: Version = Version.parse("2.0.0")
+    if version_satisfies(v2, "^1.2.3") =>
+        print("FAIL (2.0.0 should not satisfy ^1.2.3)\n")
+        return 1
+    var v3: Version = Version.parse("1.2.2")
+    if version_satisfies(v3, "^1.2.3") =>
+        print("FAIL (1.2.2 should not satisfy ^1.2.3)\n")
+        return 1
+
+    # ^0.2.3 -> >=0.2.3, <0.3.0
+    var v4: Version = Version.parse("0.2.5")
+    if !version_satisfies(v4, "^0.2.3") =>
+        print("FAIL (0.2.5 should satisfy ^0.2.3)\n")
+        return 1
+    var v5: Version = Version.parse("0.3.0")
+    if version_satisfies(v5, "^0.2.3") =>
+        print("FAIL (0.3.0 should not satisfy ^0.2.3)\n")
+        return 1
+
+    # ^0.0.3 -> >=0.0.3, <0.0.4
+    var v6: Version = Version.parse("0.0.3")
+    if !version_satisfies(v6, "^0.0.3") =>
+        print("FAIL (0.0.3 should satisfy ^0.0.3)\n")
+        return 1
+    var v7: Version = Version.parse("0.0.4")
+    if version_satisfies(v7, "^0.0.3") =>
+        print("FAIL (0.0.4 should not satisfy ^0.0.3)\n")
+        return 1
+
+    print("PASS\n")
+    return 0
+
+fn test_tilde_constraint(): int =>
+    print("  Tilde constraints... ")
+    # ~1.2.3 -> >=1.2.3, <1.3.0
+    var v1: Version = Version.parse("1.2.5")
+    if !version_satisfies(v1, "~1.2.3") =>
+        print("FAIL (1.2.5 should satisfy ~1.2.3)\n")
+        return 1
+    var v2: Version = Version.parse("1.3.0")
+    if version_satisfies(v2, "~1.2.3") =>
+        print("FAIL (1.3.0 should not satisfy ~1.2.3)\n")
+        return 1
+    var v3: Version = Version.parse("1.2.2")
+    if version_satisfies(v3, "~1.2.3") =>
+        print("FAIL (1.2.2 should not satisfy ~1.2.3)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_comparison_constraints(): int =>
+    print("  Comparison constraints (>=, >, <, <=, =)... ")
+    var v: Version = Version.parse("1.5.0")
+
+    if !version_satisfies(v, ">=1.0.0") =>
+        print("FAIL (1.5.0 should satisfy >=1.0.0)\n")
+        return 1
+    if !version_satisfies(v, ">1.0.0") =>
+        print("FAIL (1.5.0 should satisfy >1.0.0)\n")
+        return 1
+    if !version_satisfies(v, "<2.0.0") =>
+        print("FAIL (1.5.0 should satisfy <2.0.0)\n")
+        return 1
+    if !version_satisfies(v, "<=2.0.0") =>
+        print("FAIL (1.5.0 should satisfy <=2.0.0)\n")
+        return 1
+    if version_satisfies(v, "=1.0.0") =>
+        print("FAIL (1.5.0 should not satisfy =1.0.0)\n")
+        return 1
+    if !version_satisfies(v, "=1.5.0") =>
+        print("FAIL (1.5.0 should satisfy =1.5.0)\n")
+        return 1
+    if version_satisfies(v, ">1.5.0") =>
+        print("FAIL (1.5.0 should not satisfy >1.5.0)\n")
+        return 1
+    if version_satisfies(v, "<1.5.0") =>
+        print("FAIL (1.5.0 should not satisfy <1.5.0)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_satisfies_all(): int =>
+    print("  Comma-separated AND constraints... ")
+    var v1: Version = Version.parse("1.5.0")
+    if !version_satisfies_all(v1, ">=1.0.0, <2.0.0") =>
+        print("FAIL (1.5.0 should satisfy >=1.0.0, <2.0.0)\n")
+        return 1
+    var v2: Version = Version.parse("2.0.0")
+    if version_satisfies_all(v2, ">=1.0.0, <2.0.0") =>
+        print("FAIL (2.0.0 should not satisfy >=1.0.0, <2.0.0)\n")
+        return 1
+    var v3: Version = Version.parse("0.9.0")
+    if version_satisfies_all(v3, ">=1.0.0, <2.0.0") =>
+        print("FAIL (0.9.0 should not satisfy >=1.0.0, <2.0.0)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_version_satisfies_convenience(): int =>
+    print("  version_satisfies convenience function... ")
+    var v: Version = Version.parse("1.2.3")
+    if !version_satisfies(v, "^1.0.0") =>
+        print("FAIL (1.2.3 should satisfy ^1.0.0)\n")
+        return 1
+    if version_satisfies(v, "^2.0.0") =>
+        print("FAIL (1.2.3 should not satisfy ^2.0.0)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn test_gt_lt_gte_lte(): int =>
+    print("  gt/lt/gte/lte methods... ")
+    var v1: Version = Version.parse("1.0.0")
+    var v2: Version = Version.parse("2.0.0")
+    if !v1.lt(v2) =>
+        print("FAIL (1.0.0 should be lt 2.0.0)\n")
+        return 1
+    if !v2.gt(v1) =>
+        print("FAIL (2.0.0 should be gt 1.0.0)\n")
+        return 1
+    if !v1.lte(v2) =>
+        print("FAIL (1.0.0 should be lte 2.0.0)\n")
+        return 1
+    if !v2.gte(v1) =>
+        print("FAIL (2.0.0 should be gte 1.0.0)\n")
+        return 1
+    if !v1.lte(v1) =>
+        print("FAIL (1.0.0 should be lte 1.0.0)\n")
+        return 1
+    if !v1.gte(v1) =>
+        print("FAIL (1.0.0 should be gte 1.0.0)\n")
+        return 1
+    print("PASS\n")
+    return 0
+
+fn main(): int =>
+    print("=== SDK Version Module Test ===\n\n")
+    var failures: int = 0
+
+    print("--- Parsing ---\n")
+    failures = failures + test_parse_basic()
+    failures = failures + test_parse_prerelease()
+    failures = failures + test_parse_build()
+    failures = failures + test_parse_v_prefix()
+    failures = failures + test_parse_full()
+
+    print("\n--- String Formatting ---\n")
+    failures = failures + test_toString()
+
+    print("\n--- Comparison ---\n")
+    failures = failures + test_compare_major()
+    failures = failures + test_compare_minor()
+    failures = failures + test_compare_patch()
+    failures = failures + test_compare_prerelease_vs_release()
+    failures = failures + test_compare_prerelease_ordering()
+    failures = failures + test_equality()
+    failures = failures + test_gt_lt_gte_lte()
+
+    print("\n--- Bump Operations ---\n")
+    failures = failures + test_bump_major()
+    failures = failures + test_bump_minor()
+    failures = failures + test_bump_patch()
+
+    print("\n--- Predicates ---\n")
+    failures = failures + test_isPrerelease()
+    failures = failures + test_isStable()
+
+    print("\n--- Constraints ---\n")
+    failures = failures + test_caret_constraint()
+    failures = failures + test_tilde_constraint()
+    failures = failures + test_comparison_constraints()
+    failures = failures + test_satisfies_all()
+    failures = failures + test_version_satisfies_convenience()
+
+    print("\n")
+    if failures == 0 =>
+        print("All version tests PASSED!\n")
+        return 0
+    else =>
+        print($"{failures} test(s) FAILED!\n")
+        return 1

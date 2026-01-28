@@ -1,0 +1,21 @@
+=== SDK YAML Tests ===
+
+test_create_scalar: PASS
+test_create_sequence: PASS
+test_create_mapping: PASS
+test_scalar_conversions: PASS
+test_mapping_access: PASS
+test_sequence_access: PASS
+test_mapping_mutation: PASS
+test_sequence_mutation: PASS
+test_keys: PASS
+test_type_names: PASS
+test_parse_mapping: PASS
+test_parse_sequence: PASS
+test_parse_nested: PASS
+test_serialization: PASS
+test_copy: PASS
+test_nested_sequence: PASS
+test_file_io: PASS
+
+All YAML tests passed!

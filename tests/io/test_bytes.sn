@@ -1,0 +1,137 @@
+# ==============================================================================
+# test_bytes.sn - Tests for SDK Bytes Type
+# ==============================================================================
+# Tests the Bytes struct and its methods.
+# ==============================================================================
+
+import "../../../sdk/io/bytes"
+
+fn test_from_hex(): void =>
+    print("test_from_hex: ")
+
+    # "Hello" in hex
+    var bytes: byte[] = Bytes.fromHex("48656c6c6f")
+
+    assert(bytes.length == 5, "Should have 5 bytes")
+    assert(bytes[0] == 72, "H")
+    assert(bytes[1] == 101, "e")
+    assert(bytes[2] == 108, "l")
+    assert(bytes[3] == 108, "l")
+    assert(bytes[4] == 111, "o")
+
+    # Test uppercase hex
+    var bytes2: byte[] = Bytes.fromHex("48454C4C4F")
+    assert(bytes2.length == 5, "Should have 5 bytes (uppercase)")
+    assert(bytes2[0] == 72, "H (uppercase)")
+
+    # Test mixed case (48 = H, eD = invalid, so use: 48 65 6C = Hel)
+    var bytes3: byte[] = Bytes.fromHex("48656C")
+    assert(bytes3.length == 3, "Should have 3 bytes (mixed)")
+
+    print("PASS\n")
+
+fn test_from_hex_empty(): void =>
+    print("test_from_hex_empty: ")
+
+    var bytes: byte[] = Bytes.fromHex("")
+    assert(bytes.length == 0, "Empty hex should give empty array")
+
+    print("PASS\n")
+
+fn test_from_base64(): void =>
+    print("test_from_base64: ")
+
+    # "Hello" in base64 is "SGVsbG8="
+    var bytes: byte[] = Bytes.fromBase64("SGVsbG8=")
+
+    assert(bytes.length == 5, "Should have 5 bytes")
+    assert(bytes[0] == 72, "H")
+    assert(bytes[1] == 101, "e")
+    assert(bytes[2] == 108, "l")
+    assert(bytes[3] == 108, "l")
+    assert(bytes[4] == 111, "o")
+
+    print("PASS\n")
+
+fn test_from_base64_no_padding(): void =>
+    print("test_from_base64_no_padding: ")
+
+    # "Man" in base64 is "TWFu" (no padding needed)
+    var bytes: byte[] = Bytes.fromBase64("TWFu")
+
+    assert(bytes.length == 3, "Should have 3 bytes")
+    assert(bytes[0] == 77, "M")
+    assert(bytes[1] == 97, "a")
+    assert(bytes[2] == 110, "n")
+
+    print("PASS\n")
+
+fn test_from_base64_one_pad(): void =>
+    print("test_from_base64_one_pad: ")
+
+    # "Ma" in base64 is "TWE=" (one padding)
+    var bytes: byte[] = Bytes.fromBase64("TWE=")
+
+    assert(bytes.length == 2, "Should have 2 bytes")
+    assert(bytes[0] == 77, "M")
+    assert(bytes[1] == 97, "a")
+
+    print("PASS\n")
+
+fn test_from_base64_two_pad(): void =>
+    print("test_from_base64_two_pad: ")
+
+    # "M" in base64 is "TQ==" (two padding)
+    var bytes: byte[] = Bytes.fromBase64("TQ==")
+
+    assert(bytes.length == 1, "Should have 1 byte")
+    assert(bytes[0] == 77, "M")
+
+    print("PASS\n")
+
+fn test_from_base64_empty(): void =>
+    print("test_from_base64_empty: ")
+
+    var bytes: byte[] = Bytes.fromBase64("")
+    assert(bytes.length == 0, "Empty base64 should give empty array")
+
+    print("PASS\n")
+
+fn test_roundtrip_hex(): void =>
+    print("test_roundtrip_hex: ")
+
+    # Decode and encode back
+    var original: str = "48656c6c6f"
+    var bytes: byte[] = Bytes.fromHex(original)
+    var encoded: str = bytes.toHex()
+
+    assert(encoded == original, "Hex roundtrip should match")
+
+    print("PASS\n")
+
+fn test_roundtrip_base64(): void =>
+    print("test_roundtrip_base64: ")
+
+    # Decode and encode back
+    var original: str = "SGVsbG8="
+    var bytes: byte[] = Bytes.fromBase64(original)
+    var encoded: str = bytes.toBase64()
+
+    assert(encoded == original, "Base64 roundtrip should match")
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Bytes Tests ===\n\n")
+
+    test_from_hex()
+    test_from_hex_empty()
+    test_from_base64()
+    test_from_base64_no_padding()
+    test_from_base64_one_pad()
+    test_from_base64_two_pad()
+    test_from_base64_empty()
+    test_roundtrip_hex()
+    test_roundtrip_base64()
+
+    print("\nAll Bytes tests passed!\n")

@@ -1,0 +1,22 @@
+=== SDK Date Tests ===
+
+test_today: PASS
+test_from_ymd: PASS
+test_from_string: PASS
+test_epoch_days: PASS
+test_weekday: PASS
+test_day_of_year: PASS
+test_days_in_month: PASS
+test_is_leap: PASS
+test_is_weekend: PASS
+test_comparison: PASS
+test_diff_days: PASS
+test_format: PASS
+test_add_days: PASS
+test_add_weeks: PASS
+test_add_months: PASS
+test_add_years: PASS
+test_boundaries: PASS
+test_static_methods: PASS
+
+All date tests passed!

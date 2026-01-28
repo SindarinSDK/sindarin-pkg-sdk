@@ -1,0 +1,104 @@
+# ==============================================================================
+# test_env.sn - Tests for SDK Environment Type
+# ==============================================================================
+# Tests the Environment struct and its methods.
+# ==============================================================================
+
+import "../../../sdk/os/env"
+
+fn test_has_path(): void =>
+    print("test_has_path: ")
+    # PATH should exist on all systems
+    var hasPath: bool = Environment.has("PATH")
+    assert(hasPath, "PATH environment variable should exist")
+    print("PASS\n")
+
+fn test_has_nonexistent(): void =>
+    print("test_has_nonexistent: ")
+    # This variable should not exist
+    var hasIt: bool = Environment.has("SN_TEST_NONEXISTENT_VAR_12345")
+    assert(!hasIt, "Non-existent variable should return false")
+    print("PASS\n")
+
+fn test_get_path(): void =>
+    print("test_get_path: ")
+    # PATH should exist and be non-empty
+    var path: str = Environment.get("PATH")
+    assert(len(path) > 0, "PATH should have a value")
+    print("PASS\n")
+
+fn test_getOr_exists(): void =>
+    print("test_getOr_exists: ")
+    # PATH exists, so default should not be used
+    var path: str = Environment.getOr("PATH", "default_value")
+    assert(path != "default_value", "Default should not be used when variable exists")
+    print("PASS\n")
+
+fn test_getOr_not_exists(): void =>
+    print("test_getOr_not_exists: ")
+    # This variable should not exist, so default should be used
+    var value: str = Environment.getOr("SN_TEST_NONEXISTENT_VAR_12345", "my_default")
+    assert(value == "my_default", "Default should be returned for non-existent variable")
+    print("PASS\n")
+
+fn test_getOr_empty_default(): void =>
+    print("test_getOr_empty_default: ")
+    # Test with empty string default
+    var value: str = Environment.getOr("SN_TEST_NONEXISTENT_VAR_12345", "")
+    assert(value == "", "Empty default should be returned")
+    print("PASS\n")
+
+fn test_all_returns_array(): void =>
+    print("test_all_returns_array: ")
+    var all: str[][] = Environment.all()
+    # There should be at least one environment variable
+    assert(len(all) > 0, "Should have at least one environment variable")
+    print("PASS\n")
+
+fn test_all_contains_path(): void =>
+    print("test_all_contains_path: ")
+    var all: str[][] = Environment.all()
+    var foundPath: bool = false
+    for entry in all =>
+        if entry[0] == "PATH" =>
+            foundPath = true
+            break
+    assert(foundPath, "Environment variables should include PATH")
+    print("PASS\n")
+
+fn test_all_pairs_have_two_elements(): void =>
+    print("test_all_pairs_have_two_elements: ")
+    var all: str[][] = Environment.all()
+    for entry in all =>
+        assert(len(entry) == 2, "Each entry should have exactly 2 elements")
+    print("PASS\n")
+
+fn test_get_matches_all(): void =>
+    print("test_get_matches_all: ")
+    # Verify that get() returns the same value as found in all()
+    var all: str[][] = Environment.all()
+    var pathFromGet: str = Environment.get("PATH")
+    var foundMatch: bool = false
+    for entry in all =>
+        if entry[0] == "PATH" =>
+            if entry[1] == pathFromGet =>
+                foundMatch = true
+            break
+    assert(foundMatch, "get() and all() should return consistent values")
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Environment Tests ===\n\n")
+
+    test_has_path()
+    test_has_nonexistent()
+    test_get_path()
+    test_getOr_exists()
+    test_getOr_not_exists()
+    test_getOr_empty_default()
+    test_all_returns_array()
+    test_all_contains_path()
+    test_all_pairs_have_two_elements()
+    test_get_matches_all()
+
+    print("\nAll environment tests passed!\n")

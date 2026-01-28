@@ -1,0 +1,7 @@
+=== SDK UDP Tests ===
+
+test_socket_bind: PASS
+test_send_receive: PASS
+test_echo: PASS
+
+All UDP tests passed!

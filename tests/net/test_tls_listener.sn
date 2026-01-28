@@ -1,0 +1,134 @@
+# ==============================================================================
+# test_tls_listener.sn - Tests for SDK TLS Listener (TlsListener, TlsStream)
+# ==============================================================================
+# Tests the TlsListener implementation using a local server and client.
+# Self-contained: starts a listener, connects a client, tests read/write.
+# Uses threading since TLS handshake requires both sides to be active.
+# ==============================================================================
+
+import "../../../sdk/net/tls"
+import "../../../sdk/os/env"
+
+# --- Client functions for threaded execution ---
+
+fn client_echo(port: int): str =>
+    var client: TlsStream = TlsStream.connect($"127.0.0.1:{port}")
+
+    # Send a line
+    client.writeLine("Hello TLS")
+
+    # Read echo back
+    var echo: str = client.readLine()
+
+    client.close()
+    return echo
+
+fn client_write_bytes(port: int): int =>
+    var client: TlsStream = TlsStream.connect($"127.0.0.1:{port}")
+
+    # Send bytes
+    var msg: byte[] = "Hello Bytes".toBytes()
+    var sent: int = client.write(msg)
+
+    # Wait for server to acknowledge receipt before closing
+    client.readLine()
+    client.close()
+    return sent
+
+# --- Tests ---
+
+fn test_listener_bind(): void =>
+    print("test_listener_bind: ")
+    var cert_path: str = "tests/sdk/net/test_tls_cert.pem"
+    var key_path: str = "tests/sdk/net/test_tls_key.pem"
+
+    var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    assert(port > 0, "Port should be assigned")
+    assert(port < 65536, "Port should be valid")
+
+    server.close()
+    print("PASS\n")
+
+fn test_tls_connect_and_echo(): void =>
+    print("test_tls_connect_and_echo: ")
+    var cert_path: str = "tests/sdk/net/test_tls_cert.pem"
+    var key_path: str = "tests/sdk/net/test_tls_key.pem"
+
+    # Set SN_CERTS so the client trusts our self-signed certificate
+    Environment.set("SN_CERTS", cert_path)
+
+    var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    # Spawn client in a thread
+    var client_result: str = &client_echo(port)
+
+    # Server: accept connection
+    var serverConn: TlsStream = server.accept()
+
+    # Check remote address
+    var remoteAddr: str = serverConn.remoteAddress()
+    assert(remoteAddr.startsWith("127.0.0.1:"), $"Remote should be localhost, got '{remoteAddr}'")
+
+    # Server reads client's line
+    var received: str = serverConn.readLine()
+    assert(received == "Hello TLS", $"Should receive 'Hello TLS', got '{received}'")
+
+    # Server echoes back
+    serverConn.writeLine("Echo: " + received)
+
+    # Sync with client
+    var echo: str = client_result!
+    assert(echo == "Echo: Hello TLS", $"Client should receive echo, got '{echo}'")
+
+    # Clean up
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_tls_write_bytes(): void =>
+    print("test_tls_write_bytes: ")
+    var cert_path: str = "tests/sdk/net/test_tls_cert.pem"
+    var key_path: str = "tests/sdk/net/test_tls_key.pem"
+
+    # Set SN_CERTS so the client trusts our self-signed certificate
+    Environment.set("SN_CERTS", cert_path)
+
+    var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    # Spawn client in a thread
+    var client_result: int = &client_write_bytes(port)
+
+    # Server: accept connection
+    var serverConn: TlsStream = server.accept()
+
+    # Server reads bytes
+    var received: byte[] = serverConn.read(1024)
+    assert(received.length == 11, $"Should receive 11 bytes, got {received.length}")
+    assert(received.toString() == "Hello Bytes", $"Should receive 'Hello Bytes', got '{received.toString()}'")
+
+    # Acknowledge receipt so client can close cleanly
+    serverConn.writeLine("ok")
+
+    # Sync with client
+    var sent: int = client_result!
+    assert(sent == 11, $"Client should send 11 bytes, got {sent}")
+
+    # Clean up
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK TLS Listener Tests ===\n\n")
+
+    test_listener_bind()
+    test_tls_connect_and_echo()
+    test_tls_write_bytes()
+
+    print("\nAll TLS listener tests passed!\n")

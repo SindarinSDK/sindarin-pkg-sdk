@@ -1,0 +1,148 @@
+# ==============================================================================
+# test_directory.sn - Tests for SDK Directory Type
+# ==============================================================================
+# Tests the Directory struct and its methods.
+# ==============================================================================
+
+import "../../../sdk/io/directory"
+import "../../../sdk/io/textfile"
+import "../../../sdk/io/path"
+
+fn test_create_and_delete(): void =>
+    print("test_create_and_delete: ")
+
+    var testDir: str = "sdk_dir_test1"
+
+    # Create directory
+    Directory.create(testDir)
+    assert(Path.exists(testDir), "Directory should exist after creation")
+    assert(Path.isDirectory(testDir), "Should be a directory")
+
+    # Delete it
+    Directory.delete(testDir)
+    assert(!Path.exists(testDir), "Directory should not exist after deletion")
+
+    print("PASS\n")
+
+fn test_create_nested(): void =>
+    print("test_create_nested: ")
+
+    var testDir: str = "sdk_dir_test2/nested/deep"
+
+    # Create nested directory (should create parents)
+    Directory.create(testDir)
+    assert(Path.exists(testDir), "Nested directory should exist")
+
+    # Clean up
+    Directory.delete(testDir)
+    Directory.delete("sdk_dir_test2/nested")
+    Directory.delete("sdk_dir_test2")
+
+    print("PASS\n")
+
+fn test_list(): void =>
+    print("test_list: ")
+
+    var testDir: str = "sdk_dir_test3"
+    Directory.create(testDir)
+
+    # Create some files
+    TextFile.writeAll(testDir + "/file1.txt", "content1")
+    TextFile.writeAll(testDir + "/file2.txt", "content2")
+    TextFile.writeAll(testDir + "/file3.txt", "content3")
+
+    # List directory
+    var files: str[] = Directory.list(testDir)
+
+    assert(files.length == 3, "Should have 3 files")
+
+    # Note: order may vary, so we check all are present
+    var found1: bool = false
+    var found2: bool = false
+    var found3: bool = false
+    for file in files =>
+        if file == "file1.txt" =>
+            found1 = true
+        if file == "file2.txt" =>
+            found2 = true
+        if file == "file3.txt" =>
+            found3 = true
+
+    assert(found1, "file1.txt should be in list")
+    assert(found2, "file2.txt should be in list")
+    assert(found3, "file3.txt should be in list")
+
+    # Clean up
+    TextFile.delete(testDir + "/file1.txt")
+    TextFile.delete(testDir + "/file2.txt")
+    TextFile.delete(testDir + "/file3.txt")
+    Directory.delete(testDir)
+
+    print("PASS\n")
+
+fn test_list_recursive(): void =>
+    print("test_list_recursive: ")
+
+    var testDir: str = "sdk_dir_test4"
+    Directory.create(testDir)
+    Directory.create(testDir + "/subdir")
+
+    # Create files in different levels
+    TextFile.writeAll(testDir + "/root.txt", "root")
+    TextFile.writeAll(testDir + "/subdir/nested.txt", "nested")
+
+    # List recursively
+    var files: str[] = Directory.listRecursive(testDir)
+
+    # Should have: root.txt, subdir, subdir/nested.txt
+    assert(files.length == 3, "Should have 3 entries")
+
+    var foundRoot: bool = false
+    var foundSubdir: bool = false
+    var foundNested: bool = false
+    for file in files =>
+        if file == "root.txt" =>
+            foundRoot = true
+        if file == "subdir" =>
+            foundSubdir = true
+        if file == "subdir/nested.txt" =>
+            foundNested = true
+
+    assert(foundRoot, "root.txt should be in list")
+    assert(foundSubdir, "subdir should be in list")
+    assert(foundNested, "subdir/nested.txt should be in list")
+
+    # Clean up
+    Directory.deleteRecursive(testDir)
+
+    print("PASS\n")
+
+fn test_delete_recursive(): void =>
+    print("test_delete_recursive: ")
+
+    var testDir: str = "sdk_dir_test5"
+    Directory.create(testDir + "/a/b/c")
+
+    # Create files at various levels
+    TextFile.writeAll(testDir + "/file1.txt", "1")
+    TextFile.writeAll(testDir + "/a/file2.txt", "2")
+    TextFile.writeAll(testDir + "/a/b/file3.txt", "3")
+    TextFile.writeAll(testDir + "/a/b/c/file4.txt", "4")
+
+    # Delete recursively
+    Directory.deleteRecursive(testDir)
+
+    assert(!Path.exists(testDir), "Directory should not exist after recursive delete")
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Directory Tests ===\n\n")
+
+    test_create_and_delete()
+    test_create_nested()
+    test_list()
+    test_list_recursive()
+    test_delete_recursive()
+
+    print("\nAll Directory tests passed!\n")

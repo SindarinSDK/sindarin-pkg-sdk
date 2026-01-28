@@ -1,0 +1,254 @@
+# ==============================================================================
+# sdk/encoding/yaml.sn - YAML Library for Sindarin
+# ==============================================================================
+# Provides YAML parsing, manipulation, and serialization using libyaml.
+#
+# Usage:
+#   import "sdk/encoding/yaml"
+#
+#   # Parsing
+#   var doc: Yaml = Yaml.parse("name: Alice\nage: 30\n")
+#   var fromFile: Yaml = Yaml.parseFile("config.yaml")
+#
+#   # Reading values
+#   var name: str = doc.get("name").value()
+#   var age: int = doc.get("age").asInt()
+#
+#   # Type checking
+#   if doc.isMapping() =>
+#       print("doc is a mapping\n")
+#
+#   # Creating YAML
+#   var map: Yaml = Yaml.mapping()
+#   map.set("key", Yaml.scalar("value"))
+#   map.set("count", Yaml.scalar("42"))
+#
+#   var seq: Yaml = Yaml.sequence()
+#   seq.append(Yaml.scalar("item1"))
+#   seq.append(Yaml.scalar("item2"))
+#
+#   # Serialization
+#   var output: str = doc.toString()
+#   doc.writeFile("/tmp/output.yaml")
+#
+# Requirements:
+#   - libyaml library must be installed
+#   - Install via vcpkg (make setup)
+# ==============================================================================
+
+@include <yaml.h>
+@link yaml
+
+# Self-contained implementation
+@source "yaml.sn.c"
+
+# ==============================================================================
+# Yaml Native Struct Definition
+# ==============================================================================
+# Represents a YAML node (scalar, sequence, or mapping).
+# Uses a custom tree structure built on top of libyaml for full mutation support.
+
+@alias "SnYaml"
+native struct Yaml as ref =>
+    @alias "root"
+    _root: *void
+    @alias "node"
+    _node: *void
+    @alias "is_root"
+    _is_root: int32
+
+    # ==========================================================================
+    # Static Parsing Methods
+    # ==========================================================================
+
+    # Parse a YAML string
+    static fn parse(text: str): Yaml =>
+        return sn_yaml_parse(text)
+
+    # Parse a YAML file
+    static fn parseFile(path: str): Yaml =>
+        return sn_yaml_parse_file(path)
+
+    # ==========================================================================
+    # Static Creation Methods
+    # ==========================================================================
+
+    # Create a scalar node
+    static fn scalar(value: str): Yaml =>
+        return sn_yaml_scalar(value)
+
+    # Create an empty sequence node
+    static fn sequence(): Yaml =>
+        return sn_yaml_sequence()
+
+    # Create an empty mapping node
+    static fn mapping(): Yaml =>
+        return sn_yaml_mapping()
+
+    # ==========================================================================
+    # Type Checking Methods
+    # ==========================================================================
+
+    # Check if this is a scalar node
+    @alias "sn_yaml_is_scalar"
+    native fn isScalar(): bool
+
+    # Check if this is a sequence node
+    @alias "sn_yaml_is_sequence"
+    native fn isSequence(): bool
+
+    # Check if this is a mapping node
+    @alias "sn_yaml_is_mapping"
+    native fn isMapping(): bool
+
+    # ==========================================================================
+    # Value Access Methods (Scalars)
+    # ==========================================================================
+
+    # Get the raw scalar string value
+    fn value(): str =>
+        return sn_yaml_value(self)
+
+    # Parse scalar as integer
+    @alias "sn_yaml_as_int"
+    native fn asInt(): int
+
+    # Parse scalar as long
+    @alias "sn_yaml_as_long"
+    native fn asLong(): long
+
+    # Parse scalar as double
+    @alias "sn_yaml_as_float"
+    native fn asFloat(): double
+
+    # Parse scalar as bool (true/false/yes/no/on/off)
+    @alias "sn_yaml_as_bool"
+    native fn asBool(): bool
+
+    # ==========================================================================
+    # Mapping Access Methods
+    # ==========================================================================
+
+    # Get value by key from a mapping
+    fn get(key: str): Yaml =>
+        return sn_yaml_get(self, key)
+
+    # Check if a mapping contains a key
+    @alias "sn_yaml_has"
+    native fn has(key: str): bool
+
+    # Get all keys from a mapping
+    fn keys(): str[] =>
+        return sn_yaml_keys(self)
+
+    # ==========================================================================
+    # Sequence Access Methods
+    # ==========================================================================
+
+    # Get value by index from a sequence
+    fn getAt(index: int): Yaml =>
+        return sn_yaml_get_at(self, index)
+
+    # Get the first element of a sequence
+    fn first(): Yaml =>
+        return sn_yaml_first(self)
+
+    # Get the last element of a sequence
+    fn last(): Yaml =>
+        return sn_yaml_last(self)
+
+    # ==========================================================================
+    # Size Methods
+    # ==========================================================================
+
+    # Get number of items (mapping pairs or sequence elements)
+    @alias "sn_yaml_length"
+    native fn length(): int
+
+    # Check if empty
+    fn isEmpty(): bool =>
+        return self.length() == 0
+
+    # ==========================================================================
+    # Mutation Methods (Mapping)
+    # ==========================================================================
+
+    # Set or overwrite a key-value pair in a mapping
+    @alias "sn_yaml_set"
+    native fn set(key: str, value: Yaml): void
+
+    # Remove a key from a mapping
+    @alias "sn_yaml_remove"
+    native fn remove(key: str): void
+
+    # ==========================================================================
+    # Mutation Methods (Sequence)
+    # ==========================================================================
+
+    # Append a value to the end of a sequence
+    @alias "sn_yaml_append"
+    native fn append(value: Yaml): void
+
+    # Prepend a value to the start of a sequence
+    @alias "sn_yaml_prepend"
+    native fn prepend(value: Yaml): void
+
+    # Remove value at index from a sequence
+    @alias "sn_yaml_remove_at"
+    native fn removeAt(index: int): void
+
+    # ==========================================================================
+    # Serialization Methods
+    # ==========================================================================
+
+    # Serialize to YAML string
+    fn toString(): str =>
+        return sn_yaml_to_string(self)
+
+    # Write to YAML file
+    @alias "sn_yaml_write_file"
+    native fn writeFile(path: str): void
+
+    # ==========================================================================
+    # Utility Methods
+    # ==========================================================================
+
+    # Deep copy
+    fn copy(): Yaml =>
+        return sn_yaml_copy(self)
+
+    # Get type name ("scalar", "sequence", "mapping")
+    fn typeName(): str =>
+        return sn_yaml_type_name(self)
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Parsing functions
+native fn sn_yaml_parse(arena, text: str): Yaml
+native fn sn_yaml_parse_file(arena, path: str): Yaml
+
+# Creation functions
+native fn sn_yaml_scalar(arena, value: str): Yaml
+native fn sn_yaml_sequence(arena): Yaml
+native fn sn_yaml_mapping(arena): Yaml
+
+# Value access functions
+native fn sn_yaml_value(arena, y: Yaml): str
+
+# Mapping access functions
+native fn sn_yaml_get(arena, y: Yaml, key: str): Yaml
+native fn sn_yaml_keys(arena, y: Yaml): str[]
+
+# Sequence access functions
+native fn sn_yaml_get_at(arena, y: Yaml, index: int): Yaml
+native fn sn_yaml_first(arena, y: Yaml): Yaml
+native fn sn_yaml_last(arena, y: Yaml): Yaml
+
+# Serialization functions
+native fn sn_yaml_to_string(arena, y: Yaml): str
+
+# Utility functions
+native fn sn_yaml_copy(arena, y: Yaml): Yaml
+native fn sn_yaml_type_name(arena, y: Yaml): str

@@ -1,0 +1,320 @@
+// Test SDK YAML module
+
+import "../../../sdk/encoding/yaml"
+import "../../../sdk/os/env"
+
+fn test_create_scalar(): void =>
+    print("test_create_scalar: ")
+
+    var s: Yaml = Yaml.scalar("hello")
+    assert(s.isScalar(), "Should be a scalar")
+    assert(s.value() == "hello", "Value should be hello")
+    assert(s.typeName() == "scalar", "Type name should be scalar")
+
+    print("PASS\n")
+
+fn test_create_sequence(): void =>
+    print("test_create_sequence: ")
+
+    var seq: Yaml = Yaml.sequence()
+    assert(seq.isSequence(), "Should be a sequence")
+    assert(seq.length() == 0, "Should be empty")
+    assert(seq.isEmpty(), "isEmpty should return true")
+
+    seq.append(Yaml.scalar("first"))
+    seq.append(Yaml.scalar("second"))
+    assert(seq.length() == 2, "Should have 2 elements")
+    assert(seq.isEmpty() == false, "isEmpty should return false")
+
+    print("PASS\n")
+
+fn test_create_mapping(): void =>
+    print("test_create_mapping: ")
+
+    var map: Yaml = Yaml.mapping()
+    assert(map.isMapping(), "Should be a mapping")
+    assert(map.length() == 0, "Should be empty")
+    assert(map.isEmpty(), "isEmpty should return true")
+
+    map.set("name", Yaml.scalar("Alice"))
+    assert(map.length() == 1, "Should have 1 pair")
+    assert(map.has("name"), "Should have 'name' key")
+
+    print("PASS\n")
+
+fn test_scalar_conversions(): void =>
+    print("test_scalar_conversions: ")
+
+    var intVal: Yaml = Yaml.scalar("42")
+    assert(intVal.asInt() == 42, "Should parse as int 42")
+
+    var longVal: Yaml = Yaml.scalar("1000000")
+    assert(longVal.asLong() == 1000000, "Should parse as long")
+
+    var floatVal: Yaml = Yaml.scalar("3.14")
+    assert(floatVal.asFloat() > 3.13, "Should parse as float > 3.13")
+    assert(floatVal.asFloat() < 3.15, "Should parse as float < 3.15")
+
+    var trueVal: Yaml = Yaml.scalar("true")
+    assert(trueVal.asBool() == true, "true should parse as true")
+
+    var yesVal: Yaml = Yaml.scalar("yes")
+    assert(yesVal.asBool() == true, "yes should parse as true")
+
+    var falseVal: Yaml = Yaml.scalar("false")
+    assert(falseVal.asBool() == false, "false should parse as false")
+
+    var noVal: Yaml = Yaml.scalar("no")
+    assert(noVal.asBool() == false, "no should parse as false")
+
+    print("PASS\n")
+
+fn test_mapping_access(): void =>
+    print("test_mapping_access: ")
+
+    var map: Yaml = Yaml.mapping()
+    map.set("name", Yaml.scalar("Bob"))
+    map.set("age", Yaml.scalar("30"))
+    map.set("active", Yaml.scalar("true"))
+
+    assert(map.get("name").value() == "Bob", "Name should be Bob")
+    assert(map.get("age").asInt() == 30, "Age should be 30")
+    assert(map.get("active").asBool() == true, "Active should be true")
+
+    assert(map.has("name"), "Should have name")
+    assert(map.has("missing") == false, "Should not have missing")
+
+    print("PASS\n")
+
+fn test_sequence_access(): void =>
+    print("test_sequence_access: ")
+
+    var seq: Yaml = Yaml.sequence()
+    seq.append(Yaml.scalar("10"))
+    seq.append(Yaml.scalar("20"))
+    seq.append(Yaml.scalar("30"))
+
+    assert(seq.getAt(0).asInt() == 10, "First element should be 10")
+    assert(seq.getAt(1).asInt() == 20, "Second element should be 20")
+    assert(seq.getAt(2).asInt() == 30, "Third element should be 30")
+
+    assert(seq.first().asInt() == 10, "first() should return 10")
+    assert(seq.last().asInt() == 30, "last() should return 30")
+
+    print("PASS\n")
+
+fn test_mapping_mutation(): void =>
+    print("test_mapping_mutation: ")
+
+    var map: Yaml = Yaml.mapping()
+    map.set("key1", Yaml.scalar("value1"))
+    assert(map.length() == 1, "Should have 1 key")
+
+    map.set("key2", Yaml.scalar("value2"))
+    assert(map.length() == 2, "Should have 2 keys")
+
+    // Overwrite existing key
+    map.set("key1", Yaml.scalar("updated"))
+    assert(map.length() == 2, "Should still have 2 keys")
+    assert(map.get("key1").value() == "updated", "Value should be updated")
+
+    // Remove key
+    map.remove("key1")
+    assert(map.length() == 1, "Should have 1 key after removal")
+    assert(map.has("key1") == false, "key1 should be removed")
+
+    print("PASS\n")
+
+fn test_sequence_mutation(): void =>
+    print("test_sequence_mutation: ")
+
+    var seq: Yaml = Yaml.sequence()
+    seq.append(Yaml.scalar("a"))
+    seq.append(Yaml.scalar("b"))
+    seq.append(Yaml.scalar("c"))
+    assert(seq.length() == 3, "Should have 3 elements")
+
+    // Prepend
+    seq.prepend(Yaml.scalar("z"))
+    assert(seq.length() == 4, "Should have 4 elements after prepend")
+    assert(seq.first().value() == "z", "First should be z after prepend")
+
+    // Remove at index
+    seq.removeAt(0)
+    assert(seq.length() == 3, "Should have 3 elements after remove")
+    assert(seq.first().value() == "a", "First should be a after removing z")
+
+    print("PASS\n")
+
+fn test_keys(): void =>
+    print("test_keys: ")
+
+    var map: Yaml = Yaml.mapping()
+    map.set("alpha", Yaml.scalar("1"))
+    map.set("beta", Yaml.scalar("2"))
+    map.set("gamma", Yaml.scalar("3"))
+
+    var k: str[] = map.keys()
+    assert(len(k) == 3, "Should have 3 keys")
+    assert(k[0] == "alpha", "First key should be alpha")
+    assert(k[1] == "beta", "Second key should be beta")
+    assert(k[2] == "gamma", "Third key should be gamma")
+
+    print("PASS\n")
+
+fn test_type_names(): void =>
+    print("test_type_names: ")
+
+    var s: Yaml = Yaml.scalar("test")
+    assert(s.typeName() == "scalar", "Scalar type name")
+
+    var seq: Yaml = Yaml.sequence()
+    assert(seq.typeName() == "sequence", "Sequence type name")
+
+    var map: Yaml = Yaml.mapping()
+    assert(map.typeName() == "mapping", "Mapping type name")
+
+    print("PASS\n")
+
+fn test_parse_mapping(): void =>
+    print("test_parse_mapping: ")
+
+    var doc: Yaml = Yaml.parse("name: Alice\nage: 30\n")
+    assert(doc.isMapping(), "Parsed doc should be a mapping")
+    assert(doc.get("name").value() == "Alice", "Name should be Alice")
+    assert(doc.get("age").asInt() == 30, "Age should be 30")
+
+    print("PASS\n")
+
+fn test_parse_sequence(): void =>
+    print("test_parse_sequence: ")
+
+    var doc: Yaml = Yaml.parse("- one\n- two\n- three\n")
+    assert(doc.isSequence(), "Parsed doc should be a sequence")
+    assert(doc.length() == 3, "Should have 3 elements")
+    assert(doc.getAt(0).value() == "one", "First should be one")
+    assert(doc.getAt(1).value() == "two", "Second should be two")
+    assert(doc.getAt(2).value() == "three", "Third should be three")
+
+    print("PASS\n")
+
+fn test_parse_nested(): void =>
+    print("test_parse_nested: ")
+
+    var yaml_text: str = "server:\n  host: localhost\n  port: 8080\n"
+    var doc: Yaml = Yaml.parse(yaml_text)
+    assert(doc.isMapping(), "Should be a mapping")
+    assert(doc.has("server"), "Should have server key")
+
+    var server: Yaml = doc.get("server")
+    assert(server.isMapping(), "server should be a mapping")
+    assert(server.get("host").value() == "localhost", "Host should be localhost")
+    assert(server.get("port").asInt() == 8080, "Port should be 8080")
+
+    print("PASS\n")
+
+fn test_serialization(): void =>
+    print("test_serialization: ")
+
+    var map: Yaml = Yaml.mapping()
+    map.set("name", Yaml.scalar("test"))
+    map.set("count", Yaml.scalar("5"))
+
+    var output: str = map.toString()
+    assert(len(output) > 0, "Output should not be empty")
+
+    // Parse it back to verify roundtrip
+    var parsed: Yaml = Yaml.parse(output)
+    assert(parsed.isMapping(), "Parsed should be mapping")
+    assert(parsed.get("name").value() == "test", "Name should survive roundtrip")
+    assert(parsed.get("count").asInt() == 5, "Count should survive roundtrip")
+
+    print("PASS\n")
+
+fn test_copy(): void =>
+    print("test_copy: ")
+
+    var original: Yaml = Yaml.mapping()
+    original.set("key", Yaml.scalar("value"))
+
+    var copied: Yaml = original.copy()
+    assert(copied.isMapping(), "Copy should be mapping")
+    assert(copied.get("key").value() == "value", "Copy should have same value")
+
+    // Modify copy, original should be unchanged
+    copied.set("key", Yaml.scalar("modified"))
+    assert(original.get("key").value() == "value", "Original should be unchanged")
+    assert(copied.get("key").value() == "modified", "Copy should be modified")
+
+    print("PASS\n")
+
+fn test_nested_sequence(): void =>
+    print("test_nested_sequence: ")
+
+    var seq: Yaml = Yaml.sequence()
+    var inner: Yaml = Yaml.mapping()
+    inner.set("x", Yaml.scalar("1"))
+    inner.set("y", Yaml.scalar("2"))
+    seq.append(inner)
+
+    var inner2: Yaml = Yaml.mapping()
+    inner2.set("x", Yaml.scalar("3"))
+    inner2.set("y", Yaml.scalar("4"))
+    seq.append(inner2)
+
+    assert(seq.length() == 2, "Should have 2 elements")
+    assert(seq.getAt(0).get("x").asInt() == 1, "First x should be 1")
+    assert(seq.getAt(1).get("y").asInt() == 4, "Second y should be 4")
+
+    print("PASS\n")
+
+fn test_file_io(): void =>
+    print("test_file_io: ")
+
+    var tmpDir: str = Environment.getOr("TEMP", "/tmp")
+    var filePath: str = $"{tmpDir}/test_yaml_sdk.yaml"
+
+    // Create a document
+    var doc: Yaml = Yaml.mapping()
+    doc.set("title", Yaml.scalar("Test"))
+    doc.set("version", Yaml.scalar("1.0"))
+    var items: Yaml = Yaml.sequence()
+    items.append(Yaml.scalar("item1"))
+    items.append(Yaml.scalar("item2"))
+    doc.set("items", items)
+
+    // Write to file
+    doc.writeFile(filePath)
+
+    // Read back
+    var loaded: Yaml = Yaml.parseFile(filePath)
+    assert(loaded.isMapping(), "Loaded should be mapping")
+    assert(loaded.get("title").value() == "Test", "Title should match")
+    assert(loaded.get("version").value() == "1.0", "Version should match")
+    assert(loaded.get("items").length() == 2, "Items should have 2 elements")
+
+    print("PASS\n")
+
+fn main(): int =>
+    print("=== SDK YAML Tests ===\n\n")
+
+    test_create_scalar()
+    test_create_sequence()
+    test_create_mapping()
+    test_scalar_conversions()
+    test_mapping_access()
+    test_sequence_access()
+    test_mapping_mutation()
+    test_sequence_mutation()
+    test_keys()
+    test_type_names()
+    test_parse_mapping()
+    test_parse_sequence()
+    test_parse_nested()
+    test_serialization()
+    test_copy()
+    test_nested_sequence()
+    test_file_io()
+
+    print("\nAll YAML tests passed!\n")
+    return 0

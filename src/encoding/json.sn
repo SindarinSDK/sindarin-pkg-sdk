@@ -1,0 +1,313 @@
+# ==============================================================================
+# sdk/encoding/json.sn - JSON Library for Sindarin
+# ==============================================================================
+# Provides JSON parsing, manipulation, and serialization using yyjson.
+#
+# Usage:
+#   import "sdk/encoding/json"
+#
+#   # Parsing
+#   var doc: Json = Json.parse("{\"name\": \"Alice\", \"age\": 30}")
+#   var fromFile: Json = Json.parseFile("config.json")
+#
+#   # Reading values
+#   var name: str = doc.get("name").asString()
+#   var age: int = doc.get("age").asInt()
+#
+#   # Type checking
+#   if doc.get("name").isString() =>
+#       print("name is a string\n")
+#
+#   # Creating JSON
+#   var obj: Json = Json.object()
+#   obj.set("key", Json.ofString("value"))
+#   obj.set("count", Json.ofInt(42))
+#
+#   var arr: Json = Json.array()
+#   arr.append(Json.ofInt(1))
+#   arr.append(Json.ofInt(2))
+#
+#   # Serialization
+#   var compact: str = doc.toString()
+#   var pretty: str = doc.toPrettyString()
+#
+#   # Iteration
+#   var keys: str[] = doc.keys()
+#   for i: int = 0; i < doc.length(); i += 1 =>
+#       var key: str = keys[i]
+#       print($"{key}: {doc.get(key).toString()}\n")
+#
+# Requirements:
+#   - yyjson library must be installed
+#   - Linux: Install via vcpkg or package manager
+#   - macOS: brew install yyjson
+#   - Windows: Install via vcpkg
+# ==============================================================================
+
+@include <yyjson.h>
+@link yyjson
+
+# Self-contained implementation
+@source "json.sn.c"
+
+# ==============================================================================
+# Json Native Struct Definition
+# ==============================================================================
+# Represents a JSON value (object, array, string, number, boolean, or null).
+# Uses yyjson's mutable API for read-write operations.
+
+@alias "SnJson"
+native struct Json as ref =>
+    @alias "doc"
+    _doc: *void
+    @alias "val"
+    _val: *void
+    @alias "is_root"
+    _is_root: int32
+
+    # ==========================================================================
+    # Static Parsing Methods
+    # ==========================================================================
+
+    # Parse a JSON string
+    static fn parse(text: str): Json =>
+        return sn_json_parse(text)
+
+    # Parse JSON from a file
+    static fn parseFile(path: str): Json =>
+        return sn_json_parse_file(path)
+
+    # ==========================================================================
+    # Static Creation Methods
+    # ==========================================================================
+
+    # Create a new empty JSON object {}
+    static fn object(): Json =>
+        return sn_json_new_object()
+
+    # Create a new empty JSON array []
+    static fn array(): Json =>
+        return sn_json_new_array()
+
+    # Create a JSON null value
+    static fn ofNull(): Json =>
+        return sn_json_new_null()
+
+    # Create a JSON boolean value
+    static fn ofBool(value: bool): Json =>
+        return sn_json_new_bool(value)
+
+    # Create a JSON integer value
+    static fn ofInt(value: int): Json =>
+        return sn_json_new_int(value)
+
+    # Create a JSON floating-point value
+    static fn ofFloat(value: double): Json =>
+        return sn_json_new_float(value)
+
+    # Create a JSON string value
+    static fn ofString(value: str): Json =>
+        return sn_json_new_string(value)
+
+    # ==========================================================================
+    # Type Checking Methods
+    # ==========================================================================
+
+    # Check if this value is a JSON object
+    @alias "sn_json_is_object"
+    native fn isObject(): bool
+
+    # Check if this value is a JSON array
+    @alias "sn_json_is_array"
+    native fn isArray(): bool
+
+    # Check if this value is a string
+    @alias "sn_json_is_string"
+    native fn isString(): bool
+
+    # Check if this value is a number (int or float)
+    @alias "sn_json_is_number"
+    native fn isNumber(): bool
+
+    # Check if this value is an integer
+    @alias "sn_json_is_int"
+    native fn isInt(): bool
+
+    # Check if this value is a floating-point number
+    @alias "sn_json_is_float"
+    native fn isFloat(): bool
+
+    # Check if this value is a boolean
+    @alias "sn_json_is_bool"
+    native fn isBool(): bool
+
+    # Check if this value is null
+    @alias "sn_json_is_null"
+    native fn isNull(): bool
+
+    # ==========================================================================
+    # Value Extraction Methods
+    # ==========================================================================
+
+    # Get the string value (returns empty string if not a string)
+    fn asString(): str =>
+        return sn_json_as_string(self)
+
+    # Get the integer value (returns 0 if not a number)
+    @alias "sn_json_as_int"
+    native fn asInt(): int
+
+    # Get the long value (returns 0 if not a number)
+    @alias "sn_json_as_long"
+    native fn asLong(): long
+
+    # Get the floating-point value (returns 0.0 if not a number)
+    @alias "sn_json_as_float"
+    native fn asFloat(): double
+
+    # Get the boolean value (returns false if not a boolean)
+    @alias "sn_json_as_bool"
+    native fn asBool(): bool
+
+    # ==========================================================================
+    # Object Access Methods
+    # ==========================================================================
+
+    # Get a value by key from an object
+    fn get(key: str): Json =>
+        return sn_json_get(self, key)
+
+    # Check if an object contains a key
+    @alias "sn_json_has"
+    native fn has(key: str): bool
+
+    # Get all keys from an object
+    fn keys(): str[] =>
+        return sn_json_keys(self)
+
+    # ==========================================================================
+    # Array Access Methods
+    # ==========================================================================
+
+    # Get a value by index from an array
+    fn getAt(index: int): Json =>
+        return sn_json_get_at(self, index)
+
+    # Get the first element of an array
+    fn first(): Json =>
+        return sn_json_first(self)
+
+    # Get the last element of an array
+    fn last(): Json =>
+        return sn_json_last(self)
+
+    # ==========================================================================
+    # Size Methods
+    # ==========================================================================
+
+    # Get the number of elements (object keys or array items)
+    @alias "sn_json_length"
+    native fn length(): int
+
+    # Check if the object or array is empty
+    fn isEmpty(): bool =>
+        return self.length() == 0
+
+    # ==========================================================================
+    # Mutation Methods (Object)
+    # ==========================================================================
+
+    # Set a key-value pair in an object
+    @alias "sn_json_set"
+    native fn set(key: str, value: Json): void
+
+    # Remove a key from an object
+    @alias "sn_json_remove"
+    native fn remove(key: str): void
+
+    # ==========================================================================
+    # Mutation Methods (Array)
+    # ==========================================================================
+
+    # Append a value to an array
+    @alias "sn_json_append"
+    native fn append(value: Json): void
+
+    # Prepend a value to an array
+    @alias "sn_json_prepend"
+    native fn prepend(value: Json): void
+
+    # Insert a value at an index in an array
+    @alias "sn_json_insert"
+    native fn insert(index: int, value: Json): void
+
+    # Remove value at index from array
+    @alias "sn_json_remove_at"
+    native fn removeAt(index: int): void
+
+    # ==========================================================================
+    # Serialization Methods
+    # ==========================================================================
+
+    # Serialize to compact JSON string
+    fn toString(): str =>
+        return sn_json_to_string(self)
+
+    # Serialize to pretty-printed JSON string
+    fn toPrettyString(): str =>
+        return sn_json_to_pretty_string(self)
+
+    # Write JSON to a file (compact)
+    @alias "sn_json_write_file"
+    native fn writeFile(path: str): void
+
+    # Write JSON to a file (pretty-printed)
+    @alias "sn_json_write_file_pretty"
+    native fn writeFilePretty(path: str): void
+
+    # ==========================================================================
+    # Utility Methods
+    # ==========================================================================
+
+    # Create a deep copy of this JSON value
+    fn copy(): Json =>
+        return sn_json_copy(self)
+
+    # Get the type as a string ("object", "array", "string", "number", "bool", "null")
+    fn typeName(): str =>
+        return sn_json_type_name(self)
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Parsing functions
+native fn sn_json_parse(arena, text: str): Json
+native fn sn_json_parse_file(arena, path: str): Json
+
+# Creation functions
+native fn sn_json_new_object(arena): Json
+native fn sn_json_new_array(arena): Json
+native fn sn_json_new_null(arena): Json
+native fn sn_json_new_bool(arena, value: bool): Json
+native fn sn_json_new_int(arena, value: int): Json
+native fn sn_json_new_float(arena, value: double): Json
+native fn sn_json_new_string(arena, value: str): Json
+
+# Value extraction functions
+native fn sn_json_as_string(arena, j: Json): str
+
+# Object/Array access functions
+native fn sn_json_get(arena, j: Json, key: str): Json
+native fn sn_json_get_at(arena, j: Json, index: int): Json
+native fn sn_json_first(arena, j: Json): Json
+native fn sn_json_last(arena, j: Json): Json
+native fn sn_json_keys(arena, j: Json): str[]
+
+# Serialization functions
+native fn sn_json_to_string(arena, j: Json): str
+native fn sn_json_to_pretty_string(arena, j: Json): str
+
+# Utility functions
+native fn sn_json_copy(arena, j: Json): Json
+native fn sn_json_type_name(arena, j: Json): str

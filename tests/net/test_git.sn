@@ -1,0 +1,392 @@
+# ==============================================================================
+# test_git.sn - Tests for SDK Git Type (GitRepo and subtypes)
+# ==============================================================================
+# Tests the GitRepo, GitCommit, GitBranch, GitRemote, GitDiff, GitStatus,
+# and GitTag structs and their methods using local repository operations.
+# ==============================================================================
+
+import "../../../sdk/net/git"
+import "../../../sdk/io/textfile"
+import "../../../sdk/io/directory"
+import "../../../sdk/io/path"
+
+var repoDir: str = "_sn_git_test_repo"
+
+fn cleanup(): void =>
+    if Path.exists(repoDir) =>
+        Directory.deleteRecursive(repoDir)
+
+fn test_init(): void =>
+    print("test_init: ")
+
+    var repo: GitRepo = GitRepo.init(repoDir)
+    assert(!repo.isBare(), "Should not be bare")
+    repo.close()
+
+    print("PASS\n")
+
+fn test_init_bare(): void =>
+    print("test_init_bare: ")
+
+    var bareDir: str = "_sn_git_test_bare"
+    var bare: GitRepo = GitRepo.initBare(bareDir)
+    assert(bare.isBare(), "Should be bare")
+    bare.close()
+    Directory.deleteRecursive(bareDir)
+
+    print("PASS\n")
+
+fn test_status_empty(): void =>
+    print("test_status_empty: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    var entries: GitStatus[] = repo.status()
+    assert(entries.length == 0, "Empty repo should have no status entries")
+    repo.close()
+
+    print("PASS\n")
+
+fn test_add_and_status(): void =>
+    print("test_add_and_status: ")
+
+    # Create a file in the repo
+    TextFile.writeAll(repoDir + "/hello.txt", "Hello, Git!")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+
+    # Check status shows the new file
+    var entries: GitStatus[] = repo.status()
+    assert(entries.length == 1, "Should have 1 status entry")
+    assert(entries[0].path() == "hello.txt", "Status path should be hello.txt")
+    assert(entries[0].status() == "new", "Status should be 'new'")
+    assert(!entries[0].isStaged(), "Should not be staged yet")
+
+    # Stage the file
+    repo.add("hello.txt")
+
+    # Check status shows it staged
+    var staged: GitStatus[] = repo.status()
+    assert(staged.length == 1, "Should still have 1 entry")
+    assert(staged[0].isStaged(), "Should be staged now")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_commit(): void =>
+    print("test_commit: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    var commit: GitCommit = repo.commitAs("Initial commit", "Test User", "test@example.com")
+
+    assert(commit.message() == "Initial commit", "Commit message should match")
+    assert(commit.author() == "Test User", "Author should match")
+    assert(commit.email() == "test@example.com", "Email should match")
+    assert(commit.id().length == 40, "SHA should be 40 chars")
+    assert(commit.timestamp() > 0L, "Timestamp should be positive")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_head(): void =>
+    print("test_head: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    var head: GitCommit = repo.head()
+
+    assert(head.message() == "Initial commit", "HEAD message should match")
+    assert(head.author() == "Test User", "HEAD author should match")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_log(): void =>
+    print("test_log: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    var commits: GitCommit[] = repo.log(10)
+
+    assert(commits.length == 1, "Should have 1 commit")
+    assert(commits[0].message() == "Initial commit", "Log message should match")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_add_all_and_commit(): void =>
+    print("test_add_all_and_commit: ")
+
+    # Create multiple files
+    TextFile.writeAll(repoDir + "/file1.txt", "File 1")
+    TextFile.writeAll(repoDir + "/file2.txt", "File 2")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    repo.addAll()
+    var commit: GitCommit = repo.commitAs("Add two files", "Test User", "test@example.com")
+
+    assert(commit.message() == "Add two files", "Second commit message should match")
+
+    # Log should now have 2 commits
+    var commits: GitCommit[] = repo.log(10)
+    assert(commits.length == 2, "Should have 2 commits")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_branches(): void =>
+    print("test_branches: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+
+    # Check current branch
+    var current: str = repo.currentBranch()
+    assert(current == "master" || current == "main", "Should be on master or main")
+
+    # List branches
+    var branches: GitBranch[] = repo.branches()
+    assert(branches.length >= 1, "Should have at least 1 branch")
+
+    var foundHead: bool = false
+    for b in branches =>
+        if b.isHead() =>
+            foundHead = true
+    assert(foundHead, "One branch should be HEAD")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_create_branch(): void =>
+    print("test_create_branch: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    var branch: GitBranch = repo.createBranch("feature-1")
+
+    assert(branch.name() == "feature-1", "Branch name should match")
+    assert(!branch.isHead(), "New branch should not be HEAD")
+    assert(!branch.isRemote(), "New branch should not be remote")
+
+    # Should now have 2 branches
+    var branches: GitBranch[] = repo.branches()
+    assert(branches.length == 2, "Should have 2 branches")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_checkout(): void =>
+    print("test_checkout: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+
+    # Remember the default branch name before switching
+    var defaultBranch: str = repo.currentBranch()
+    repo.checkout("feature-1")
+
+    var current: str = repo.currentBranch()
+    assert(current == "feature-1", "Should be on feature-1")
+
+    # Switch back to the default branch
+    repo.checkout(defaultBranch)
+    current = repo.currentBranch()
+    assert(current == defaultBranch, "Should be back on default branch")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_delete_branch(): void =>
+    print("test_delete_branch: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    repo.deleteBranch("feature-1")
+
+    var branches: GitBranch[] = repo.branches()
+    assert(branches.length == 1, "Should have 1 branch after deletion")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_tags_lightweight(): void =>
+    print("test_tags_lightweight: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    var tag: GitTag = repo.createTag("v1.0")
+
+    assert(tag.name() == "v1.0", "Tag name should match")
+    assert(tag.isLightweight(), "Should be lightweight")
+    assert(tag.targetId().length == 40, "Target ID should be 40 chars")
+
+    var tags: GitTag[] = repo.tags()
+    assert(tags.length == 1, "Should have 1 tag")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_tags_annotated(): void =>
+    print("test_tags_annotated: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    var tag: GitTag = repo.createAnnotatedTag("v2.0", "Release version 2.0")
+
+    assert(tag.name() == "v2.0", "Tag name should match")
+    assert(!tag.isLightweight(), "Should be annotated")
+    assert(tag.message() == "Release version 2.0", "Tag message should match")
+
+    var tags: GitTag[] = repo.tags()
+    assert(tags.length == 2, "Should have 2 tags")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_delete_tag(): void =>
+    print("test_delete_tag: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+    repo.deleteTag("v1.0")
+
+    var tags: GitTag[] = repo.tags()
+    assert(tags.length == 1, "Should have 1 tag after deletion")
+    assert(tags[0].name() == "v2.0", "Remaining tag should be v2.0")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_remotes(): void =>
+    print("test_remotes: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+
+    # Initially no remotes
+    var remotes: GitRemote[] = repo.remotes()
+    assert(remotes.length == 0, "Should have no remotes initially")
+
+    # Add a remote
+    var remote: GitRemote = repo.addRemote("origin", "https://example.com/repo.git")
+    assert(remote.name() == "origin", "Remote name should match")
+    assert(remote.url() == "https://example.com/repo.git", "Remote URL should match")
+
+    # List remotes
+    remotes = repo.remotes()
+    assert(remotes.length == 1, "Should have 1 remote")
+
+    # Remove the remote
+    repo.removeRemote("origin")
+    remotes = repo.remotes()
+    assert(remotes.length == 0, "Should have no remotes after removal")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_diff(): void =>
+    print("test_diff: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+
+    # Modify a tracked file
+    TextFile.writeAll(repoDir + "/hello.txt", "Modified content")
+
+    # Check unstaged diff
+    var diffs: GitDiff[] = repo.diff()
+    assert(diffs.length == 1, "Should have 1 diff entry")
+    assert(diffs[0].path() == "hello.txt", "Diff path should be hello.txt")
+    assert(diffs[0].status() == "modified", "Diff status should be 'modified'")
+
+    # Stage and check staged diff
+    repo.add("hello.txt")
+    var stagedDiffs: GitDiff[] = repo.diffStaged()
+    assert(stagedDiffs.length == 1, "Should have 1 staged diff")
+    assert(stagedDiffs[0].status() == "modified", "Staged diff should be 'modified'")
+
+    # Commit to clean up
+    repo.commitAs("Update hello", "Test User", "test@example.com")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_unstage(): void =>
+    print("test_unstage: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+
+    # Create and stage a new file
+    TextFile.writeAll(repoDir + "/unstage_test.txt", "unstage me")
+    repo.add("unstage_test.txt")
+
+    # Verify it's staged
+    var entries: GitStatus[] = repo.status()
+    var foundStaged: bool = false
+    for e in entries =>
+        if e.path() == "unstage_test.txt" && e.isStaged() =>
+            foundStaged = true
+    assert(foundStaged, "File should be staged")
+
+    # Unstage it
+    repo.unstage("unstage_test.txt")
+
+    # Verify it's no longer staged
+    entries = repo.status()
+    for e in entries =>
+        if e.path() == "unstage_test.txt" =>
+            assert(!e.isStaged(), "File should not be staged after unstage")
+
+    # Clean up - add and commit
+    repo.add("unstage_test.txt")
+    repo.commitAs("Add unstage test file", "Test User", "test@example.com")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn test_open(): void =>
+    print("test_open: ")
+
+    var repo: GitRepo = GitRepo.open(repoDir)
+
+    # Verify we can read commits from reopened repo
+    var commits: GitCommit[] = repo.log(10)
+    assert(commits.length == 4, "Should have 4 commits total")
+
+    repo.close()
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Git Tests ===\n\n")
+
+    # Clean up any leftover test directory
+    cleanup()
+
+    test_init()
+    test_init_bare()
+    test_status_empty()
+    test_add_and_status()
+    test_commit()
+    test_head()
+    test_log()
+    test_add_all_and_commit()
+    test_branches()
+    test_create_branch()
+    test_checkout()
+    test_delete_branch()
+    test_tags_lightweight()
+    test_tags_annotated()
+    test_delete_tag()
+    test_remotes()
+    test_diff()
+    test_unstage()
+    test_open()
+
+    # Clean up test directory
+    cleanup()
+
+    print("\nAll Git tests passed!\n")

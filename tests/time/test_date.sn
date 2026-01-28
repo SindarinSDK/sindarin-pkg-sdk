@@ -1,0 +1,313 @@
+# ==============================================================================
+# test_date.sn - Tests for SDK Date Type
+# ==============================================================================
+# Tests the Date struct and its methods.
+# ==============================================================================
+
+import "../../../sdk/time/date"
+
+fn test_today(): void =>
+    print("test_today: ")
+    var today: Date = Date.today()
+    var year: int = today.year()
+    var month: int = today.month()
+    var day: int = today.day()
+
+    # Basic sanity checks
+    assert(year >= 2020, "Year should be reasonable")
+    assert(month >= 1, "Month should be >= 1")
+    assert(month <= 12, "Month should be <= 12")
+    assert(day >= 1, "Day should be >= 1")
+    assert(day <= 31, "Day should be <= 31")
+
+    print("PASS\n")
+
+fn test_from_ymd(): void =>
+    print("test_from_ymd: ")
+    var d: Date = Date.fromYmd(2025, 12, 25)
+
+    assert(d.year() == 2025, "Year should be 2025")
+    assert(d.month() == 12, "Month should be 12")
+    assert(d.day() == 25, "Day should be 25")
+
+    print("PASS\n")
+
+fn test_from_string(): void =>
+    print("test_from_string: ")
+    var d: Date = Date.fromString("2024-07-04")
+
+    assert(d.year() == 2024, "Year should be 2024")
+    assert(d.month() == 7, "Month should be 7")
+    assert(d.day() == 4, "Day should be 4")
+
+    print("PASS\n")
+
+fn test_epoch_days(): void =>
+    print("test_epoch_days: ")
+    # 1970-01-01 is epoch day 0
+    var epoch: Date = Date.fromEpochDays(0)
+    assert(epoch.year() == 1970, "Epoch year should be 1970")
+    assert(epoch.month() == 1, "Epoch month should be 1")
+    assert(epoch.day() == 1, "Epoch day should be 1")
+
+    # Test round-trip
+    var d: Date = Date.fromYmd(2000, 6, 15)
+    var days: int = d.epochDays()
+    var d2: Date = Date.fromEpochDays(days)
+    assert(d2.year() == 2000, "Round-trip year")
+    assert(d2.month() == 6, "Round-trip month")
+    assert(d2.day() == 15, "Round-trip day")
+
+    print("PASS\n")
+
+fn test_weekday(): void =>
+    print("test_weekday: ")
+    # 2024-01-01 was Monday (weekday 1)
+    var d: Date = Date.fromYmd(2024, 1, 1)
+    assert(d.weekday() == 1, "2024-01-01 should be Monday (1)")
+
+    # 2024-01-06 was Saturday (weekday 6)
+    var sat: Date = Date.fromYmd(2024, 1, 6)
+    assert(sat.weekday() == 6, "2024-01-06 should be Saturday (6)")
+
+    # 2024-01-07 was Sunday (weekday 0)
+    var sun: Date = Date.fromYmd(2024, 1, 7)
+    assert(sun.weekday() == 0, "2024-01-07 should be Sunday (0)")
+
+    print("PASS\n")
+
+fn test_day_of_year(): void =>
+    print("test_day_of_year: ")
+    # Jan 1 is day 1
+    var jan1: Date = Date.fromYmd(2024, 1, 1)
+    assert(jan1.dayOfYear() == 1, "Jan 1 should be day 1")
+
+    # Feb 1 is day 32 (31 days in Jan + 1)
+    var feb1: Date = Date.fromYmd(2024, 2, 1)
+    assert(feb1.dayOfYear() == 32, "Feb 1 should be day 32")
+
+    # Dec 31 in leap year is day 366
+    var dec31: Date = Date.fromYmd(2024, 12, 31)
+    assert(dec31.dayOfYear() == 366, "Dec 31 2024 should be day 366")
+
+    print("PASS\n")
+
+fn test_days_in_month(): void =>
+    print("test_days_in_month: ")
+    # January has 31 days
+    var jan: Date = Date.fromYmd(2024, 1, 15)
+    assert(jan.daysInMonth() == 31, "January has 31 days")
+
+    # February 2024 (leap year) has 29 days
+    var feb_leap: Date = Date.fromYmd(2024, 2, 15)
+    assert(feb_leap.daysInMonth() == 29, "Feb 2024 has 29 days")
+
+    # February 2025 (non-leap) has 28 days
+    var feb_normal: Date = Date.fromYmd(2025, 2, 15)
+    assert(feb_normal.daysInMonth() == 28, "Feb 2025 has 28 days")
+
+    print("PASS\n")
+
+fn test_is_leap(): void =>
+    print("test_is_leap: ")
+    # 2024 is a leap year
+    var d2024: Date = Date.fromYmd(2024, 6, 1)
+    assert(d2024.isLeapYear(), "2024 should be leap year")
+
+    # 2025 is not a leap year
+    var d2025: Date = Date.fromYmd(2025, 6, 1)
+    assert(!d2025.isLeapYear(), "2025 should not be leap year")
+
+    # 2000 is a leap year (divisible by 400)
+    var d2000: Date = Date.fromYmd(2000, 6, 1)
+    assert(d2000.isLeapYear(), "2000 should be leap year")
+
+    # 1900 is not a leap year (divisible by 100 but not 400)
+    var d1900: Date = Date.fromYmd(1900, 6, 1)
+    assert(!d1900.isLeapYear(), "1900 should not be leap year")
+
+    print("PASS\n")
+
+fn test_is_weekend(): void =>
+    print("test_is_weekend: ")
+    # 2024-01-06 is Saturday
+    var sat: Date = Date.fromYmd(2024, 1, 6)
+    assert(sat.isWeekend(), "Saturday should be weekend")
+    assert(!sat.isWeekday(), "Saturday should not be weekday")
+
+    # 2024-01-07 is Sunday
+    var sun: Date = Date.fromYmd(2024, 1, 7)
+    assert(sun.isWeekend(), "Sunday should be weekend")
+
+    # 2024-01-08 is Monday
+    var mon: Date = Date.fromYmd(2024, 1, 8)
+    assert(!mon.isWeekend(), "Monday should not be weekend")
+    assert(mon.isWeekday(), "Monday should be weekday")
+
+    print("PASS\n")
+
+fn test_comparison(): void =>
+    print("test_comparison: ")
+    var d1: Date = Date.fromYmd(2024, 1, 1)
+    var d2: Date = Date.fromYmd(2024, 1, 15)
+    var d3: Date = Date.fromYmd(2024, 1, 1)
+
+    assert(d1.isBefore(d2), "d1 should be before d2")
+    assert(!d2.isBefore(d1), "d2 should not be before d1")
+    assert(!d1.isBefore(d3), "d1 should not be before d3 (equal)")
+
+    assert(d2.isAfter(d1), "d2 should be after d1")
+    assert(!d1.isAfter(d2), "d1 should not be after d2")
+
+    assert(d1.equals(d3), "d1 should equal d3")
+    assert(!d1.equals(d2), "d1 should not equal d2")
+
+    print("PASS\n")
+
+fn test_diff_days(): void =>
+    print("test_diff_days: ")
+    var d1: Date = Date.fromYmd(2024, 1, 1)
+    var d2: Date = Date.fromYmd(2024, 1, 15)
+
+    assert(d2.diffDays(d1) == 14, "Difference should be 14 days")
+    assert(d1.diffDays(d2) == -14, "Reverse difference should be -14")
+
+    # Same date
+    assert(d1.diffDays(d1) == 0, "Same date diff should be 0")
+
+    print("PASS\n")
+
+fn test_format(): void =>
+    print("test_format: ")
+    var d: Date = Date.fromYmd(2024, 12, 25)
+
+    # ISO format
+    var iso: str = d.toIso()
+    assert(iso == "2024-12-25", "ISO format should be 2024-12-25")
+
+    print("PASS\n")
+
+fn test_add_days(): void =>
+    print("test_add_days: ")
+    var d: Date = Date.fromYmd(2024, 1, 15)
+
+    # Add positive days
+    var plus10: Date = d.addDays(10)
+    assert(plus10.day() == 25, "Adding 10 days: day should be 25")
+
+    # Add negative days
+    var minus10: Date = d.addDays(-10)
+    assert(minus10.day() == 5, "Subtracting 10 days: day should be 5")
+
+    # Add days crossing month boundary
+    var cross: Date = d.addDays(20)
+    assert(cross.month() == 2, "Adding 20 days crosses to February")
+
+    print("PASS\n")
+
+fn test_add_weeks(): void =>
+    print("test_add_weeks: ")
+    var d: Date = Date.fromYmd(2024, 1, 1)
+
+    var plus2: Date = d.addWeeks(2)
+    assert(plus2.day() == 15, "Adding 2 weeks: day should be 15")
+
+    print("PASS\n")
+
+fn test_add_months(): void =>
+    print("test_add_months: ")
+    var d: Date = Date.fromYmd(2024, 1, 31)
+
+    # Adding 1 month from Jan 31 goes to Feb 29 (leap year)
+    var feb: Date = d.addMonths(1)
+    assert(feb.month() == 2, "Adding 1 month: month should be 2")
+    assert(feb.day() == 29, "Adding 1 month from Jan 31: day should clamp to 29")
+
+    # Adding 12 months is like adding a year
+    var nextyear: Date = d.addMonths(12)
+    assert(nextyear.year() == 2025, "Adding 12 months: year should be 2025")
+
+    print("PASS\n")
+
+fn test_add_years(): void =>
+    print("test_add_years: ")
+    var d: Date = Date.fromYmd(2024, 2, 29)  # Leap day
+
+    # Adding 1 year from leap day goes to Feb 28
+    var next: Date = d.addYears(1)
+    assert(next.year() == 2025, "Adding 1 year: year should be 2025")
+    assert(next.day() == 28, "Adding 1 year from Feb 29: day should be 28")
+
+    # Adding 4 years keeps Feb 29
+    var leap: Date = d.addYears(4)
+    assert(leap.year() == 2028, "Adding 4 years: year should be 2028")
+    assert(leap.day() == 29, "Adding 4 years from Feb 29: day should be 29")
+
+    print("PASS\n")
+
+fn test_boundaries(): void =>
+    print("test_boundaries: ")
+    var d: Date = Date.fromYmd(2024, 6, 15)
+
+    # Start of month
+    var som: Date = d.startOfMonth()
+    assert(som.year() == 2024, "Start of month: year should be 2024")
+    assert(som.month() == 6, "Start of month: month should be 6")
+    assert(som.day() == 1, "Start of month: day should be 1")
+
+    # End of month
+    var eom: Date = d.endOfMonth()
+    assert(eom.day() == 30, "End of June: day should be 30")
+
+    # Start of year
+    var soy: Date = d.startOfYear()
+    assert(soy.month() == 1, "Start of year: month should be 1")
+    assert(soy.day() == 1, "Start of year: day should be 1")
+
+    # End of year
+    var eoy: Date = d.endOfYear()
+    assert(eoy.month() == 12, "End of year: month should be 12")
+    assert(eoy.day() == 31, "End of year: day should be 31")
+
+    print("PASS\n")
+
+fn test_static_methods(): void =>
+    print("test_static_methods: ")
+
+    # Test Date.isLeapYear(year) static method
+    assert(Date.isLeapYear(2024), "2024 should be leap year (static)")
+    assert(!Date.isLeapYear(2025), "2025 should not be leap year (static)")
+    assert(Date.isLeapYear(2000), "2000 should be leap year (static)")
+    assert(!Date.isLeapYear(1900), "1900 should not be leap year (static)")
+
+    # Test Date.daysInMonth(year, month) static method
+    assert(Date.daysInMonth(2024, 2) == 29, "Feb 2024 should have 29 days (static)")
+    assert(Date.daysInMonth(2025, 2) == 28, "Feb 2025 should have 28 days (static)")
+    assert(Date.daysInMonth(2024, 1) == 31, "Jan should have 31 days (static)")
+    assert(Date.daysInMonth(2024, 4) == 30, "Apr should have 30 days (static)")
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Date Tests ===\n\n")
+
+    test_today()
+    test_from_ymd()
+    test_from_string()
+    test_epoch_days()
+    test_weekday()
+    test_day_of_year()
+    test_days_in_month()
+    test_is_leap()
+    test_is_weekend()
+    test_comparison()
+    test_diff_days()
+    test_format()
+    test_add_days()
+    test_add_weeks()
+    test_add_months()
+    test_add_years()
+    test_boundaries()
+    test_static_methods()
+
+    print("\nAll date tests passed!\n")

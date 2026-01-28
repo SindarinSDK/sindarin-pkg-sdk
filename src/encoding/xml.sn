@@ -1,0 +1,280 @@
+# ==============================================================================
+# sdk/encoding/xml.sn - XML Library for Sindarin
+# ==============================================================================
+# Provides XML parsing, DOM manipulation, XPath queries, and serialization
+# using libxml2.
+#
+# Usage:
+#   import "sdk/encoding/xml"
+#
+#   # Parsing
+#   var doc: Xml = Xml.parse("<root><item>Hello</item></root>")
+#   var fromFile: Xml = Xml.parseFile("data.xml")
+#
+#   # Navigation
+#   var root: Xml = doc.firstChild()
+#   var items: Xml[] = root.children()
+#
+#   # XPath
+#   var found: Xml = doc.find("//item")
+#   var all: Xml[] = doc.findAll("//item")
+#
+#   # Attributes
+#   root.setAttr("version", "1.0")
+#   var ver: str = root.attr("version")
+#
+#   # Creation
+#   var newDoc: Xml = Xml.document("root")
+#   var child: Xml = Xml.element("child")
+#   newDoc.addChild(child)
+#
+#   # Serialization
+#   var compact: str = doc.toString()
+#   var pretty: str = doc.toPrettyString()
+#
+# Requirements:
+#   - libxml2 library must be installed
+#   - Install via vcpkg (make setup)
+# ==============================================================================
+
+@include <libxml/parser.h>
+@include <libxml/tree.h>
+@include <libxml/xpath.h>
+@link xml2
+@link z
+
+# Self-contained implementation
+@source "xml.sn.c"
+
+# ==============================================================================
+# Xml Native Struct Definition
+# ==============================================================================
+# Represents an XML node (element, document, text, etc.).
+# Uses libxml2's tree API for DOM manipulation.
+
+@alias "SnXml"
+native struct Xml as ref =>
+    @alias "doc"
+    _doc: *void
+    @alias "node"
+    _node: *void
+    @alias "is_root"
+    _is_root: int32
+
+    # ==========================================================================
+    # Static Parsing Methods
+    # ==========================================================================
+
+    # Parse an XML string, returns the root element
+    static fn parse(text: str): Xml =>
+        return sn_xml_parse(text)
+
+    # Parse an XML file
+    static fn parseFile(path: str): Xml =>
+        return sn_xml_parse_file(path)
+
+    # ==========================================================================
+    # Static Creation Methods
+    # ==========================================================================
+
+    # Create a standalone element
+    static fn element(name: str): Xml =>
+        return sn_xml_element(name)
+
+    # Create a new document with a root element
+    static fn document(rootName: str): Xml =>
+        return sn_xml_document(rootName)
+
+    # ==========================================================================
+    # Node Info Methods
+    # ==========================================================================
+
+    # Get element/node name
+    fn name(): str =>
+        return sn_xml_name(self)
+
+    # Get text content (combined text of node and descendants)
+    fn text(): str =>
+        return sn_xml_text(self)
+
+    # Get type name ("element", "text", "comment", "document", etc.)
+    fn typeName(): str =>
+        return sn_xml_type_name(self)
+
+    # Check if this is an element node
+    @alias "sn_xml_is_element"
+    native fn isElement(): bool
+
+    # Check if this is a text node
+    @alias "sn_xml_is_text"
+    native fn isText(): bool
+
+    # Check if this is a document node
+    @alias "sn_xml_is_document"
+    native fn isDocument(): bool
+
+    # ==========================================================================
+    # Attribute Methods
+    # ==========================================================================
+
+    # Get attribute value (empty string if missing)
+    fn attr(name: str): str =>
+        return sn_xml_attr(self, name)
+
+    # Check if attribute exists
+    @alias "sn_xml_has_attr"
+    native fn hasAttr(name: str): bool
+
+    # Set attribute value
+    @alias "sn_xml_set_attr"
+    native fn setAttr(name: str, value: str): void
+
+    # Remove an attribute
+    @alias "sn_xml_remove_attr"
+    native fn removeAttr(name: str): void
+
+    # Get all attribute names
+    fn attrs(): str[] =>
+        return sn_xml_attrs(self)
+
+    # ==========================================================================
+    # Child Navigation Methods
+    # ==========================================================================
+
+    # Get all child element nodes
+    fn children(): Xml[] =>
+        return sn_xml_children(self)
+
+    # Get first child element
+    fn firstChild(): Xml =>
+        return sn_xml_first_child(self)
+
+    # Get last child element
+    fn lastChild(): Xml =>
+        return sn_xml_last_child(self)
+
+    # Get number of child elements
+    @alias "sn_xml_child_count"
+    native fn childCount(): int
+
+    # Check if node has child elements
+    @alias "sn_xml_has_children"
+    native fn hasChildren(): bool
+
+    # ==========================================================================
+    # Sibling/Parent Navigation
+    # ==========================================================================
+
+    # Get parent node
+    fn parent(): Xml =>
+        return sn_xml_parent(self)
+
+    # Get next sibling element
+    fn next(): Xml =>
+        return sn_xml_next(self)
+
+    # Get previous sibling element
+    fn prev(): Xml =>
+        return sn_xml_prev(self)
+
+    # ==========================================================================
+    # XPath Methods
+    # ==========================================================================
+
+    # Find first matching node
+    fn find(xpath: str): Xml =>
+        return sn_xml_find(self, xpath)
+
+    # Find all matching nodes
+    fn findAll(xpath: str): Xml[] =>
+        return sn_xml_find_all(self, xpath)
+
+    # ==========================================================================
+    # Mutation Methods
+    # ==========================================================================
+
+    # Append child element
+    @alias "sn_xml_add_child"
+    native fn addChild(child: Xml): void
+
+    # Set text content
+    @alias "sn_xml_set_text"
+    native fn setText(content: str): void
+
+    # Rename element
+    @alias "sn_xml_set_name"
+    native fn setName(name: str): void
+
+    # Remove this node from its parent
+    @alias "sn_xml_remove"
+    native fn remove(): void
+
+    # ==========================================================================
+    # Serialization Methods
+    # ==========================================================================
+
+    # Serialize to compact XML string
+    fn toString(): str =>
+        return sn_xml_to_string(self)
+
+    # Serialize with indentation
+    fn toPrettyString(): str =>
+        return sn_xml_to_pretty_string(self)
+
+    # Write to file (compact)
+    @alias "sn_xml_write_file"
+    native fn writeFile(path: str): void
+
+    # Write to file (pretty-printed)
+    @alias "sn_xml_write_file_pretty"
+    native fn writeFilePretty(path: str): void
+
+    # ==========================================================================
+    # Utility Methods
+    # ==========================================================================
+
+    # Deep copy
+    fn copy(): Xml =>
+        return sn_xml_copy(self)
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Parsing functions
+native fn sn_xml_parse(arena, text: str): Xml
+native fn sn_xml_parse_file(arena, path: str): Xml
+
+# Creation functions
+native fn sn_xml_element(arena, name: str): Xml
+native fn sn_xml_document(arena, rootName: str): Xml
+
+# Node info functions
+native fn sn_xml_name(arena, x: Xml): str
+native fn sn_xml_text(arena, x: Xml): str
+native fn sn_xml_type_name(arena, x: Xml): str
+
+# Attribute functions
+native fn sn_xml_attr(arena, x: Xml, name: str): str
+native fn sn_xml_attrs(arena, x: Xml): str[]
+
+# Child navigation functions
+native fn sn_xml_children(arena, x: Xml): Xml[]
+native fn sn_xml_first_child(arena, x: Xml): Xml
+native fn sn_xml_last_child(arena, x: Xml): Xml
+
+# Sibling/Parent navigation functions
+native fn sn_xml_parent(arena, x: Xml): Xml
+native fn sn_xml_next(arena, x: Xml): Xml
+native fn sn_xml_prev(arena, x: Xml): Xml
+
+# XPath functions
+native fn sn_xml_find(arena, x: Xml, xpath: str): Xml
+native fn sn_xml_find_all(arena, x: Xml, xpath: str): Xml[]
+
+# Serialization functions
+native fn sn_xml_to_string(arena, x: Xml): str
+native fn sn_xml_to_pretty_string(arena, x: Xml): str
+
+# Utility functions
+native fn sn_xml_copy(arena, x: Xml): Xml

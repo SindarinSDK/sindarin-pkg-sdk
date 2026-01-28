@@ -1,0 +1,178 @@
+# ==============================================================================
+# sdk/binaryfile.sn - BinaryFile Type for Sindarin
+# ==============================================================================
+# Provides binary file I/O operations.
+# Drop-in replacement for the builtin BinaryFile type.
+#
+# Usage:
+#   import "sdk/binaryfile"
+#
+#   # Static methods
+#   var data: byte[] = BinaryFile.readAll("data.bin")
+#   BinaryFile.writeAll("output.bin", data)
+#   var exists: bool = BinaryFile.exists("config.bin")
+#
+#   # Instance methods
+#   var f: BinaryFile = BinaryFile.open("data.bin")
+#   var byte: int = f.readByte()
+#   f.writeByte(255)
+#   f.close()
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "binaryfile.sn.c"
+
+# ==============================================================================
+# BinaryFile Native Struct Definition
+# ==============================================================================
+# Uses @alias to map BinaryFile to RtBinaryFile in the runtime.
+# The 'as ref' modifier means native methods receive self by pointer.
+
+@alias "RtBinaryFile"
+native struct BinaryFile as ref =>
+    @alias "fp"
+    _fp: *void
+    @alias "path"
+    _path: str
+    @alias "is_open"
+    _is_open: int32
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    # Open a binary file for reading and writing
+    static fn open(path: str): BinaryFile =>
+        return sn_binary_file_open(path)
+
+    # ==========================================================================
+    # Static File Operations
+    # ==========================================================================
+
+    # Check if a file exists
+    static fn exists(path: str): bool =>
+        return sn_binary_file_exists(path) != 0
+
+    # Read entire contents of a binary file as a byte array
+    static fn readAll(path: str): byte[] =>
+        return sn_binary_file_read_all_static(path)
+
+    # Write byte array to binary file, replacing any existing content
+    static fn writeAll(path: str, data: byte[]): void =>
+        sn_binary_file_write_all_static(path, data)
+
+    # Copy a file to a new location
+    static fn copy(source: str, dest: str): void =>
+        sn_binary_file_copy(source, dest)
+
+    # Move or rename a file
+    static fn move(source: str, dest: str): void =>
+        sn_binary_file_move(source, dest)
+
+    # Delete a file
+    static fn delete(path: str): void =>
+        sn_binary_file_delete(path)
+
+    # ==========================================================================
+    # Instance Reading Methods
+    # ==========================================================================
+
+    # Read a single byte, returns -1 at EOF
+    @alias "sn_binary_file_read_byte"
+    native fn readByte(): int
+
+    # Read N bytes into new array
+    fn readBytes(count: int): byte[] =>
+        return sn_binary_file_read_bytes(self, count)
+
+    # Read all remaining bytes from current position
+    fn readRemaining(): byte[] =>
+        return sn_binary_file_read_remaining(self)
+
+    # Read into byte buffer, returns number of bytes read
+    @alias "sn_binary_file_read_into"
+    native fn readInto(buffer: byte[]): int
+
+    # ==========================================================================
+    # Instance Writing Methods
+    # ==========================================================================
+
+    # Write single byte
+    @alias "sn_binary_file_write_byte"
+    native fn writeByte(b: int): void
+
+    # Write byte array
+    @alias "sn_binary_file_write_bytes"
+    native fn writeBytes(data: byte[]): void
+
+    # ==========================================================================
+    # State Methods
+    # ==========================================================================
+
+    # Check if at end of file
+    @alias "sn_binary_file_is_eof"
+    native fn isEof(): bool
+
+    # Check if more bytes are available
+    @alias "sn_binary_file_has_bytes"
+    native fn hasBytes(): bool
+
+    # Get current byte position
+    @alias "sn_binary_file_position"
+    native fn position(): int
+
+    # Seek to byte position
+    @alias "sn_binary_file_seek"
+    native fn seek(pos: int): void
+
+    # Return to beginning of file
+    @alias "sn_binary_file_rewind"
+    native fn rewind(): void
+
+    # Force buffered data to disk
+    @alias "sn_binary_file_flush"
+    native fn flush(): void
+
+    # Close the file
+    @alias "sn_binary_file_close"
+    native fn close(): void
+
+    # ==========================================================================
+    # Properties
+    # ==========================================================================
+
+    # Get full file path
+    fn path(): str =>
+        return sn_binary_file_get_path(self)
+
+    # Get filename only (without directory)
+    fn name(): str =>
+        return sn_binary_file_get_name(self)
+
+    # Get file size in bytes
+    @alias "sn_binary_file_get_size"
+    native fn size(): int
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Factory/open function
+native fn sn_binary_file_open(arena, path: str): BinaryFile
+
+# Static file operations
+native fn sn_binary_file_exists(path: str): int
+native fn sn_binary_file_read_all_static(arena, path: str): byte[]
+native fn sn_binary_file_write_all_static(path: str, data: byte[]): void
+native fn sn_binary_file_copy(source: str, dest: str): void
+native fn sn_binary_file_move(source: str, dest: str): void
+native fn sn_binary_file_delete(path: str): void
+
+# Instance reading functions that need arena
+native fn sn_binary_file_read_bytes(arena, f: BinaryFile, count: int): byte[]
+native fn sn_binary_file_read_remaining(arena, f: BinaryFile): byte[]
+
+# Property getters that need arena
+native fn sn_binary_file_get_path(arena, f: BinaryFile): str
+native fn sn_binary_file_get_name(arena, f: BinaryFile): str

@@ -1,0 +1,202 @@
+# ==============================================================================
+# test_ssh_server.sn - Tests for SDK SSH Server Types
+# ==============================================================================
+# Tests SshListener, SshSession, and SshChannel together with the SSH client.
+# Uses a generated ED25519 host key and password authentication.
+# ==============================================================================
+
+import "../../../sdk/net/ssh"
+import "../../../sdk/os/process"
+import "../../../sdk/os/env"
+import "../../../sdk/io/textfile"
+import "../../../sdk/io/path"
+
+fn getTempDir(): str =>
+    return Environment.getOr("TEMP", Environment.getOr("TMPDIR", "/tmp")).replace("\\", "/")
+
+fn hostKeyPath(): str =>
+    return $"{getTempDir()}/sn_test_ssh_host_key"
+
+fn cleanup_host_key(): void =>
+    var keyPath: str = hostKeyPath()
+    if Path.exists(keyPath) => TextFile.delete(keyPath)
+    if Path.exists($"{keyPath}.pub") => TextFile.delete($"{keyPath}.pub")
+
+fn setup_host_key(): void =>
+    var keyPath: str = hostKeyPath()
+
+    # Remove any existing key files
+    cleanup_host_key()
+
+    # Generate a fresh ED25519 host key
+    var p: Process = Process.runArgs("ssh-keygen", {"-t", "ed25519", "-f", keyPath, "-N", ""})
+    assert(p.success(), $"ssh-keygen failed: {p.stderr()}")
+
+# --- Client functions for threaded execution ---
+
+fn client_run_command(port: int): str =>
+    var conn: SshConnection = SshConnection.connectPassword($"127.0.0.1:{port}", "testuser", "testpass")
+    var result: str = conn.run("echo hello")
+    conn.close()
+    return result
+
+fn client_exec_and_check(port: int): str =>
+    var conn: SshConnection = SshConnection.connectPassword($"127.0.0.1:{port}", "testuser", "testpass")
+    var result: SshExecResult = conn.exec("uptime")
+    var output: str = result.stdout()
+    var code: int = result.exitCode()
+    conn.close()
+    return $"{code}:{output}"
+
+fn client_shell_session(port: int): str =>
+    var conn: SshConnection = SshConnection.connectPassword($"127.0.0.1:{port}", "shelluser", "shellpass")
+    var result: str = conn.run("shell-cmd")
+    conn.close()
+    return result
+
+# --- Tests ---
+
+fn test_listener_bind(): void =>
+    print("test_listener_bind: ")
+
+    var config: SshServerConfig = SshServerConfig.defaults()
+    config.setHostKey(hostKeyPath())
+    config.addUser("testuser", "testpass")
+
+    var listener: SshListener = SshListener.bindWith(":0", config)
+    var port: int = listener.port()
+
+    assert(port > 0, "Port should be assigned")
+    assert(port < 65536, "Port should be valid")
+
+    listener.close()
+    print("PASS\n")
+
+fn test_password_auth_and_exec(): void =>
+    print("test_password_auth_and_exec: ")
+
+    var config: SshServerConfig = SshServerConfig.defaults()
+    config.setHostKey(hostKeyPath())
+    config.addUser("testuser", "testpass")
+
+    var listener: SshListener = SshListener.bindWith(":0", config)
+    var port: int = listener.port()
+
+    # Spawn client in a thread
+    var client_result: str = &client_run_command(port)
+
+    # Server: accept authenticated session
+    var session: SshSession = listener.accept()
+    assert(session.username() == "testuser", "Username should be testuser")
+
+    # Server: accept channel with exec request
+    var channel: SshChannel = session.acceptChannel()
+    var cmd: str = channel.command()
+    assert(cmd == "echo hello", $"Command should be 'echo hello', got '{cmd}'")
+    assert(!channel.isShell(), "Should not be a shell channel")
+
+    # Server: send response
+    channel.writeLine("hello")
+    channel.sendExitStatus(0)
+    channel.close()
+    session.close()
+
+    # Sync with client
+    var result: str = client_result!
+
+    assert(result == "hello\n", $"Expected 'hello\\n', got '{result}'")
+
+    listener.close()
+    print("PASS\n")
+
+fn test_exec_with_exit_code(): void =>
+    print("test_exec_with_exit_code: ")
+
+    var config: SshServerConfig = SshServerConfig.defaults()
+    config.setHostKey(hostKeyPath())
+    config.addUser("testuser", "testpass")
+
+    var listener: SshListener = SshListener.bindWith(":0", config)
+    var port: int = listener.port()
+
+    # Spawn client in a thread (returns "exitcode:stdout")
+    var client_result: str = &client_exec_and_check(port)
+
+    # Server: accept and handle
+    var session: SshSession = listener.accept()
+    var channel: SshChannel = session.acceptChannel()
+
+    # Server: respond with custom output and exit code
+    channel.writeLine("up 42 days")
+    channel.sendExitStatus(0)
+    channel.close()
+    session.close()
+
+    # Sync with client
+    var result: str = client_result!
+
+    assert(result == "0:up 42 days\n", $"Expected '0:up 42 days\\n', got '{result}'")
+
+    listener.close()
+    print("PASS\n")
+
+fn test_simple_bind_form(): void =>
+    print("test_simple_bind_form: ")
+
+    # Test the simpler SshListener.bind(address, keyPath) form
+    var listener: SshListener = SshListener.bind(":0", hostKeyPath())
+    var port: int = listener.port()
+
+    assert(port > 0, "Port should be assigned")
+    assert(port < 65536, "Port should be valid")
+
+    listener.close()
+    print("PASS\n")
+
+fn test_bidirectional_comm(): void =>
+    print("test_bidirectional_comm: ")
+
+    var config: SshServerConfig = SshServerConfig.defaults()
+    config.setHostKey(hostKeyPath())
+    config.addUser("shelluser", "shellpass")
+
+    var listener: SshListener = SshListener.bindWith(":0", config)
+    var port: int = listener.port()
+
+    # Spawn client in a thread
+    var client_result: str = &client_shell_session(port)
+
+    # Server: accept session and channel
+    var session: SshSession = listener.accept()
+    var channel: SshChannel = session.acceptChannel()
+
+    # Server: read the command and respond
+    var cmd: str = channel.command()
+    channel.writeLine($"executed: {cmd}")
+    channel.sendExitStatus(0)
+    channel.close()
+    session.close()
+
+    # Sync with client
+    var result: str = client_result!
+    assert(result == "executed: shell-cmd\n", $"Expected 'executed: shell-cmd\\n', got '{result}'")
+
+    listener.close()
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK SSH Server Tests ===\n\n")
+
+    # Generate host key for all tests
+    setup_host_key()
+
+    test_listener_bind()
+    test_password_auth_and_exec()
+    test_exec_with_exit_code()
+    test_simple_bind_form()
+    test_bidirectional_comm()
+
+    # Cleanup
+    cleanup_host_key()
+
+    print("\nAll SSH server tests passed!\n")

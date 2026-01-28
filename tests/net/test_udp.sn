@@ -1,0 +1,86 @@
+# ==============================================================================
+# test_udp.sn - Tests for SDK UDP Type (UdpSocket)
+# ==============================================================================
+# Tests the UdpSocket struct and its methods.
+# ==============================================================================
+
+import "../../../sdk/net/udp"
+
+fn test_socket_bind(): void =>
+    print("test_socket_bind: ")
+
+    # Bind to any available port
+    var socket: UdpSocket = UdpSocket.bind(":0")
+    var port: int = socket.port()
+
+    assert(port > 0, "Port should be assigned")
+    assert(port < 65536, "Port should be valid")
+
+    socket.close()
+    print("PASS\n")
+
+fn test_send_receive(): void =>
+    print("test_send_receive: ")
+
+    # Create two sockets
+    var server: UdpSocket = UdpSocket.bind(":0")
+    var serverPort: int = server.port()
+
+    var client: UdpSocket = UdpSocket.bind(":0")
+
+    # Client sends to server
+    var message: byte[] = "Hello, UDP!".toBytes()
+    var sent: int = client.sendTo(message, $"127.0.0.1:{serverPort}")
+    assert(sent == 11, "Should send 11 bytes")
+
+    # Server receives
+    var result: UdpReceiveResult = server.receiveFrom(1024)
+    var data: byte[] = result.data()
+    var sender: str = result.sender()
+
+    assert(data.length == 11, "Should receive 11 bytes")
+    assert(data.toString() == "Hello, UDP!", "Content should match")
+    assert(sender.startsWith("127.0.0.1:"), "Sender should be localhost")
+
+    # Clean up
+    client.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_echo(): void =>
+    print("test_echo: ")
+
+    # Create server and client sockets
+    var server: UdpSocket = UdpSocket.bind(":0")
+    var serverPort: int = server.port()
+
+    var client: UdpSocket = UdpSocket.bind(":0")
+
+    # Client sends to server
+    var outgoing: byte[] = "Ping".toBytes()
+    client.sendTo(outgoing, $"127.0.0.1:{serverPort}")
+
+    # Server receives and echoes back
+    var serverResult: UdpReceiveResult = server.receiveFrom(1024)
+    server.sendTo(serverResult.data(), serverResult.sender())
+
+    # Client receives echo
+    var clientResult: UdpReceiveResult = client.receiveFrom(1024)
+
+    assert(clientResult.data().toString() == "Ping", "Echo should match")
+
+    # Clean up
+    client.close()
+    server.close()
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK UDP Tests ===\n\n")
+
+    test_socket_bind()
+    test_send_receive()
+    test_echo()
+
+    print("\nAll UDP tests passed!\n")

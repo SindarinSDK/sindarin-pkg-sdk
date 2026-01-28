@@ -1,0 +1,14 @@
+=== SDK Environment Tests ===
+
+test_has_path: PASS
+test_has_nonexistent: PASS
+test_get_path: PASS
+test_getOr_exists: PASS
+test_getOr_not_exists: PASS
+test_getOr_empty_default: PASS
+test_all_returns_array: PASS
+test_all_contains_path: PASS
+test_all_pairs_have_two_elements: PASS
+test_get_matches_all: PASS
+
+All environment tests passed!

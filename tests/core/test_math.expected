@@ -1,0 +1,121 @@
+=== SDK Math Module Test ===
+
+--- Constants ---
+pi = 3.14159
+e = 2.71828
+tau = 6.28319
+phi = 1.61803
+sqrt2 = 1.41421
+
+--- Trigonometry ---
+sin(45deg) = 0.70711
+cos(45deg) = 0.70711
+tan(45deg) = 1.00000
+
+--- Power Functions ---
+sqrt(2) = 1.41421
+cbrt(8) = 2.00000
+pow(2, 10) = 1024.00000
+hypot(3, 4) = 5.00000
+
+--- Exponential/Logarithmic ---
+exp(1) = 2.71828
+log(e) = 1.00000
+log10(100) = 2.00000
+log2(8) = 3.00000
+
+--- Rounding ---
+floor(2.7) = 2.00000
+ceil(2.3) = 3.00000
+round(2.5) = 3.00000
+trunc(-2.7) = -2.00000
+
+--- Integer Helpers ---
+absInt(-42) = 42
+minInt(10, 20) = 10
+maxInt(10, 20) = 20
+clampInt(15, 0, 10) = 10
+signInt(-5) = -1
+
+--- Double Helpers ---
+absDouble(-3.14) = 3.14000
+minDouble(1.5, 2.5) = 1.50000
+maxDouble(1.5, 2.5) = 2.50000
+clampDouble(1.5, 0.0, 1.0) = 1.00000
+
+--- Safe Wrappers ---
+safeSqrt(-1) = 0.00000
+safeSqrt(4) = 2.00000
+safeAsin(2.0) = 1.57080
+
+--- Utilities ---
+lerp(0, 100, 0.5) = 50.00000
+distance2D(0,0,3,4) = 5.00000
+smoothstep(0, 1, 0.5) = 0.50000
+
+--- Hyperbolic ---
+sinh(1) = 1.17520
+cosh(1) = 1.54308
+tanh(1) = 0.76159
+=== SDK Math Float Test ===
+
+--- Float Constants ---
+piF = 3.14159
+eF = 2.71828
+tauF = 6.28319
+phiF = 1.61803
+sqrt2F = 1.41421
+
+--- Trigonometry (float) ---
+sinF(45deg) = 0.70711
+cosF(45deg) = 0.70711
+tanF(45deg) = 1.00000
+
+--- Power Functions (float) ---
+sqrtF(2) = 1.41421
+cbrtF(8) = 2.00000
+powF(2, 10) = 1024.00000
+hypotF(3, 4) = 5.00000
+
+--- Exponential/Logarithmic (float) ---
+expF(1) = 2.71828
+logF(eF) = 1.00000
+log10F(100) = 2.00000
+log2F(8) = 3.00000
+
+--- Rounding (float) ---
+floorF(2.7) = 2.00000
+ceilF(2.3) = 3.00000
+roundF(2.5) = 3.00000
+truncF(-2.7) = -2.00000
+
+--- Float Helpers ---
+absF(-3.14) = 3.14000
+minF(1.5, 2.5) = 1.50000
+maxF(1.5, 2.5) = 2.50000
+clampF(1.5, 0.0, 1.0) = 1.00000
+signF(-5.0) = -1.00000
+
+--- Safe Wrappers (float) ---
+safeSqrtF(-1) = 0.00000
+safeSqrtF(4) = 2.00000
+safeAsinF(2.0) = 1.57080
+safeLogF(-1) = 0.00000
+
+--- Utilities (float) ---
+lerpF(0, 100, 0.5) = 50.00000
+distance2DF(0,0,3,4) = 5.00000
+smoothstepF(0, 1, 0.5) = 0.50000
+
+--- Hyperbolic (float) ---
+sinhF(1) = 1.17520
+coshF(1) = 1.54308
+tanhF(1) = 0.76159
+
+--- Float vs Double Precision ---
+double pi = 3.14159
+float pi  = 3.14159
+
+=== All float tests completed! ===
+
+=== All tests completed! ===

@@ -1,0 +1,52 @@
+# ==============================================================================
+# sdk/bytes.sn - Byte Array Utilities for Sindarin
+# ==============================================================================
+# Provides byte array encoding and decoding functions.
+# Drop-in replacement for the builtin Bytes type.
+#
+# Usage:
+#   import "sdk/bytes"
+#
+#   var bytes: byte[] = Bytes.fromHex("48656c6c6f")
+#   var text: str = bytes.toString()  # "Hello"
+#
+#   var b64: byte[] = Bytes.fromBase64("SGVsbG8=")
+#
+# Note: The instance methods like .toString(), .toHex(), .toBase64()
+# are still handled by the builtin byte array methods. This SDK provides
+# the static Bytes.fromHex() and Bytes.fromBase64() methods.
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "bytes.sn.c"
+
+# ==============================================================================
+# Bytes Static Class
+# ==============================================================================
+# Bytes is a utility class with only static methods for decoding.
+# We use a native struct with no fields just to have a namespace.
+
+@alias "RtBytes"
+native struct Bytes =>
+    _unused: int32
+
+    # ==========================================================================
+    # Static Decoding Methods
+    # ==========================================================================
+
+    # Decode a hexadecimal string to byte array
+    static fn fromHex(hexString: str): byte[] =>
+        return sn_bytes_from_hex(hexString)
+
+    # Decode a Base64 string to byte array
+    static fn fromBase64(base64String: str): byte[] =>
+        return sn_bytes_from_base64(base64String)
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Decoding functions
+native fn sn_bytes_from_hex(arena, hex: str): byte[]
+native fn sn_bytes_from_base64(arena, b64: str): byte[]

@@ -1,0 +1,13 @@
+=== SDK TextFile Tests ===
+
+test_static_write_and_read: PASS
+test_exists: PASS
+test_instance_read_write: PASS
+test_read_lines: PASS
+test_read_word: PASS
+test_position_and_seek: PASS
+test_eof_and_has_chars: PASS
+test_copy_and_move: PASS
+test_properties: PASS
+
+All TextFile tests passed!

@@ -1,0 +1,358 @@
+// Test SDK XML module
+
+import "../../../sdk/encoding/xml"
+import "../../../sdk/os/env"
+
+fn test_parse_string(): void =>
+    print("test_parse_string: ")
+
+    var root: Xml = Xml.parse("<root><item>Hello</item><item>World</item></root>")
+    assert(root.isElement(), "Should be an element")
+    assert(root.name() == "root", "Root name should be 'root'")
+    assert(root.hasChildren(), "Should have children")
+
+    print("PASS\n")
+
+fn test_create_element(): void =>
+    print("test_create_element: ")
+
+    var elem: Xml = Xml.element("test")
+    assert(elem.isElement(), "Should be an element")
+    assert(elem.name() == "test", "Name should be 'test'")
+    assert(elem.hasChildren() == false, "Should have no children")
+
+    print("PASS\n")
+
+fn test_create_document(): void =>
+    print("test_create_document: ")
+
+    var doc: Xml = Xml.document("root")
+    assert(doc.isElement(), "Root should be an element")
+    assert(doc.name() == "root", "Root name should be 'root'")
+
+    print("PASS\n")
+
+fn test_attributes(): void =>
+    print("test_attributes: ")
+
+    var elem: Xml = Xml.element("item")
+
+    // Set attributes
+    elem.setAttr("id", "42")
+    elem.setAttr("name", "test")
+
+    // Check existence
+    assert(elem.hasAttr("id"), "Should have 'id' attribute")
+    assert(elem.hasAttr("name"), "Should have 'name' attribute")
+    assert(elem.hasAttr("missing") == false, "Should not have 'missing' attribute")
+
+    // Get values
+    assert(elem.attr("id") == "42", "id should be '42'")
+    assert(elem.attr("name") == "test", "name should be 'test'")
+    assert(elem.attr("missing") == "", "missing attr should return empty string")
+
+    // Get all attribute names
+    var names: str[] = elem.attrs()
+    assert(names.length == 2, "Should have 2 attributes")
+
+    // Remove attribute
+    elem.removeAttr("name")
+    assert(elem.hasAttr("name") == false, "name should be removed")
+    assert(elem.hasAttr("id"), "id should still exist")
+
+    print("PASS\n")
+
+fn test_child_navigation(): void =>
+    print("test_child_navigation: ")
+
+    var root: Xml = Xml.parse("<root><a>1</a><b>2</b><c>3</c></root>")
+
+    // Child count
+    assert(root.childCount() == 3, "Should have 3 children")
+    assert(root.hasChildren(), "Should have children")
+
+    // Children array
+    var kids: Xml[] = root.children()
+    assert(kids.length == 3, "children() should return 3 elements")
+    assert(kids[0].name() == "a", "First child should be 'a'")
+    assert(kids[1].name() == "b", "Second child should be 'b'")
+    assert(kids[2].name() == "c", "Third child should be 'c'")
+
+    // First/last child
+    var first: Xml = root.firstChild()
+    assert(first.name() == "a", "firstChild should be 'a'")
+
+    var last: Xml = root.lastChild()
+    assert(last.name() == "c", "lastChild should be 'c'")
+
+    print("PASS\n")
+
+fn test_sibling_navigation(): void =>
+    print("test_sibling_navigation: ")
+
+    var root: Xml = Xml.parse("<root><a/><b/><c/></root>")
+    var first: Xml = root.firstChild()
+
+    assert(first.name() == "a", "First should be 'a'")
+
+    var second: Xml = first.next()
+    assert(second.name() == "b", "Next of 'a' should be 'b'")
+
+    var third: Xml = second.next()
+    assert(third.name() == "c", "Next of 'b' should be 'c'")
+
+    // Navigate backwards
+    var back: Xml = third.prev()
+    assert(back.name() == "b", "Prev of 'c' should be 'b'")
+
+    print("PASS\n")
+
+fn test_text_content(): void =>
+    print("test_text_content: ")
+
+    var root: Xml = Xml.parse("<msg>Hello World</msg>")
+    assert(root.text() == "Hello World", "Text should be 'Hello World'")
+
+    // Set text
+    root.setText("New Content")
+    assert(root.text() == "New Content", "Text should be updated")
+
+    print("PASS\n")
+
+fn test_type_checking(): void =>
+    print("test_type_checking: ")
+
+    var elem: Xml = Xml.element("test")
+    assert(elem.isElement(), "Should be element")
+    assert(elem.isText() == false, "Should not be text")
+    assert(elem.isDocument() == false, "Should not be document")
+    assert(elem.typeName() == "element", "typeName should be 'element'")
+
+    print("PASS\n")
+
+fn test_mutation_add_child(): void =>
+    print("test_mutation_add_child: ")
+
+    var root: Xml = Xml.document("root")
+    assert(root.childCount() == 0, "Should start empty")
+
+    var child1: Xml = Xml.element("item")
+    child1.setText("first")
+    root.addChild(child1)
+    assert(root.childCount() == 1, "Should have 1 child")
+
+    var child2: Xml = Xml.element("item")
+    child2.setText("second")
+    root.addChild(child2)
+    assert(root.childCount() == 2, "Should have 2 children")
+
+    var first: Xml = root.firstChild()
+    assert(first.text() == "first", "First child text should be 'first'")
+
+    print("PASS\n")
+
+fn test_mutation_set_name(): void =>
+    print("test_mutation_set_name: ")
+
+    var elem: Xml = Xml.element("old")
+    assert(elem.name() == "old", "Name should be 'old'")
+
+    elem.setName("new")
+    assert(elem.name() == "new", "Name should be 'new'")
+
+    print("PASS\n")
+
+fn test_mutation_remove(): void =>
+    print("test_mutation_remove: ")
+
+    var root: Xml = Xml.parse("<root><a/><b/><c/></root>")
+    assert(root.childCount() == 3, "Should have 3 children")
+
+    var middle: Xml = root.children()[1]
+    assert(middle.name() == "b", "Middle should be 'b'")
+    middle.remove()
+    assert(root.childCount() == 2, "Should have 2 children after removal")
+
+    var kids: Xml[] = root.children()
+    assert(kids[0].name() == "a", "First should be 'a'")
+    assert(kids[1].name() == "c", "Second should be 'c'")
+
+    print("PASS\n")
+
+fn test_xpath_find(): void =>
+    print("test_xpath_find: ")
+
+    var root: Xml = Xml.parse("<root><items><item id=\"1\">A</item><item id=\"2\">B</item></items></root>")
+
+    // Find first item
+    var item: Xml = root.find("//item")
+    assert(item.isElement(), "Should find an element")
+    assert(item.name() == "item", "Should be an 'item' element")
+    assert(item.attr("id") == "1", "Should be first item with id=1")
+
+    // Find by attribute
+    var item2: Xml = root.find("//item[@id='2']")
+    assert(item2.text() == "B", "Item with id=2 should have text 'B'")
+
+    print("PASS\n")
+
+fn test_xpath_find_all(): void =>
+    print("test_xpath_find_all: ")
+
+    var root: Xml = Xml.parse("<root><item>A</item><item>B</item><item>C</item></root>")
+
+    var items: Xml[] = root.findAll("//item")
+    assert(items.length == 3, "Should find 3 items")
+    assert(items[0].text() == "A", "First item text should be 'A'")
+    assert(items[1].text() == "B", "Second item text should be 'B'")
+    assert(items[2].text() == "C", "Third item text should be 'C'")
+
+    print("PASS\n")
+
+fn test_serialization(): void =>
+    print("test_serialization: ")
+
+    var root: Xml = Xml.element("root")
+    root.setAttr("version", "1.0")
+    var child: Xml = Xml.element("item")
+    child.setText("hello")
+    root.addChild(child)
+
+    var compact: str = root.toString()
+    assert(compact.length > 0, "toString should produce output")
+
+    var pretty: str = root.toPrettyString()
+    assert(pretty.length > 0, "toPrettyString should produce output")
+
+    print("PASS\n")
+
+fn test_file_io(): void =>
+    print("test_file_io: ")
+
+    // Create XML document
+    var root: Xml = Xml.document("config")
+    root.setAttr("version", "2.0")
+
+    var item1: Xml = Xml.element("setting")
+    item1.setAttr("key", "name")
+    item1.setText("TestApp")
+    root.addChild(item1)
+
+    var item2: Xml = Xml.element("setting")
+    item2.setAttr("key", "port")
+    item2.setText("8080")
+    root.addChild(item2)
+
+    // Write to file
+    var tmpDir: str = Environment.getOr("TEMP", "/tmp")
+    var filePath: str = $"{tmpDir}/test_xml_sdk_tmp.xml"
+    root.writeFile(filePath)
+
+    // Read back
+    var loaded: Xml = Xml.parseFile(filePath)
+    assert(loaded.name() == "config", "Root should be 'config'")
+    assert(loaded.attr("version") == "2.0", "Version should be '2.0'")
+    assert(loaded.childCount() == 2, "Should have 2 children")
+
+    var settings: Xml[] = loaded.findAll("//setting")
+    assert(settings.length == 2, "Should find 2 settings")
+    assert(settings[0].attr("key") == "name", "First setting key should be 'name'")
+    assert(settings[0].text() == "TestApp", "First setting value should be 'TestApp'")
+
+    print("PASS\n")
+
+fn test_deep_copy(): void =>
+    print("test_deep_copy: ")
+
+    var original: Xml = Xml.element("root")
+    original.setAttr("id", "1")
+    original.setText("original")
+
+    var copied: Xml = original.copy()
+
+    // Modify original
+    original.setText("modified")
+    original.setAttr("id", "99")
+
+    // Copy should be unchanged
+    assert(copied.text() == "original", "Copy text should be unchanged")
+    assert(copied.attr("id") == "1", "Copy attr should be unchanged")
+
+    // Original should be changed
+    assert(original.text() == "modified", "Original text should be modified")
+    assert(original.attr("id") == "99", "Original attr should be modified")
+
+    print("PASS\n")
+
+fn test_nested_structure(): void =>
+    print("test_nested_structure: ")
+
+    var root: Xml = Xml.document("library")
+
+    var book1: Xml = Xml.element("book")
+    book1.setAttr("isbn", "123")
+    var title1: Xml = Xml.element("title")
+    title1.setText("Book One")
+    book1.addChild(title1)
+    root.addChild(book1)
+
+    var book2: Xml = Xml.element("book")
+    book2.setAttr("isbn", "456")
+    var title2: Xml = Xml.element("title")
+    title2.setText("Book Two")
+    book2.addChild(title2)
+    root.addChild(book2)
+
+    // Navigate and verify
+    assert(root.childCount() == 2, "Library should have 2 books")
+
+    var books: Xml[] = root.findAll("//book")
+    assert(books.length == 2, "Should find 2 books")
+    assert(books[0].attr("isbn") == "123", "First book ISBN")
+    assert(books[1].attr("isbn") == "456", "Second book ISBN")
+
+    var titles: Xml[] = root.findAll("//title")
+    assert(titles.length == 2, "Should find 2 titles")
+    assert(titles[0].text() == "Book One", "First title")
+    assert(titles[1].text() == "Book Two", "Second title")
+
+    print("PASS\n")
+
+fn test_parse_with_attributes(): void =>
+    print("test_parse_with_attributes: ")
+
+    var root: Xml = Xml.parse("<person name=\"Alice\" age=\"30\" active=\"true\"/>")
+    assert(root.name() == "person", "Name should be 'person'")
+    assert(root.attr("name") == "Alice", "name attr should be 'Alice'")
+    assert(root.attr("age") == "30", "age attr should be '30'")
+    assert(root.attr("active") == "true", "active attr should be 'true'")
+
+    var attrNames: str[] = root.attrs()
+    assert(attrNames.length == 3, "Should have 3 attributes")
+
+    print("PASS\n")
+
+fn main(): int =>
+    print("=== SDK XML Tests ===\n\n")
+
+    test_parse_string()
+    test_create_element()
+    test_create_document()
+    test_attributes()
+    test_child_navigation()
+    test_sibling_navigation()
+    test_text_content()
+    test_type_checking()
+    test_mutation_add_child()
+    test_mutation_set_name()
+    test_mutation_remove()
+    test_xpath_find()
+    test_xpath_find_all()
+    test_serialization()
+    test_file_io()
+    test_deep_copy()
+    test_nested_structure()
+    test_parse_with_attributes()
+
+    print("\nAll XML tests passed!\n")
+    return 0

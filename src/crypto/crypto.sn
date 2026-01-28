@@ -1,0 +1,179 @@
+# ==============================================================================
+# sdk/crypto/crypto.sn - Crypto Type for Sindarin
+# ==============================================================================
+# Provides cryptographic operations using OpenSSL's libcrypto.
+# Static-only type (same pattern as Environment).
+#
+# Usage:
+#   import "sdk/crypto/crypto"
+#
+#   # Hashing
+#   var hash: byte[] = Crypto.sha256Str("hello")
+#   var md5: byte[] = Crypto.md5(data)
+#
+#   # HMAC
+#   var mac: byte[] = Crypto.hmacSha256(key, data)
+#
+#   # AES-256-GCM encryption/decryption
+#   var encrypted: byte[] = Crypto.encrypt(key, plaintext)
+#   var decrypted: byte[] = Crypto.decrypt(key, encrypted)
+#
+#   # Key derivation (PBKDF2)
+#   var key: byte[] = Crypto.pbkdf2("password", salt, 100000, 32)
+#
+#   # Secure random
+#   var rand: byte[] = Crypto.randomBytes(32)
+#
+#   # Timing-safe comparison
+#   var equal: bool = Crypto.constantTimeEqual(a, b)
+#
+# Requirements:
+#   - OpenSSL libcrypto must be installed
+#   - Linux: sudo apt install libssl-dev
+#   - macOS: brew install openssl
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "crypto.sn.c"
+@link crypto
+
+# ==============================================================================
+# Crypto Static-Only Type Definition
+# ==============================================================================
+# Crypto is a static-only type with no instances - all methods are static.
+
+@alias "RtCrypto"
+native struct Crypto =>
+
+    # ==========================================================================
+    # Hashing (byte[] input)
+    # ==========================================================================
+
+    static fn sha256(data: byte[]): byte[] =>
+        return sn_crypto_sha256(data)
+
+    static fn sha384(data: byte[]): byte[] =>
+        return sn_crypto_sha384(data)
+
+    static fn sha512(data: byte[]): byte[] =>
+        return sn_crypto_sha512(data)
+
+    static fn sha1(data: byte[]): byte[] =>
+        return sn_crypto_sha1(data)
+
+    static fn md5(data: byte[]): byte[] =>
+        return sn_crypto_md5(data)
+
+    # ==========================================================================
+    # Hashing (str input)
+    # ==========================================================================
+
+    static fn sha256Str(text: str): byte[] =>
+        return sn_crypto_sha256_str(text)
+
+    static fn sha384Str(text: str): byte[] =>
+        return sn_crypto_sha384_str(text)
+
+    static fn sha512Str(text: str): byte[] =>
+        return sn_crypto_sha512_str(text)
+
+    static fn sha1Str(text: str): byte[] =>
+        return sn_crypto_sha1_str(text)
+
+    static fn md5Str(text: str): byte[] =>
+        return sn_crypto_md5_str(text)
+
+    # ==========================================================================
+    # HMAC
+    # ==========================================================================
+
+    static fn hmacSha256(key: byte[], data: byte[]): byte[] =>
+        return sn_crypto_hmac_sha256(key, data)
+
+    static fn hmacSha512(key: byte[], data: byte[]): byte[] =>
+        return sn_crypto_hmac_sha512(key, data)
+
+    # ==========================================================================
+    # AES-256-GCM Encryption
+    # ==========================================================================
+
+    # Encrypt with auto-generated IV. Output: [IV(12)][ciphertext][tag(16)]
+    static fn encrypt(key: byte[], plaintext: byte[]): byte[] =>
+        return sn_crypto_encrypt(key, plaintext)
+
+    # Decrypt. Expects format: [IV(12)][ciphertext][tag(16)]
+    static fn decrypt(key: byte[], ciphertext: byte[]): byte[] =>
+        return sn_crypto_decrypt(key, ciphertext)
+
+    # Encrypt with explicit IV
+    static fn encryptWithIv(key: byte[], iv: byte[], plaintext: byte[]): byte[] =>
+        return sn_crypto_encrypt_with_iv(key, iv, plaintext)
+
+    # Decrypt with explicit IV. Expects format: [ciphertext][tag(16)]
+    static fn decryptWithIv(key: byte[], iv: byte[], ciphertext: byte[]): byte[] =>
+        return sn_crypto_decrypt_with_iv(key, iv, ciphertext)
+
+    # ==========================================================================
+    # Key Derivation (PBKDF2)
+    # ==========================================================================
+
+    # PBKDF2 with SHA-256
+    static fn pbkdf2(password: str, salt: byte[], iterations: int, keyLen: int): byte[] =>
+        return sn_crypto_pbkdf2(password, salt, iterations, keyLen)
+
+    # PBKDF2 with SHA-512
+    static fn pbkdf2Sha512(password: str, salt: byte[], iterations: int, keyLen: int): byte[] =>
+        return sn_crypto_pbkdf2_sha512(password, salt, iterations, keyLen)
+
+    # ==========================================================================
+    # Secure Random
+    # ==========================================================================
+
+    static fn randomBytes(count: int): byte[] =>
+        return sn_crypto_random_bytes(count)
+
+    # ==========================================================================
+    # Utility
+    # ==========================================================================
+
+    # Timing-safe comparison
+    static fn constantTimeEqual(a: byte[], b: byte[]): bool =>
+        return sn_crypto_constant_time_equal(a, b) != 0
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Hashing (byte[] input)
+native fn sn_crypto_sha256(arena, data: byte[]): byte[]
+native fn sn_crypto_sha384(arena, data: byte[]): byte[]
+native fn sn_crypto_sha512(arena, data: byte[]): byte[]
+native fn sn_crypto_sha1(arena, data: byte[]): byte[]
+native fn sn_crypto_md5(arena, data: byte[]): byte[]
+
+# Hashing (str input)
+native fn sn_crypto_sha256_str(arena, text: str): byte[]
+native fn sn_crypto_sha384_str(arena, text: str): byte[]
+native fn sn_crypto_sha512_str(arena, text: str): byte[]
+native fn sn_crypto_sha1_str(arena, text: str): byte[]
+native fn sn_crypto_md5_str(arena, text: str): byte[]
+
+# HMAC
+native fn sn_crypto_hmac_sha256(arena, key: byte[], data: byte[]): byte[]
+native fn sn_crypto_hmac_sha512(arena, key: byte[], data: byte[]): byte[]
+
+# AES-256-GCM
+native fn sn_crypto_encrypt(arena, key: byte[], plaintext: byte[]): byte[]
+native fn sn_crypto_decrypt(arena, key: byte[], ciphertext: byte[]): byte[]
+native fn sn_crypto_encrypt_with_iv(arena, key: byte[], iv: byte[], plaintext: byte[]): byte[]
+native fn sn_crypto_decrypt_with_iv(arena, key: byte[], iv: byte[], ciphertext: byte[]): byte[]
+
+# PBKDF2
+native fn sn_crypto_pbkdf2(arena, password: str, salt: byte[], iterations: int, keyLen: int): byte[]
+native fn sn_crypto_pbkdf2_sha512(arena, password: str, salt: byte[], iterations: int, keyLen: int): byte[]
+
+# Secure random
+native fn sn_crypto_random_bytes(arena, count: int): byte[]
+
+# Utility
+native fn sn_crypto_constant_time_equal(a: byte[], b: byte[]): int

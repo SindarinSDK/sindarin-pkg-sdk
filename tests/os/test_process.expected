@@ -1,0 +1,12 @@
+=== SDK Process Tests ===
+
+test_run_simple: PASS
+test_run_with_args: PASS
+test_run_multiple_args: PASS
+test_command_not_found: PASS
+test_exit_code: PASS
+test_stderr_capture: PASS
+test_stdout_stderr_separate: PASS
+test_empty_stdout: PASS
+
+All process tests passed!

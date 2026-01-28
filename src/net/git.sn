@@ -1,0 +1,469 @@
+# ==============================================================================
+# sdk/net/git.sn - Git Repository Types for Sindarin
+# ==============================================================================
+# Provides Git repository operations using libgit2.
+#
+# Usage:
+#   import "sdk/net/git"
+#
+#   var repo: GitRepo = GitRepo.open(".")
+#   var commits: GitCommit[] = repo.log(10)
+#   for c in commits =>
+#       println($"{c.id()}: {c.message()}")
+#   repo.close()
+#
+# Cloning:
+#   var repo: GitRepo = GitRepo.clone("https://github.com/user/repo.git", "./local")
+#   repo.close()
+#
+# Authentication for push/pull/fetch/clone over SSH:
+#   - Uses SSH agent by default
+#   - SN_GIT_SSH_KEY environment variable: path to private key
+#   - SN_GIT_SSH_PASSPHRASE environment variable: passphrase for key
+#
+# Authentication for push/pull/fetch/clone over HTTPS:
+#   - SN_GIT_USERNAME environment variable
+#   - SN_GIT_PASSWORD or SN_GIT_TOKEN environment variable
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "git.sn.c"
+@link git2
+
+# ==============================================================================
+# GitCommit - Commit Information
+# ==============================================================================
+# Immutable snapshot of a Git commit's metadata.
+
+@alias "RtGitCommit"
+native struct GitCommit as ref =>
+    @alias "id_str"
+    _id: *byte
+
+    @alias "message_str"
+    _message: *byte
+
+    @alias "author_name"
+    _author: *byte
+
+    @alias "author_email_str"
+    _email: *byte
+
+    @alias "timestamp"
+    _timestamp: long
+
+    # Get commit SHA (full 40-char hex)
+    fn id(): str =>
+        return sn_git_commit_get_id(self)
+
+    # Get commit message
+    fn message(): str =>
+        return sn_git_commit_get_message(self)
+
+    # Get author name
+    fn author(): str =>
+        return sn_git_commit_get_author(self)
+
+    # Get author email
+    fn email(): str =>
+        return sn_git_commit_get_email(self)
+
+    # Get commit timestamp (Unix epoch seconds)
+    @alias "sn_git_commit_get_timestamp"
+    native fn timestamp(): long
+
+# ==============================================================================
+# GitBranch - Branch Information
+# ==============================================================================
+
+@alias "RtGitBranch"
+native struct GitBranch as ref =>
+    @alias "name_str"
+    _name: *byte
+
+    @alias "is_head"
+    _isHead: int
+
+    @alias "is_remote"
+    _isRemote: int
+
+    # Get branch name
+    fn name(): str =>
+        return sn_git_branch_get_name(self)
+
+    # Check if this is the current HEAD branch
+    @alias "sn_git_branch_is_head"
+    native fn isHead(): bool
+
+    # Check if this is a remote-tracking branch
+    @alias "sn_git_branch_is_remote"
+    native fn isRemote(): bool
+
+# ==============================================================================
+# GitRemote - Remote Information
+# ==============================================================================
+
+@alias "RtGitRemote"
+native struct GitRemote as ref =>
+    @alias "name_str"
+    _name: *byte
+
+    @alias "url_str"
+    _url: *byte
+
+    # Get remote name (e.g., "origin")
+    fn name(): str =>
+        return sn_git_remote_get_name(self)
+
+    # Get remote URL
+    fn url(): str =>
+        return sn_git_remote_get_url(self)
+
+# ==============================================================================
+# GitDiff - Diff Entry Information
+# ==============================================================================
+
+@alias "RtGitDiff"
+native struct GitDiff as ref =>
+    @alias "path_str"
+    _path: *byte
+
+    @alias "status_str"
+    _status: *byte
+
+    @alias "old_path_str"
+    _oldPath: *byte
+
+    # Get file path
+    fn path(): str =>
+        return sn_git_diff_get_path(self)
+
+    # Get status string: "added", "modified", "deleted", "renamed", "copied"
+    fn status(): str =>
+        return sn_git_diff_get_status(self)
+
+    # Get old path (for renames/copies, empty otherwise)
+    fn oldPath(): str =>
+        return sn_git_diff_get_old_path(self)
+
+# ==============================================================================
+# GitStatus - Working Tree Status Entry
+# ==============================================================================
+
+@alias "RtGitStatus"
+native struct GitStatus as ref =>
+    @alias "path_str"
+    _path: *byte
+
+    @alias "status_str"
+    _status: *byte
+
+    @alias "is_staged"
+    _isStaged: int
+
+    # Get file path
+    fn path(): str =>
+        return sn_git_status_get_path(self)
+
+    # Get status: "new", "modified", "deleted", "renamed", "typechange"
+    fn status(): str =>
+        return sn_git_status_get_status(self)
+
+    # Check if the change is staged (in index)
+    @alias "sn_git_status_is_staged"
+    native fn isStaged(): bool
+
+# ==============================================================================
+# GitTag - Tag Information
+# ==============================================================================
+
+@alias "RtGitTag"
+native struct GitTag as ref =>
+    @alias "name_str"
+    _name: *byte
+
+    @alias "target_id_str"
+    _targetId: *byte
+
+    @alias "message_str"
+    _message: *byte
+
+    @alias "is_lightweight"
+    _isLightweight: int
+
+    # Get tag name
+    fn name(): str =>
+        return sn_git_tag_get_name(self)
+
+    # Get target commit SHA
+    fn targetId(): str =>
+        return sn_git_tag_get_target_id(self)
+
+    # Get tag message (empty for lightweight tags)
+    fn message(): str =>
+        return sn_git_tag_get_message(self)
+
+    # Check if this is a lightweight tag (vs annotated)
+    @alias "sn_git_tag_is_lightweight"
+    native fn isLightweight(): bool
+
+# ==============================================================================
+# GitRepo - Main Repository Type
+# ==============================================================================
+
+@alias "RtGitRepo"
+native struct GitRepo as ref =>
+    @alias "repo_ptr"
+    _repoPtr: *byte
+
+    @alias "path_str"
+    _path: *byte
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    # Open an existing repository at path
+    static fn open(path: str): GitRepo =>
+        return sn_git_repo_open(path)
+
+    # Clone a remote repository to a local path
+    static fn clone(url: str, path: str): GitRepo =>
+        return sn_git_repo_clone(url, path)
+
+    # Initialize a new repository at path
+    static fn init(path: str): GitRepo =>
+        return sn_git_repo_init(path)
+
+    # Initialize a new bare repository at path
+    static fn initBare(path: str): GitRepo =>
+        return sn_git_repo_init_bare(path)
+
+    # ==========================================================================
+    # Status & Staging
+    # ==========================================================================
+
+    # Get working tree status (like `git status`)
+    fn status(): GitStatus[] =>
+        return sn_git_repo_status(self)
+
+    # Stage a file (like `git add <path>`)
+    fn add(path: str): void =>
+        sn_git_repo_add(self, path)
+
+    # Stage all changes (like `git add -A`)
+    fn addAll(): void =>
+        sn_git_repo_add_all(self)
+
+    # Unstage a file (like `git reset HEAD <path>`)
+    fn unstage(path: str): void =>
+        sn_git_repo_unstage(self, path)
+
+    # ==========================================================================
+    # Commits & Log
+    # ==========================================================================
+
+    # Create a commit with a message (commits staged changes)
+    fn commit(message: str): GitCommit =>
+        return sn_git_repo_commit(self, message)
+
+    # Create a commit with explicit author info
+    fn commitAs(message: str, authorName: str, authorEmail: str): GitCommit =>
+        return sn_git_repo_commit_as(self, message, authorName, authorEmail)
+
+    # Get commit log (most recent first, up to maxCount)
+    fn log(maxCount: int): GitCommit[] =>
+        return sn_git_repo_log(self, maxCount)
+
+    # Get the HEAD commit
+    fn head(): GitCommit =>
+        return sn_git_repo_head_commit(self)
+
+    # ==========================================================================
+    # Branches
+    # ==========================================================================
+
+    # List all branches
+    fn branches(): GitBranch[] =>
+        return sn_git_repo_branches(self)
+
+    # Get current branch name (empty if detached HEAD)
+    fn currentBranch(): str =>
+        return sn_git_repo_current_branch(self)
+
+    # Create a new branch at HEAD
+    fn createBranch(name: str): GitBranch =>
+        return sn_git_repo_create_branch(self, name)
+
+    # Delete a branch by name
+    fn deleteBranch(name: str): void =>
+        sn_git_repo_delete_branch(self, name)
+
+    # Checkout a branch or commit by name
+    fn checkout(refName: str): void =>
+        sn_git_repo_checkout(self, refName)
+
+    # ==========================================================================
+    # Remotes
+    # ==========================================================================
+
+    # List all remotes
+    fn remotes(): GitRemote[] =>
+        return sn_git_repo_remotes(self)
+
+    # Add a remote
+    fn addRemote(name: str, url: str): GitRemote =>
+        return sn_git_repo_add_remote(self, name, url)
+
+    # Remove a remote
+    fn removeRemote(name: str): void =>
+        sn_git_repo_remove_remote(self, name)
+
+    # ==========================================================================
+    # Network Operations (push, pull, fetch)
+    # ==========================================================================
+
+    # Fetch from a remote
+    fn fetch(remoteName: str): void =>
+        sn_git_repo_fetch(self, remoteName)
+
+    # Push current branch to remote
+    fn push(remoteName: str): void =>
+        sn_git_repo_push(self, remoteName)
+
+    # Pull from remote (fetch + merge)
+    fn pull(remoteName: str): void =>
+        sn_git_repo_pull(self, remoteName)
+
+    # ==========================================================================
+    # Diff
+    # ==========================================================================
+
+    # Get diff of working tree vs HEAD
+    fn diff(): GitDiff[] =>
+        return sn_git_repo_diff(self)
+
+    # Get diff of staged changes vs HEAD
+    fn diffStaged(): GitDiff[] =>
+        return sn_git_repo_diff_staged(self)
+
+    # ==========================================================================
+    # Tags
+    # ==========================================================================
+
+    # List all tags
+    fn tags(): GitTag[] =>
+        return sn_git_repo_tags(self)
+
+    # Create a lightweight tag at HEAD
+    fn createTag(name: str): GitTag =>
+        return sn_git_repo_create_tag(self, name)
+
+    # Create an annotated tag at HEAD
+    fn createAnnotatedTag(name: str, message: str): GitTag =>
+        return sn_git_repo_create_annotated_tag(self, name, message)
+
+    # Delete a tag
+    fn deleteTag(name: str): void =>
+        sn_git_repo_delete_tag(self, name)
+
+    # ==========================================================================
+    # Getters
+    # ==========================================================================
+
+    # Get repository working directory path
+    fn path(): str =>
+        return sn_git_repo_get_path(self)
+
+    # Check if repository is bare
+    fn isBare(): bool =>
+        return sn_git_repo_is_bare(self)
+
+    # ==========================================================================
+    # Lifecycle
+    # ==========================================================================
+
+    # Close the repository (frees resources)
+    @alias "sn_git_repo_close"
+    native fn close(): void
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# GitRepo factory functions
+native fn sn_git_repo_open(arena, path: str): GitRepo
+native fn sn_git_repo_clone(arena, url: str, path: str): GitRepo
+native fn sn_git_repo_init(arena, path: str): GitRepo
+native fn sn_git_repo_init_bare(arena, path: str): GitRepo
+
+# GitRepo status & staging
+native fn sn_git_repo_status(arena, repo: GitRepo): GitStatus[]
+native fn sn_git_repo_add(repo: GitRepo, path: str): void
+native fn sn_git_repo_add_all(repo: GitRepo): void
+native fn sn_git_repo_unstage(repo: GitRepo, path: str): void
+
+# GitRepo commits & log
+native fn sn_git_repo_commit(arena, repo: GitRepo, message: str): GitCommit
+native fn sn_git_repo_commit_as(arena, repo: GitRepo, message: str, authorName: str, authorEmail: str): GitCommit
+native fn sn_git_repo_log(arena, repo: GitRepo, maxCount: int): GitCommit[]
+native fn sn_git_repo_head_commit(arena, repo: GitRepo): GitCommit
+
+# GitRepo branches
+native fn sn_git_repo_branches(arena, repo: GitRepo): GitBranch[]
+native fn sn_git_repo_current_branch(arena, repo: GitRepo): str
+native fn sn_git_repo_create_branch(arena, repo: GitRepo, name: str): GitBranch
+native fn sn_git_repo_delete_branch(repo: GitRepo, name: str): void
+native fn sn_git_repo_checkout(repo: GitRepo, refName: str): void
+
+# GitRepo remotes
+native fn sn_git_repo_remotes(arena, repo: GitRepo): GitRemote[]
+native fn sn_git_repo_add_remote(arena, repo: GitRepo, name: str, url: str): GitRemote
+native fn sn_git_repo_remove_remote(repo: GitRepo, name: str): void
+
+# GitRepo network operations
+native fn sn_git_repo_fetch(repo: GitRepo, remoteName: str): void
+native fn sn_git_repo_push(repo: GitRepo, remoteName: str): void
+native fn sn_git_repo_pull(arena, repo: GitRepo, remoteName: str): void
+
+# GitRepo diff
+native fn sn_git_repo_diff(arena, repo: GitRepo): GitDiff[]
+native fn sn_git_repo_diff_staged(arena, repo: GitRepo): GitDiff[]
+
+# GitRepo tags
+native fn sn_git_repo_tags(arena, repo: GitRepo): GitTag[]
+native fn sn_git_repo_create_tag(arena, repo: GitRepo, name: str): GitTag
+native fn sn_git_repo_create_annotated_tag(arena, repo: GitRepo, name: str, message: str): GitTag
+native fn sn_git_repo_delete_tag(repo: GitRepo, name: str): void
+
+# GitRepo getters
+native fn sn_git_repo_get_path(arena, repo: GitRepo): str
+native fn sn_git_repo_is_bare(repo: GitRepo): bool
+
+# GitCommit getters
+native fn sn_git_commit_get_id(arena, commit: GitCommit): str
+native fn sn_git_commit_get_message(arena, commit: GitCommit): str
+native fn sn_git_commit_get_author(arena, commit: GitCommit): str
+native fn sn_git_commit_get_email(arena, commit: GitCommit): str
+
+# GitBranch getters
+native fn sn_git_branch_get_name(arena, branch: GitBranch): str
+
+# GitRemote getters
+native fn sn_git_remote_get_name(arena, remote: GitRemote): str
+native fn sn_git_remote_get_url(arena, remote: GitRemote): str
+
+# GitDiff getters
+native fn sn_git_diff_get_path(arena, diff: GitDiff): str
+native fn sn_git_diff_get_status(arena, diff: GitDiff): str
+native fn sn_git_diff_get_old_path(arena, diff: GitDiff): str
+
+# GitStatus getters
+native fn sn_git_status_get_path(arena, status: GitStatus): str
+native fn sn_git_status_get_status(arena, status: GitStatus): str
+
+# GitTag getters
+native fn sn_git_tag_get_name(arena, tag: GitTag): str
+native fn sn_git_tag_get_target_id(arena, tag: GitTag): str
+native fn sn_git_tag_get_message(arena, tag: GitTag): str

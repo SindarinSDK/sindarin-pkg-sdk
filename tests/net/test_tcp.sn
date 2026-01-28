@@ -1,0 +1,113 @@
+# ==============================================================================
+# test_tcp.sn - Tests for SDK TCP Types (TcpListener, TcpStream)
+# ==============================================================================
+# Tests the TcpListener and TcpStream structs and their methods.
+# ==============================================================================
+
+import "../../../sdk/net/tcp"
+
+fn test_listener_bind(): void =>
+    print("test_listener_bind: ")
+
+    # Bind to any available port
+    var server: TcpListener = TcpListener.bind(":0")
+    var port: int = server.port()
+
+    assert(port > 0, "Port should be assigned")
+    assert(port < 65536, "Port should be valid")
+
+    server.close()
+    print("PASS\n")
+
+fn test_connect_and_echo(): void =>
+    print("test_connect_and_echo: ")
+
+    # Create server
+    var server: TcpListener = TcpListener.bind(":0")
+    var port: int = server.port()
+
+    # Connect client
+    var client: TcpStream = TcpStream.connect($"127.0.0.1:{port}")
+
+    # Accept connection on server side
+    var serverConn: TcpStream = server.accept()
+
+    # Client sends data
+    client.writeLine("Hello, Server!")
+
+    # Server receives and echoes
+    var received: str = serverConn.readLine()
+    assert(received == "Hello, Server!", "Server should receive message")
+
+    serverConn.writeLine("Hello, Client!")
+
+    # Client receives echo
+    var response: str = client.readLine()
+    assert(response == "Hello, Client!", "Client should receive response")
+
+    # Clean up
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_write_bytes(): void =>
+    print("test_write_bytes: ")
+
+    # Create server
+    var server: TcpListener = TcpListener.bind(":0")
+    var port: int = server.port()
+
+    # Connect client
+    var client: TcpStream = TcpStream.connect($"127.0.0.1:{port}")
+    var serverConn: TcpStream = server.accept()
+
+    # Send raw bytes
+    var data: byte[] = "Binary data!".toBytes()
+    var sent: int = client.write(data)
+    assert(sent == 12, "Should send 12 bytes")
+
+    # Receive bytes
+    var received: byte[] = serverConn.read(1024)
+    assert(received.length == 12, "Should receive 12 bytes")
+    assert(received.toString() == "Binary data!", "Content should match")
+
+    # Clean up
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_remote_address(): void =>
+    print("test_remote_address: ")
+
+    # Create server
+    var server: TcpListener = TcpListener.bind(":0")
+    var port: int = server.port()
+
+    # Connect client
+    var client: TcpStream = TcpStream.connect($"127.0.0.1:{port}")
+    var serverConn: TcpStream = server.accept()
+
+    # Check remote address
+    var remoteAddr: str = serverConn.remoteAddress()
+    assert(remoteAddr.startsWith("127.0.0.1:"), "Remote should be localhost")
+
+    # Clean up
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK TCP Tests ===\n\n")
+
+    test_listener_bind()
+    test_connect_and_echo()
+    test_write_bytes()
+    test_remote_address()
+
+    print("\nAll TCP tests passed!\n")

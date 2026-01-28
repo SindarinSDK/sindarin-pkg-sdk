@@ -1,0 +1,82 @@
+# ==============================================================================
+# test_stdio.sn - Tests for SDK Standard I/O Types
+# ==============================================================================
+# Tests the Stdin, Stdout, and Stderr structs and their methods.
+# ==============================================================================
+
+import "../../../sdk/io/stdio"
+
+fn test_stdout_write(): void =>
+    print("test_stdout_write: ")
+    Stdout.write("OK")
+    Stdout.writeLine("")
+    print("PASS\n")
+
+fn test_stdout_writeLine(): void =>
+    print("test_stdout_writeLine: ")
+    Stdout.writeLine("OK")
+    print("PASS\n")
+
+fn test_stdout_flush(): void =>
+    print("test_stdout_flush: ")
+    Stdout.write("OK")
+    Stdout.flush()
+    Stdout.writeLine("")
+    print("PASS\n")
+
+fn test_stderr_write(): void =>
+    Stdout.flush()
+    print("test_stderr_write: ")
+    Stderr.write("OK")
+    Stderr.writeLine("")
+    Stderr.flush()
+    print("PASS\n")
+
+fn test_stderr_writeLine(): void =>
+    Stdout.flush()
+    print("test_stderr_writeLine: ")
+    Stderr.writeLine("OK")
+    Stderr.flush()
+    print("PASS\n")
+
+fn test_stderr_flush(): void =>
+    Stdout.flush()
+    print("test_stderr_flush: ")
+    Stderr.write("OK")
+    Stderr.flush()
+    Stderr.writeLine("")
+    print("PASS\n")
+
+fn test_stdin_isEof(): void =>
+    print("test_stdin_isEof: ")
+    # Just verify the function is callable
+    var eof: bool = Stdin.isEof()
+    print("PASS\n")
+
+fn test_builtin_println(): void =>
+    print("test_builtin_println: ")
+    println("OK")
+    print("PASS\n")
+
+fn test_builtin_printErr(): void =>
+    Stdout.flush()
+    print("test_builtin_printErr: ")
+    printErr("OK")
+    printErrLn("")
+    Stderr.flush()
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Stdio Tests ===\n\n")
+
+    test_stdout_write()
+    test_stdout_writeLine()
+    test_stdout_flush()
+    test_stderr_write()
+    test_stderr_writeLine()
+    test_stderr_flush()
+    test_stdin_isEof()
+    test_builtin_println()
+    test_builtin_printErr()
+
+    print("\nAll stdio tests passed!\n")

@@ -1,0 +1,204 @@
+# ==============================================================================
+# sdk/textfile.sn - TextFile Type for Sindarin
+# ==============================================================================
+# Provides text file I/O operations.
+# Drop-in replacement for the builtin TextFile type.
+#
+# Usage:
+#   import "sdk/textfile"
+#
+#   # Static methods
+#   var content: str = TextFile.readAll("data.txt")
+#   TextFile.writeAll("output.txt", "Hello, World!")
+#   var exists: bool = TextFile.exists("config.txt")
+#
+#   # Instance methods
+#   var f: TextFile = TextFile.open("data.txt")
+#   var line: str = f.readLine()
+#   f.writeLine("New line")
+#   f.close()
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "textfile.sn.c"
+
+# ==============================================================================
+# TextFile Native Struct Definition
+# ==============================================================================
+# Uses @alias to map TextFile to RtTextFile in the runtime.
+# The 'as ref' modifier means native methods receive self by pointer.
+
+@alias "RtTextFile"
+native struct TextFile as ref =>
+    @alias "fp"
+    _fp: *void
+    @alias "path"
+    _path: str
+    @alias "is_open"
+    _is_open: int32
+
+    # ==========================================================================
+    # Static Factory Methods
+    # ==========================================================================
+
+    # Open a text file for reading and writing
+    static fn open(path: str): TextFile =>
+        return sn_text_file_open(path)
+
+    # ==========================================================================
+    # Static File Operations
+    # ==========================================================================
+
+    # Check if a file exists
+    static fn exists(path: str): bool =>
+        return sn_text_file_exists(path) != 0
+
+    # Read entire contents of a text file as a string
+    static fn readAll(path: str): str =>
+        return sn_text_file_read_all_static(path)
+
+    # Write string to text file, replacing any existing content
+    static fn writeAll(path: str, content: str): void =>
+        sn_text_file_write_all_static(path, content)
+
+    # Copy a file to a new location
+    static fn copy(source: str, dest: str): void =>
+        sn_text_file_copy(source, dest)
+
+    # Move or rename a file
+    static fn move(source: str, dest: str): void =>
+        sn_text_file_move(source, dest)
+
+    # Delete a file
+    static fn delete(path: str): void =>
+        sn_text_file_delete(path)
+
+    # ==========================================================================
+    # Instance Reading Methods
+    # ==========================================================================
+
+    # Read a single character, returns -1 at EOF
+    @alias "sn_text_file_read_char"
+    native fn readChar(): int
+
+    # Read single line (strips trailing newline)
+    fn readLine(): str =>
+        return sn_text_file_read_line(self)
+
+    # Read all remaining content from current position
+    fn readRemaining(): str =>
+        return sn_text_file_read_remaining(self)
+
+    # Read all remaining lines as array
+    fn readLines(): str[] =>
+        return sn_text_file_read_lines(self)
+
+    # Read whitespace-delimited word
+    fn readWord(): str =>
+        return sn_text_file_read_word(self)
+
+    # ==========================================================================
+    # Instance Writing Methods
+    # ==========================================================================
+
+    # Write single character
+    @alias "sn_text_file_write_char"
+    native fn writeChar(ch: int): void
+
+    # Write string without trailing newline
+    @alias "sn_text_file_write"
+    native fn write(text: str): void
+
+    # Write string followed by newline
+    @alias "sn_text_file_write_line"
+    native fn writeLine(text: str): void
+
+    # Write string (alias for write, used with interpolated strings)
+    @alias "sn_text_file_print"
+    native fn print(text: str): void
+
+    # Write string followed by newline (alias for writeLine)
+    @alias "sn_text_file_println"
+    native fn println(text: str): void
+
+    # ==========================================================================
+    # State Methods
+    # ==========================================================================
+
+    # Check if at end of file
+    @alias "sn_text_file_is_eof"
+    native fn isEof(): bool
+
+    # Check if more characters are available
+    @alias "sn_text_file_has_chars"
+    native fn hasChars(): bool
+
+    # Check if more words are available
+    @alias "sn_text_file_has_words"
+    native fn hasWords(): bool
+
+    # Check if more lines are available
+    @alias "sn_text_file_has_lines"
+    native fn hasLines(): bool
+
+    # Get current byte position
+    @alias "sn_text_file_position"
+    native fn position(): int
+
+    # Seek to byte position
+    @alias "sn_text_file_seek"
+    native fn seek(pos: int): void
+
+    # Return to beginning of file
+    @alias "sn_text_file_rewind"
+    native fn rewind(): void
+
+    # Force buffered data to disk
+    @alias "sn_text_file_flush"
+    native fn flush(): void
+
+    # Close the file
+    @alias "sn_text_file_close"
+    native fn close(): void
+
+    # ==========================================================================
+    # Properties
+    # ==========================================================================
+
+    # Get full file path
+    fn path(): str =>
+        return sn_text_file_get_path(self)
+
+    # Get filename only (without directory)
+    fn name(): str =>
+        return sn_text_file_get_name(self)
+
+    # Get file size in bytes
+    @alias "sn_text_file_get_size"
+    native fn size(): int
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Factory/open function
+native fn sn_text_file_open(arena, path: str): TextFile
+
+# Static file operations
+native fn sn_text_file_exists(path: str): int
+native fn sn_text_file_read_all_static(arena, path: str): str
+native fn sn_text_file_write_all_static(path: str, content: str): void
+native fn sn_text_file_copy(source: str, dest: str): void
+native fn sn_text_file_move(source: str, dest: str): void
+native fn sn_text_file_delete(path: str): void
+
+# Instance reading functions that need arena
+native fn sn_text_file_read_line(arena, f: TextFile): str
+native fn sn_text_file_read_remaining(arena, f: TextFile): str
+native fn sn_text_file_read_lines(arena, f: TextFile): str[]
+native fn sn_text_file_read_word(arena, f: TextFile): str
+
+# Property getters that need arena
+native fn sn_text_file_get_path(arena, f: TextFile): str
+native fn sn_text_file_get_name(arena, f: TextFile): str

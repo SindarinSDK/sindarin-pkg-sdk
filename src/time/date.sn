@@ -1,0 +1,236 @@
+# ==============================================================================
+# sdk/time/date.sn - Date Type for Sindarin
+# ==============================================================================
+# Provides a date type with calendar operations.
+# Drop-in replacement for the builtin Date type.
+#
+# Usage:
+#   import "sdk/time/date"
+#
+#   var today: Date = Date.today()
+#   print($"Year: {today.year()}\n")
+#   print($"Month: {today.month()}\n")
+#   print($"Day: {today.day()}\n")
+#   print($"ISO: {today.toIso()}\n")
+#
+#   var christmas: Date = Date.fromYmd(2025, 12, 25)
+#   var daysUntil: int = christmas.diffDays(today)
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "date.sn.c"
+
+# ==============================================================================
+# Date Native Struct Definition
+# ==============================================================================
+# Uses @alias to map Date to RtDate in the runtime.
+# The 'as ref' modifier means native methods receive self by pointer.
+# Field alias maps our _days field to the runtime's days field.
+# Date represents an opaque handle type (like built-in Date).
+
+@alias "RtDate"
+native struct Date as ref =>
+    @alias "days"
+    _days: int32
+
+    # ==========================================================================
+    # Static Factory Methods (non-native - receive arena)
+    # ==========================================================================
+
+    # Get today's date in local timezone
+    static fn today(): Date =>
+        return sn_date_today()
+
+    # Create date from year, month, day
+    static fn fromYmd(year: int, month: int, day: int): Date =>
+        return sn_date_from_ymd(year, month, day)
+
+    # Parse date from ISO 8601 string (YYYY-MM-DD)
+    static fn fromString(s: str): Date =>
+        return sn_date_from_string(s)
+
+    # Create date from days since Unix epoch (1970-01-01)
+    static fn fromEpochDays(days: int): Date =>
+        return sn_date_from_epoch_days(days)
+
+    # ==========================================================================
+    # Static Utility Methods (match builtin Date API)
+    # ==========================================================================
+
+    # Check if a year is a leap year (static method - matches builtin Date.isLeapYear)
+    static fn isLeapYear(year: int): bool =>
+        return sn_date_is_leap_year(year) != 0
+
+    # Get number of days in a month for a given year (static method - matches builtin Date.daysInMonth)
+    static fn daysInMonth(year: int, month: int): int =>
+        return sn_date_days_in_month(year, month)
+
+    # ==========================================================================
+    # Getter Methods (native - pass self by pointer via 'as ref')
+    # ==========================================================================
+
+    # Get year component (e.g., 2025)
+    @alias "sn_date_get_year"
+    native fn year(): int
+
+    # Get month component (1-12)
+    @alias "sn_date_get_month"
+    native fn month(): int
+
+    # Get day of month (1-31)
+    @alias "sn_date_get_day"
+    native fn day(): int
+
+    # Get weekday (0=Sunday, 6=Saturday)
+    @alias "sn_date_get_weekday"
+    native fn weekday(): int
+
+    # Get day of year (1-366)
+    @alias "sn_date_get_day_of_year"
+    native fn dayOfYear(): int
+
+    # Get days since Unix epoch (1970-01-01)
+    @alias "sn_date_get_epoch_days"
+    native fn epochDays(): int
+
+    # Get number of days in this date's month
+    @alias "sn_date_get_days_in_month"
+    native fn daysInMonth(): int
+
+    # ==========================================================================
+    # Boolean Methods (native - pass self by pointer)
+    # ==========================================================================
+
+    # Check if this date's year is a leap year (matches builtin Date.isLeapYear())
+    @alias "sn_date_is_leap"
+    native fn isLeapYear(): bool
+
+    # Check if this date is a weekend (Saturday or Sunday)
+    @alias "sn_date_is_weekend"
+    native fn isWeekend(): bool
+
+    # Check if this date is a weekday (Monday-Friday)
+    @alias "sn_date_is_weekday"
+    native fn isWeekday(): bool
+
+    # ==========================================================================
+    # Comparison Methods (native - pass self by pointer)
+    # ==========================================================================
+
+    # Check if this date is before another date
+    @alias "sn_date_is_before"
+    native fn isBefore(other: Date): bool
+
+    # Check if this date is after another date
+    @alias "sn_date_is_after"
+    native fn isAfter(other: Date): bool
+
+    # Check if this date equals another date
+    @alias "sn_date_equals"
+    native fn equals(other: Date): bool
+
+    # Get difference in days between this date and another
+    @alias "sn_date_diff_days"
+    native fn diffDays(other: Date): int
+
+    # ==========================================================================
+    # Formatting Methods (non-native - need arena for string allocation)
+    # ==========================================================================
+
+    # Format date using pattern string (strftime-style)
+    fn format(pattern: str): str =>
+        return sn_date_format(self, pattern)
+
+    # Format as ISO 8601 string (YYYY-MM-DD)
+    fn toIso(): str =>
+        return sn_date_to_iso(self)
+
+    # Format as human-readable string (e.g., "December 25, 2025")
+    fn toString(): str =>
+        return sn_date_to_string(self)
+
+    # ==========================================================================
+    # Arithmetic Methods (non-native - need arena for new date allocation)
+    # ==========================================================================
+
+    # Add days to this date
+    fn addDays(days: int): Date =>
+        return sn_date_add_days(self, days)
+
+    # Add weeks to this date
+    fn addWeeks(weeks: int): Date =>
+        return sn_date_add_weeks(self, weeks)
+
+    # Add months to this date (handles month-end edge cases)
+    fn addMonths(months: int): Date =>
+        return sn_date_add_months(self, months)
+
+    # Add years to this date (handles leap year edge cases)
+    fn addYears(years: int): Date =>
+        return sn_date_add_years(self, years)
+
+    # ==========================================================================
+    # Boundary Methods (non-native - need arena for new date allocation)
+    # ==========================================================================
+
+    # Get first day of this date's month
+    fn startOfMonth(): Date =>
+        return sn_date_start_of_month(self)
+
+    # Get last day of this date's month
+    fn endOfMonth(): Date =>
+        return sn_date_end_of_month(self)
+
+    # Get first day of this date's year
+    fn startOfYear(): Date =>
+        return sn_date_start_of_year(self)
+
+    # Get last day of this date's year
+    fn endOfYear(): Date =>
+        return sn_date_end_of_year(self)
+
+    # ==========================================================================
+    # Conversion Methods (non-native - need arena for new allocation)
+    # ==========================================================================
+
+    # Convert to Time (midnight on this date) - matches builtin Date.toTime()
+    # Returns opaque time pointer (use with sdk/time when available)
+    fn toTime(): *void =>
+        return sn_date_to_time(self)
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+# These declare the runtime functions directly.
+# Date is an opaque handle type that generates as RtDate* in C.
+
+# Factory functions - return Date (which is RtDate*)
+native fn sn_date_today(arena): Date
+native fn sn_date_from_ymd(arena, year: int, month: int, day: int): Date
+native fn sn_date_from_string(arena, s: str): Date
+native fn sn_date_from_epoch_days(arena, days: int): Date
+
+# Formatting functions - take Date (which is RtDate*)
+native fn sn_date_format(arena, d: Date, pattern: str): str
+native fn sn_date_to_iso(arena, d: Date): str
+native fn sn_date_to_string(arena, d: Date): str
+
+# Arithmetic functions - take Date, return new Date
+native fn sn_date_add_days(arena, d: Date, days: int): Date
+native fn sn_date_add_weeks(arena, d: Date, weeks: int): Date
+native fn sn_date_add_months(arena, d: Date, months: int): Date
+native fn sn_date_add_years(arena, d: Date, years: int): Date
+
+# Boundary functions - take Date, return new Date
+native fn sn_date_start_of_month(arena, d: Date): Date
+native fn sn_date_end_of_month(arena, d: Date): Date
+native fn sn_date_start_of_year(arena, d: Date): Date
+native fn sn_date_end_of_year(arena, d: Date): Date
+
+# Conversion functions
+native fn sn_date_to_time(arena, d: Date): *void
+
+# Static utility functions (calendar helpers)
+native fn sn_date_is_leap_year(year: int): int
+native fn sn_date_days_in_month(year: int, month: int): int

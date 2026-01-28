@@ -1,0 +1,212 @@
+# ==============================================================================
+# sdk/time/time.sn - Time Type for Sindarin
+# ==============================================================================
+# Provides a time type with date/time operations.
+# Drop-in replacement for the builtin Time type.
+#
+# Usage:
+#   import "sdk/time/time"
+#
+#   var now: Time = Time.now()
+#   print($"Year: {now.year()}\n")
+#   print($"Hour: {now.hour()}\n")
+#   print($"ISO: {now.toIso()}\n")
+#
+#   var later: Time = now.addHours(2)
+#   var diff: long = later.diff(now)
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "time.sn.c"
+
+# ==============================================================================
+# Time Native Struct Definition
+# ==============================================================================
+# Uses @alias to map Time to RtTime in the runtime.
+# The 'as ref' modifier means native methods receive self by pointer.
+# Time represents an opaque handle type (like built-in Time).
+
+@alias "RtTime"
+native struct Time as ref =>
+    @alias "milliseconds"
+    _milliseconds: long
+
+    # ==========================================================================
+    # Static Factory Methods (non-native - receive arena)
+    # ==========================================================================
+
+    # Get current local time
+    static fn now(): Time =>
+        return sn_time_now()
+
+    # Get current UTC time
+    static fn utc(): Time =>
+        return sn_time_utc()
+
+    # Create time from milliseconds since Unix epoch
+    static fn fromMillis(ms: long): Time =>
+        return sn_time_from_millis(ms)
+
+    # Create time from seconds since Unix epoch
+    static fn fromSeconds(s: long): Time =>
+        return sn_time_from_seconds(s)
+
+    # ==========================================================================
+    # Static Utility Methods
+    # ==========================================================================
+
+    # Sleep for specified milliseconds
+    static fn sleep(ms: int): void =>
+        sn_time_sleep(ms)
+
+    # ==========================================================================
+    # Getter Methods (native - pass self by pointer via 'as ref')
+    # ==========================================================================
+
+    # Get milliseconds since Unix epoch
+    @alias "sn_time_get_millis"
+    native fn millis(): long
+
+    # Get seconds since Unix epoch
+    @alias "sn_time_get_seconds"
+    native fn seconds(): long
+
+    # Get year component (e.g., 2025)
+    @alias "sn_time_get_year"
+    native fn year(): int
+
+    # Get month component (1-12)
+    @alias "sn_time_get_month"
+    native fn month(): int
+
+    # Get day of month (1-31)
+    @alias "sn_time_get_day"
+    native fn day(): int
+
+    # Get hour component (0-23)
+    @alias "sn_time_get_hour"
+    native fn hour(): int
+
+    # Get minute component (0-59)
+    @alias "sn_time_get_minute"
+    native fn minute(): int
+
+    # Get second component (0-59)
+    @alias "sn_time_get_second"
+    native fn second(): int
+
+    # Get weekday (0=Sunday, 6=Saturday)
+    @alias "sn_time_get_weekday"
+    native fn weekday(): int
+
+    # ==========================================================================
+    # Comparison Methods (native - pass self by pointer)
+    # ==========================================================================
+
+    # Check if this time is before another time
+    @alias "sn_time_is_before"
+    native fn isBefore(other: Time): bool
+
+    # Check if this time is after another time
+    @alias "sn_time_is_after"
+    native fn isAfter(other: Time): bool
+
+    # Check if this time equals another time
+    @alias "sn_time_equals"
+    native fn equals(other: Time): bool
+
+    # ==========================================================================
+    # Formatting Methods (non-native - need arena for string allocation)
+    # ==========================================================================
+
+    # Format time using pattern string
+    fn format(pattern: str): str =>
+        return sn_time_format(self, pattern)
+
+    # Format as ISO 8601 string (YYYY-MM-DDTHH:mm:ss.SSSZ)
+    fn toIso(): str =>
+        return sn_time_to_iso(self)
+
+    # Format as date string (YYYY-MM-DD) - matches builtin Time.toDate()
+    fn toDate(): str =>
+        return sn_time_to_date(self)
+
+    # Format as time string (HH:mm:ss) - matches builtin Time.toTime()
+    fn toTime(): str =>
+        return sn_time_to_time(self)
+
+    # ==========================================================================
+    # Arithmetic Methods (non-native - need arena for new time allocation)
+    # ==========================================================================
+
+    # Add milliseconds to this time - matches builtin Time.add(ms)
+    fn add(ms: long): Time =>
+        return sn_time_add(self, ms)
+
+    # Add seconds to this time
+    fn addSeconds(seconds: int): Time =>
+        return sn_time_add_seconds(self, seconds)
+
+    # Add minutes to this time
+    fn addMinutes(minutes: int): Time =>
+        return sn_time_add_minutes(self, minutes)
+
+    # Add hours to this time
+    fn addHours(hours: int): Time =>
+        return sn_time_add_hours(self, hours)
+
+    # Add days to this time
+    fn addDays(days: int): Time =>
+        return sn_time_add_days(self, days)
+
+    # Get difference in milliseconds between this time and another - matches builtin Time.diff(other)
+    fn diff(other: Time): long =>
+        return sn_time_diff(self, other)
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+# These declare the runtime functions directly.
+# Time is an opaque handle type that generates as RtTime* in C.
+
+# Factory functions - return Time (which is RtTime*)
+native fn sn_time_now(arena): Time
+native fn sn_time_utc(arena): Time
+native fn sn_time_from_millis(arena, ms: long): Time
+native fn sn_time_from_seconds(arena, s: long): Time
+
+# Utility functions
+native fn sn_time_sleep(ms: int): void
+
+# Formatting functions - take Time (which is RtTime*)
+native fn sn_time_format(arena, t: Time, pattern: str): str
+native fn sn_time_to_iso(arena, t: Time): str
+native fn sn_time_to_date(arena, t: Time): str
+native fn sn_time_to_time(arena, t: Time): str
+
+# Arithmetic functions - take Time, return new Time
+native fn sn_time_add(arena, t: Time, ms: long): Time
+native fn sn_time_add_seconds(arena, t: Time, seconds: int): Time
+native fn sn_time_add_minutes(arena, t: Time, minutes: int): Time
+native fn sn_time_add_hours(arena, t: Time, hours: int): Time
+native fn sn_time_add_days(arena, t: Time, days: int): Time
+native fn sn_time_diff(t: Time, other: Time): long
+
+# Getter functions - these need explicit declarations for proper return types
+# (used by native methods via @alias)
+native fn sn_time_get_millis(t: Time): long
+native fn sn_time_get_seconds(t: Time): long
+native fn sn_time_get_year(t: Time): int
+native fn sn_time_get_month(t: Time): int
+native fn sn_time_get_day(t: Time): int
+native fn sn_time_get_hour(t: Time): int
+native fn sn_time_get_minute(t: Time): int
+native fn sn_time_get_second(t: Time): int
+native fn sn_time_get_weekday(t: Time): int
+
+# Comparison functions (used by native methods via @alias)
+native fn sn_time_is_before(t: Time, other: Time): bool
+native fn sn_time_is_after(t: Time, other: Time): bool
+native fn sn_time_equals(t: Time, other: Time): bool
+

@@ -1,0 +1,232 @@
+# ==============================================================================
+# test_quic.sn - Tests for SDK QUIC Types (QuicListener, QuicConnection, QuicStream)
+# ==============================================================================
+# Tests the QUIC implementation using a local server and client.
+# Self-contained: starts a listener, connects a client, tests streams.
+# ==============================================================================
+
+import "../../../sdk/net/quic"
+
+fn test_listener_bind(): void =>
+    print("test_listener_bind: ")
+    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
+    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+
+    var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    assert(port > 0, "Port should be assigned")
+    assert(port < 65536, "Port should be valid")
+
+    server.close()
+    print("PASS\n")
+
+fn test_connect_and_close(): void =>
+    print("test_connect_and_close: ")
+    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
+    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+
+    var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    # Client connects
+    var client: QuicConnection = QuicConnection.connect($"127.0.0.1:{port}")
+
+    # Server accepts
+    var serverConn: QuicConnection = server.accept()
+
+    # Check remote address
+    var remoteAddr: str = serverConn.remoteAddress()
+    assert(remoteAddr.startsWith("127.0.0.1:"), "Remote should be localhost")
+
+    # Clean up
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_stream_echo(): void =>
+    print("test_stream_echo: ")
+    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
+    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+
+    var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    # Client connects
+    var client: QuicConnection = QuicConnection.connect($"127.0.0.1:{port}")
+    var serverConn: QuicConnection = server.accept()
+
+    # Client opens a stream and sends data
+    var clientStream: QuicStream = client.openStream()
+    clientStream.writeLine("Hello, QUIC!")
+
+    # Server accepts the stream and reads
+    var serverStream: QuicStream = serverConn.acceptStream()
+    var received: str = serverStream.readLine()
+    assert(received == "Hello, QUIC!", $"Expected 'Hello, QUIC!' but got '{received}'")
+
+    # Server responds
+    serverStream.writeLine("Echo: Hello, QUIC!")
+
+    # Client reads response
+    var response: str = clientStream.readLine()
+    assert(response == "Echo: Hello, QUIC!", $"Expected 'Echo: Hello, QUIC!' but got '{response}'")
+
+    # Clean up
+    clientStream.close()
+    serverStream.close()
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_write_bytes(): void =>
+    print("test_write_bytes: ")
+    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
+    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+
+    var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    var client: QuicConnection = QuicConnection.connect($"127.0.0.1:{port}")
+    var serverConn: QuicConnection = server.accept()
+
+    # Client sends raw bytes
+    var clientStream: QuicStream = client.openStream()
+    var data: byte[] = "Binary data!".toBytes()
+    var sent: int = clientStream.write(data)
+    assert(sent == 12, $"Should send 12 bytes, got {sent}")
+
+    # Close stream to signal FIN
+    clientStream.close()
+
+    # Server reads
+    var serverStream: QuicStream = serverConn.acceptStream()
+    var received: byte[] = serverStream.readAll()
+    assert(received.length == 12, $"Should receive 12 bytes, got {received.length}")
+    assert(received.toString() == "Binary data!", "Content should match")
+
+    # Clean up
+    serverStream.close()
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_multiple_streams(): void =>
+    print("test_multiple_streams: ")
+    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
+    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+
+    var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    var client: QuicConnection = QuicConnection.connect($"127.0.0.1:{port}")
+    var serverConn: QuicConnection = server.accept()
+
+    # Open multiple streams
+    var s1: QuicStream = client.openStream()
+    var s2: QuicStream = client.openStream()
+
+    s1.writeLine("stream1")
+    s2.writeLine("stream2")
+
+    # Accept and verify streams (order may vary)
+    var ss1: QuicStream = serverConn.acceptStream()
+    var ss2: QuicStream = serverConn.acceptStream()
+
+    var msg1: str = ss1.readLine()
+    var msg2: str = ss2.readLine()
+
+    # Both messages should be received (order may differ)
+    var got_stream1: bool = (msg1 == "stream1" || msg2 == "stream1")
+    var got_stream2: bool = (msg1 == "stream2" || msg2 == "stream2")
+    assert(got_stream1, "Should receive 'stream1'")
+    assert(got_stream2, "Should receive 'stream2'")
+
+    # Clean up
+    s1.close()
+    s2.close()
+    ss1.close()
+    ss2.close()
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_stream_id(): void =>
+    print("test_stream_id: ")
+    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
+    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+
+    var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+    var port: int = server.port()
+
+    var client: QuicConnection = QuicConnection.connect($"127.0.0.1:{port}")
+    var serverConn: QuicConnection = server.accept()
+
+    var stream: QuicStream = client.openStream()
+    var id: long = stream.id()
+    assert(id >= 0, $"Stream ID should be non-negative, got {id}")
+    assert(!stream.isUnidirectional(), "Bidi stream should not be unidirectional")
+
+    stream.close()
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn test_config(): void =>
+    print("test_config: ")
+    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
+    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+
+    var config: QuicConfig = QuicConfig.defaults()
+    config = config.setMaxBidiStreams(50)
+    config = config.setMaxUniStreams(25)
+    config = config.setMaxStreamWindow(131072)
+    config = config.setMaxConnWindow(524288)
+    config = config.setIdleTimeout(10000)
+
+    var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, config)
+    var port: int = server.port()
+
+    var clientConfig: QuicConfig = QuicConfig.defaults()
+    clientConfig = clientConfig.setIdleTimeout(10000)
+    var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", clientConfig)
+    var serverConn: QuicConnection = server.accept()
+
+    # Verify connection works with custom config
+    var stream: QuicStream = client.openStream()
+    stream.writeLine("config test")
+
+    var ss: QuicStream = serverConn.acceptStream()
+    var msg: str = ss.readLine()
+    assert(msg == "config test", "Should receive message with custom config")
+
+    stream.close()
+    ss.close()
+    client.close()
+    serverConn.close()
+    server.close()
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK QUIC Tests ===\n\n")
+
+    test_listener_bind()
+    test_connect_and_close()
+    test_stream_echo()
+    test_write_bytes()
+    test_multiple_streams()
+    test_stream_id()
+    test_config()
+
+    print("\nAll QUIC tests passed!\n")

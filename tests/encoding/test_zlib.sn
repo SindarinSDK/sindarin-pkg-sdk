@@ -1,0 +1,191 @@
+// Test SDK compression module
+
+import "../../../sdk/encoding/zlib" as zlib
+
+fn test_basic_compress_decompress(): void =>
+    print("test_basic_compress_decompress: ")
+
+    // Original data - "Hello, World!"
+    var original: byte[] = {72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33}
+
+    // Compress
+    var compressed: byte[] = zlib.compressData(original)
+    assert(compressed.length > 0, "Compression should produce output")
+
+    // Decompress
+    var decompressed: byte[] = zlib.decompressData(compressed, original.length)
+    assert(decompressed.length == original.length, "Decompressed size should match original")
+
+    // Verify content matches
+    var i: int = 0
+    while i < original.length =>
+        assert(decompressed[i] == original[i], "Decompressed content should match original")
+        i = i + 1
+
+    print("PASS\n")
+
+fn test_compress_levels(): void =>
+    print("test_compress_levels: ")
+
+    // Use a repeated pattern that compresses well - 20 'A's
+    var data: byte[] = {65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65}
+
+    // Test different compression levels
+    var fast: byte[] = zlib.compressDataLevel(data, zlib.bestSpeed())
+    var best: byte[] = zlib.compressDataLevel(data, zlib.bestCompression())
+    var defaultLevel: byte[] = zlib.compressData(data)
+
+    assert(fast.length > 0, "Fast compression should work")
+    assert(best.length > 0, "Best compression should work")
+    assert(defaultLevel.length > 0, "Default compression should work")
+
+    // All should decompress correctly
+    var decFast: byte[] = zlib.decompressData(fast, 20)
+    var decBest: byte[] = zlib.decompressData(best, 20)
+    var decDefault: byte[] = zlib.decompressData(defaultLevel, 20)
+
+    assert(decFast.length == 20, "Fast decompression should restore size")
+    assert(decBest.length == 20, "Best decompression should restore size")
+    assert(decDefault.length == 20, "Default decompression should restore size")
+
+    print("PASS\n")
+
+fn test_compress_to_buffer(): void =>
+    print("test_compress_to_buffer: ")
+
+    var original: byte[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+
+    // Get max size needed
+    var maxSize: int = zlib.maxCompressedSize(original.length)
+    var buffer: byte[maxSize]
+
+    // Compress into buffer
+    var written: int = zlib.compressTo(original, buffer)
+    assert(written > 0, "compressTo should return bytes written")
+    assert(written <= maxSize, "Written bytes should not exceed buffer")
+
+    // Decompress from buffer
+    var dest: byte[10]
+    var read: int = zlib.decompressTo(buffer[0..written], dest)
+    assert(read == 10, "Should decompress all 10 bytes")
+
+    // Verify content
+    var i: int = 0
+    while i < 10 =>
+        assert(dest[i] == original[i], "Decompressed content should match")
+        i = i + 1
+
+    print("PASS\n")
+
+fn test_empty_data(): void =>
+    print("test_empty_data: ")
+
+    var empty: byte[0]
+    var compressed: byte[] = zlib.compressData(empty)
+    assert(compressed.length == 0, "Empty input should produce empty output")
+
+    print("PASS\n")
+
+fn test_is_compressed(): void =>
+    print("test_is_compressed: ")
+
+    // Compress some data
+    var original: byte[] = {1, 2, 3, 4, 5}
+    var compressed: byte[] = zlib.compressData(original)
+
+    // Compressed data should be detected
+    assert(zlib.isCompressed(compressed), "Compressed data should be detected")
+
+    // Original data should not be detected as compressed
+    assert(!zlib.isCompressed(original), "Uncompressed data should not be detected")
+
+    // Empty and short data
+    var empty: byte[0]
+    var one: byte[] = {1}
+    assert(!zlib.isCompressed(empty), "Empty data is not compressed")
+    assert(!zlib.isCompressed(one), "Single byte is not compressed")
+
+    print("PASS\n")
+
+fn test_compression_ratio(): void =>
+    print("test_compression_ratio: ")
+
+    var ratio: double = zlib.compressionRatio(1000, 250)
+    assert(ratio == 25.0, "250/1000 should be 25%")
+
+    var saved: double = zlib.spaceSaved(1000, 250)
+    assert(saved == 75.0, "Should save 75%")
+
+    // Edge case: zero original size
+    var zeroRatio: double = zlib.compressionRatio(0, 0)
+    assert(zeroRatio == 0.0, "Zero size should give 0 ratio")
+
+    print("PASS\n")
+
+fn test_error_messages(): void =>
+    print("test_error_messages: ")
+
+    assert(zlib.errorMessage(zlib.zlibOk()) == "OK", "zlibOk() message")
+    assert(zlib.errorMessage(zlib.zlibDataError()) == "Data error (corrupted or incomplete)", "zlibDataError() message")
+    assert(zlib.errorMessage(zlib.zlibMemError()) == "Memory error", "zlibMemError() message")
+    assert(zlib.errorMessage(zlib.zlibBufError()) == "Buffer error (output too small)", "zlibBufError() message")
+
+    print("PASS\n")
+
+fn test_compressible_data(): void =>
+    print("test_compressible_data: ")
+
+    // Repeated pattern - compresses well
+    var data: byte[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+    // Compress
+    var compressed: byte[] = zlib.compressData(data)
+    assert(compressed.length > 0, "Should compress")
+
+    // Decompress
+    var decompressed: byte[] = zlib.decompressData(compressed, data.length)
+    assert(decompressed.length == data.length, "Should restore original size")
+
+    // Verify
+    var i: int = 0
+    while i < data.length =>
+        assert(decompressed[i] == data[i], "Data should match after roundtrip")
+        i = i + 1
+
+    print("PASS\n")
+
+fn test_random_like_data(): void =>
+    print("test_random_like_data: ")
+
+    // Data with less pattern - still works but may not compress well
+    var data: byte[] = {173, 59, 232, 149, 66, 239, 156, 73, 246, 163}
+
+    // Should still work even if it expands slightly
+    var compressed: byte[] = zlib.compressData(data)
+    assert(compressed.length > 0, "Should still produce output")
+
+    var decompressed: byte[] = zlib.decompressData(compressed, 10)
+    assert(decompressed.length == 10, "Should restore original size")
+
+    // Verify content
+    var i: int = 0
+    while i < 10 =>
+        assert(decompressed[i] == data[i], "Content should match")
+        i = i + 1
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK Compression Tests ===\n\n")
+
+    test_basic_compress_decompress()
+    test_compress_levels()
+    test_compress_to_buffer()
+    test_empty_data()
+    test_is_compressed()
+    test_compression_ratio()
+    test_error_messages()
+    test_compressible_data()
+    test_random_like_data()
+
+    print("\nAll compression tests passed!\n")

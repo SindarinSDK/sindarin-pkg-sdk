@@ -1,0 +1,67 @@
+# ==============================================================================
+# test_tls.sn - Tests for SDK TLS Stream
+# ==============================================================================
+# Tests the TlsStream struct and its methods.
+# NOTE: These tests require network access to connect to external HTTPS hosts.
+# ==============================================================================
+
+import "../../../sdk/net/tls"
+
+fn test_tls_connect(): void =>
+    print("test_tls_connect: ")
+
+    # Connect to a well-known HTTPS host
+    var conn: TlsStream = TlsStream.connect("example.com:443")
+
+    # Verify we got a connection with remote address
+    var addr: str = conn.remoteAddress()
+    assert(addr == "example.com:443", "Remote address should match")
+
+    conn.close()
+    print("PASS\n")
+
+fn test_tls_read_write(): void =>
+    print("test_tls_read_write: ")
+
+    var conn: TlsStream = TlsStream.connect("example.com:443")
+
+    # Send an HTTP GET request over TLS
+    conn.writeLine("GET / HTTP/1.1")
+    conn.writeLine("Host: example.com")
+    conn.writeLine("Connection: close")
+    conn.writeLine("")
+
+    # Read the response status line
+    var status_line: str = conn.readLine()
+    assert(status_line.startsWith("HTTP/1.1"), "Should receive HTTP response")
+
+    # Read remaining response
+    var body: byte[] = conn.readAll()
+    assert(body.length > 0, "Should receive response body")
+
+    # Verify body contains expected content
+    var body_str: str = body.toString()
+    assert(body_str.contains("Example Domain"), "Body should contain expected content")
+
+    conn.close()
+    print("PASS\n")
+
+fn test_tls_close(): void =>
+    print("test_tls_close: ")
+
+    var conn: TlsStream = TlsStream.connect("example.com:443")
+    conn.close()
+
+    # Closing again should be safe (no-op)
+    conn.close()
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== SDK TLS Tests ===\n\n")
+
+    test_tls_connect()
+    test_tls_read_write()
+    test_tls_close()
+
+    print("\nAll TLS tests passed!\n")
