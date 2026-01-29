@@ -1,0 +1,38 @@
+=== SDK Version Module Test ===
+
+--- Parsing ---
+  Parse basic version 1.2.3... PASS
+  Parse with prerelease 1.2.3-alpha.1... PASS
+  Parse with build 1.2.3+build.42... PASS
+  Parse with v-prefix v2.0.0... PASS
+  Parse full 1.2.3-beta.1+build.5... PASS
+
+--- String Formatting ---
+  toString round-trip... PASS
+
+--- Comparison ---
+  Compare major ordering... PASS
+  Compare minor ordering... PASS
+  Compare patch ordering... PASS
+  Compare prerelease < release... PASS
+  Compare prerelease ordering... PASS
+  Equality check... PASS
+  gt/lt/gte/lte methods... PASS
+
+--- Bump Operations ---
+  Bump major... PASS
+  Bump minor... PASS
+  Bump patch... PASS
+
+--- Predicates ---
+  isPrerelease... PASS
+  isStable... PASS
+
+--- Constraints ---
+  Caret constraints... PASS
+  Tilde constraints... PASS
+  Comparison constraints (>=, >, <, <=, =)... PASS
+  Comma-separated AND constraints... PASS
+  version_satisfies convenience function... PASS
+
+All version tests PASSED!

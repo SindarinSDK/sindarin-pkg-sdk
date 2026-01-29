@@ -4,7 +4,7 @@
 # Tests the Random struct and its methods.
 # ==============================================================================
 
-import "../../../sdk/core/random"
+import "../../src/core/random"
 
 fn test_create(): void =>
     print("test_create: ")

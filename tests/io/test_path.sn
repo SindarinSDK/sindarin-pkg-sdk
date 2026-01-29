@@ -5,8 +5,8 @@
 # Cross-platform: works on Windows, Linux, and macOS
 # ==============================================================================
 
-import "../../../sdk/io/path"
-import "../../../sdk/os/env"
+import "../../src/io/path"
+import "../../src/os/env"
 
 # Cross-platform temp directory helper
 fn getTempDir(): str =>

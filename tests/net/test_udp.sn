@@ -4,7 +4,7 @@
 # Tests the UdpSocket struct and its methods.
 # ==============================================================================
 
-import "../../../sdk/net/udp"
+import "../../src/net/udp"
 
 fn test_socket_bind(): void =>
     print("test_socket_bind: ")

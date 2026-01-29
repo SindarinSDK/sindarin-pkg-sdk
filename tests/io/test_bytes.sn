@@ -4,7 +4,7 @@
 # Tests the Bytes struct and its methods.
 # ==============================================================================
 
-import "../../../sdk/io/bytes"
+import "../../src/io/bytes"
 
 fn test_from_hex(): void =>
     print("test_from_hex: ")

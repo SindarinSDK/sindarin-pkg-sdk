@@ -1,7 +1,7 @@
 // Test SDK XML module
 
-import "../../../sdk/encoding/xml"
-import "../../../sdk/os/env"
+import "../../src/encoding/xml"
+import "../../src/os/env"
 
 fn test_parse_string(): void =>
     print("test_parse_string: ")

@@ -5,7 +5,7 @@
 # NOTE: These tests require network access to connect to external HTTPS hosts.
 # ==============================================================================
 
-import "../../../sdk/net/tls"
+import "../../src/net/tls"
 
 fn test_tls_connect(): void =>
     print("test_tls_connect: ")

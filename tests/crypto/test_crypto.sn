@@ -1,6 +1,6 @@
 // Test SDK crypto module
 
-import "../../../sdk/crypto/crypto"
+import "../../src/crypto/crypto"
 
 fn test_sha256_str(): void =>
     print("test_sha256_str: ")

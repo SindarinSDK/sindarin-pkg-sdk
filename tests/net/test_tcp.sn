@@ -4,7 +4,7 @@
 # Tests the TcpListener and TcpStream structs and their methods.
 # ==============================================================================
 
-import "../../../sdk/net/tcp"
+import "../../src/net/tcp"
 
 fn test_listener_bind(): void =>
     print("test_listener_bind: ")

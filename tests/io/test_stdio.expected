@@ -6,16 +6,12 @@ test_stdout_writeLine: OK
 PASS
 test_stdout_flush: OK
 PASS
-OK
 test_stderr_write: PASS
-OK
 test_stderr_writeLine: PASS
-OK
 test_stderr_flush: PASS
 test_stdin_isEof: PASS
 test_builtin_println: OK
 PASS
-OK
 test_builtin_printErr: PASS
 
 All stdio tests passed!

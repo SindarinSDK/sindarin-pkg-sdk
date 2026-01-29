@@ -1,0 +1,21 @@
+=== SDK Crypto Tests ===
+
+test_sha256_str: PASS
+test_sha384_str: PASS
+test_sha512_str: PASS
+test_sha1_str: PASS
+test_md5_str: PASS
+test_sha256_bytes: PASS
+test_hmac_sha256: PASS
+test_hmac_sha512: PASS
+test_encrypt_decrypt: PASS
+test_encrypt_decrypt_with_iv: PASS
+test_encrypt_empty: PASS
+test_pbkdf2: PASS
+test_pbkdf2_sha512: PASS
+test_random_bytes: PASS
+test_random_bytes_sizes: PASS
+test_constant_time_equal: PASS
+test_decrypt_wrong_key: PASS
+
+All crypto tests passed!

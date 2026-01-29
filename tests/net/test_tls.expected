@@ -1,0 +1,7 @@
+=== SDK TLS Tests ===
+
+test_tls_connect: PASS
+test_tls_read_write: PASS
+test_tls_close: PASS
+
+All TLS tests passed!

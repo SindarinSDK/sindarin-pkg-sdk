@@ -1,0 +1,83 @@
+# ==============================================================================
+# sdk/os/os.sn - Operating System Detection for Sindarin
+# ==============================================================================
+# Provides platform detection functions to determine the current operating system.
+# Useful for writing cross-platform code that needs platform-specific behavior.
+#
+# Usage:
+#   import "sdk/os/os"
+#
+#   if OS.isWindows() =>
+#       print("Running on Windows\n")
+#   else if OS.isMacOS() =>
+#       print("Running on macOS\n")
+#   else if OS.isLinux() =>
+#       print("Running on Linux\n")
+#   else =>
+#       print("Running on unknown OS\n")
+#
+#   # Get OS name as string
+#   var osName: str = OS.name()
+#   print($"OS: {osName}\n")
+#
+# ==============================================================================
+
+# Self-contained implementation - compile and link our own C source
+@source "os.sn.c"
+
+# ==============================================================================
+# OS Static-Only Type Definition
+# ==============================================================================
+# OS is a static-only type with no instances - all methods are static.
+# These functions are resolved at compile time on the target platform.
+
+@alias "RtOS"
+native struct OS =>
+
+    # ==========================================================================
+    # Platform Detection Methods
+    # ==========================================================================
+
+    # Check if running on Windows (any version)
+    # Returns true on Windows, false otherwise.
+    static fn isWindows(): bool =>
+        return sn_os_is_windows() != 0
+
+    # Check if running on macOS (Darwin)
+    # Returns true on macOS, false otherwise.
+    static fn isMacOS(): bool =>
+        return sn_os_is_macos() != 0
+
+    # Check if running on Linux
+    # Returns true on Linux, false otherwise.
+    static fn isLinux(): bool =>
+        return sn_os_is_linux() != 0
+
+    # Check if running on a Unix-like system (Linux, macOS, BSD, etc.)
+    # Returns true on any Unix-like OS, false on Windows.
+    static fn isUnix(): bool =>
+        return sn_os_is_unix() != 0
+
+    # ==========================================================================
+    # Platform Information Methods
+    # ==========================================================================
+
+    # Get the name of the current operating system.
+    # Returns "Windows", "macOS", "Linux", or "Unknown".
+    static fn name(): str =>
+        return sn_os_name()
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+# These declare the C functions implemented in os.sn.c.
+# Platform detection functions don't need arena (return int as bool).
+
+# Platform detection (returns 0 or 1)
+native fn sn_os_is_windows(): int
+native fn sn_os_is_macos(): int
+native fn sn_os_is_linux(): int
+native fn sn_os_is_unix(): int
+
+# OS name (needs arena for string allocation)
+native fn sn_os_name(arena): str

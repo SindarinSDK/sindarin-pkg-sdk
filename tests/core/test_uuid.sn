@@ -4,7 +4,7 @@
 # Tests the UUID struct and its methods.
 # ==============================================================================
 
-import "../../../sdk/core/uuid"
+import "../../src/core/uuid"
 
 fn test_create(): void =>
     print("test_create: ")

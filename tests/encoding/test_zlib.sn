@@ -1,6 +1,6 @@
 // Test SDK compression module
 
-import "../../../sdk/encoding/zlib" as zlib
+import "../../src/encoding/zlib" as zlib
 
 fn test_basic_compress_decompress(): void =>
     print("test_basic_compress_decompress: ")

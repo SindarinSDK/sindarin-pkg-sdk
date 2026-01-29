@@ -1,7 +1,7 @@
 // Test SDK JSON module
 
-import "../../../sdk/encoding/json"
-import "../../../sdk/os/env"
+import "../../src/encoding/json"
+import "../../src/os/env"
 
 fn test_create_object(): void =>
     print("test_create_object: ")

@@ -4,7 +4,7 @@
 # Tests the Time struct and its methods.
 # ==============================================================================
 
-import "../../../sdk/time/time"
+import "../../src/time/time"
 
 fn test_now(): void =>
     print("test_now: ")

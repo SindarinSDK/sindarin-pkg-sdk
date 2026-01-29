@@ -1,7 +1,7 @@
 // Test SDK YAML module
 
-import "../../../sdk/encoding/yaml"
-import "../../../sdk/os/env"
+import "../../src/encoding/yaml"
+import "../../src/os/env"
 
 fn test_create_scalar(): void =>
     print("test_create_scalar: ")

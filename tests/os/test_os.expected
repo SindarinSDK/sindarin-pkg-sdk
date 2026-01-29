@@ -1,0 +1,5 @@
+=== OS Tests ===
+test_exactly_one_os: PASS
+test_unix_consistency: PASS
+test_os_name: PASS
+All tests passed!

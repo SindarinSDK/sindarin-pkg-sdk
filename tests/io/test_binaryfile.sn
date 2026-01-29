@@ -4,7 +4,7 @@
 # Tests the BinaryFile struct and its methods.
 # ==============================================================================
 
-import "../../../sdk/io/binaryfile"
+import "../../src/io/binaryfile"
 
 fn test_static_write_and_read(): void =>
     print("test_static_write_and_read: ")

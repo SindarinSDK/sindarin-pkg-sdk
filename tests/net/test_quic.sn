@@ -5,12 +5,12 @@
 # Self-contained: starts a listener, connects a client, tests streams.
 # ==============================================================================
 
-import "../../../sdk/net/quic"
+import "../../src/net/quic"
 
 fn test_listener_bind(): void =>
     print("test_listener_bind: ")
-    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
-    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+    var cert_path: str = "tests/net/test_quic_cert.pem"
+    var key_path: str = "tests/net/test_quic_key.pem"
 
     var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
     var port: int = server.port()
@@ -23,8 +23,8 @@ fn test_listener_bind(): void =>
 
 fn test_connect_and_close(): void =>
     print("test_connect_and_close: ")
-    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
-    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+    var cert_path: str = "tests/net/test_quic_cert.pem"
+    var key_path: str = "tests/net/test_quic_key.pem"
 
     var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
     var port: int = server.port()
@@ -48,8 +48,8 @@ fn test_connect_and_close(): void =>
 
 fn test_stream_echo(): void =>
     print("test_stream_echo: ")
-    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
-    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+    var cert_path: str = "tests/net/test_quic_cert.pem"
+    var key_path: str = "tests/net/test_quic_key.pem"
 
     var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
     var port: int = server.port()
@@ -85,8 +85,8 @@ fn test_stream_echo(): void =>
 
 fn test_write_bytes(): void =>
     print("test_write_bytes: ")
-    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
-    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+    var cert_path: str = "tests/net/test_quic_cert.pem"
+    var key_path: str = "tests/net/test_quic_key.pem"
 
     var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
     var port: int = server.port()
@@ -119,8 +119,8 @@ fn test_write_bytes(): void =>
 
 fn test_multiple_streams(): void =>
     print("test_multiple_streams: ")
-    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
-    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+    var cert_path: str = "tests/net/test_quic_cert.pem"
+    var key_path: str = "tests/net/test_quic_key.pem"
 
     var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
     var port: int = server.port()
@@ -161,8 +161,8 @@ fn test_multiple_streams(): void =>
 
 fn test_stream_id(): void =>
     print("test_stream_id: ")
-    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
-    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+    var cert_path: str = "tests/net/test_quic_cert.pem"
+    var key_path: str = "tests/net/test_quic_key.pem"
 
     var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
     var port: int = server.port()
@@ -184,8 +184,8 @@ fn test_stream_id(): void =>
 
 fn test_config(): void =>
     print("test_config: ")
-    var cert_path: str = "tests/sdk/net/test_quic_cert.pem"
-    var key_path: str = "tests/sdk/net/test_quic_key.pem"
+    var cert_path: str = "tests/net/test_quic_cert.pem"
+    var key_path: str = "tests/net/test_quic_key.pem"
 
     var config: QuicConfig = QuicConfig.defaults()
     config = config.setMaxBidiStreams(50)

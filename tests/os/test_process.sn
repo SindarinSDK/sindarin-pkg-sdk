@@ -5,8 +5,8 @@
 # Cross-platform: works on Windows, Linux, and macOS
 # ==============================================================================
 
-import "../../../sdk/os/process"
-import "../../../sdk/os/env"
+import "../../src/os/process"
+import "../../src/os/env"
 
 # Check if running on Windows by looking for COMSPEC environment variable
 fn isWindows(): bool =>

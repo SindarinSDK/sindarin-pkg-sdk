@@ -6,8 +6,8 @@
 # Uses threading since TLS handshake requires both sides to be active.
 # ==============================================================================
 
-import "../../../sdk/net/tls"
-import "../../../sdk/os/env"
+import "../../src/net/tls"
+import "../../src/os/env"
 
 # --- Client functions for threaded execution ---
 
@@ -39,8 +39,8 @@ fn client_write_bytes(port: int): int =>
 
 fn test_listener_bind(): void =>
     print("test_listener_bind: ")
-    var cert_path: str = "tests/sdk/net/test_tls_cert.pem"
-    var key_path: str = "tests/sdk/net/test_tls_key.pem"
+    var cert_path: str = "tests/net/test_tls_cert.pem"
+    var key_path: str = "tests/net/test_tls_key.pem"
 
     var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
     var port: int = server.port()
@@ -53,8 +53,8 @@ fn test_listener_bind(): void =>
 
 fn test_tls_connect_and_echo(): void =>
     print("test_tls_connect_and_echo: ")
-    var cert_path: str = "tests/sdk/net/test_tls_cert.pem"
-    var key_path: str = "tests/sdk/net/test_tls_key.pem"
+    var cert_path: str = "tests/net/test_tls_cert.pem"
+    var key_path: str = "tests/net/test_tls_key.pem"
 
     # Set SN_CERTS so the client trusts our self-signed certificate
     Environment.set("SN_CERTS", cert_path)
@@ -91,8 +91,8 @@ fn test_tls_connect_and_echo(): void =>
 
 fn test_tls_write_bytes(): void =>
     print("test_tls_write_bytes: ")
-    var cert_path: str = "tests/sdk/net/test_tls_cert.pem"
-    var key_path: str = "tests/sdk/net/test_tls_key.pem"
+    var cert_path: str = "tests/net/test_tls_cert.pem"
+    var key_path: str = "tests/net/test_tls_key.pem"
 
     # Set SN_CERTS so the client trusts our self-signed certificate
     Environment.set("SN_CERTS", cert_path)

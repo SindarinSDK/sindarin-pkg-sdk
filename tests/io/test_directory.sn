@@ -4,9 +4,9 @@
 # Tests the Directory struct and its methods.
 # ==============================================================================
 
-import "../../../sdk/io/directory"
-import "../../../sdk/io/textfile"
-import "../../../sdk/io/path"
+import "../../src/io/directory"
+import "../../src/io/textfile"
+import "../../src/io/path"
 
 fn test_create_and_delete(): void =>
     print("test_create_and_delete: ")

@@ -3,3 +3,7 @@ version: 1.0.0
 author: realorko
 description: A package which is decoupled from the sdk shipped with the sindarin compiler
 license: MIT
+dependencies:
+- name: sindarin-libs
+  git: git@github.com:SindarinSDK/sindarin-libs.git
+  branch: main

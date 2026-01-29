@@ -4,7 +4,7 @@
 # Tests the Stdin, Stdout, and Stderr structs and their methods.
 # ==============================================================================
 
-import "../../../sdk/io/stdio"
+import "../../src/io/stdio"
 
 fn test_stdout_write(): void =>
     print("test_stdout_write: ")

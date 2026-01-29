@@ -1,0 +1,59 @@
+# ==============================================================================
+# test_os.sn - Tests for SDK OS Type
+# ==============================================================================
+# Tests the OS detection functions.
+# Cross-platform: works on Windows, Linux, and macOS
+# ==============================================================================
+
+import "../../src/os/os"
+
+fn test_exactly_one_os(): void =>
+    print("test_exactly_one_os: ")
+
+    # Exactly one of Windows/Mac/Linux should be true
+    var isWin: bool = OS.isWindows()
+    var isMac: bool = OS.isMacOS()
+    var isLin: bool = OS.isLinux()
+
+    var count: int = 0
+    if isWin => count = count + 1
+    if isMac => count = count + 1
+    if isLin => count = count + 1
+
+    assert(count == 1, "exactly one OS should be detected")
+    print("PASS\n")
+
+fn test_unix_consistency(): void =>
+    print("test_unix_consistency: ")
+
+    var isUnix: bool = OS.isUnix()
+
+    # isUnix should be true on Mac and Linux, false on Windows
+    match OS.name() =>
+        "Windows" => assert(!isUnix, "isUnix should be false on Windows")
+        "macOS" => assert(isUnix, "isUnix should be true on macOS")
+        "Linux" => assert(isUnix, "isUnix should be true on Linux")
+        else => assert(isUnix, "isUnix should be true on other Unix-like systems")
+
+    print("PASS\n")
+
+fn test_os_name(): void =>
+    print("test_os_name: ")
+
+    var name: str = OS.name()
+
+    # OS name should match detection functions
+    match name =>
+        "Windows" => assert(OS.isWindows(), "isWindows should be true")
+        "macOS" => assert(OS.isMacOS(), "isMacOS should be true")
+        "Linux" => assert(OS.isLinux(), "isLinux should be true")
+        else => print($"INFO: Running on {name}\n")
+
+    print("PASS\n")
+
+fn main(): void =>
+    print("=== OS Tests ===\n")
+    test_exactly_one_os()
+    test_unix_consistency()
+    test_os_name()
+    print("All tests passed!\n")

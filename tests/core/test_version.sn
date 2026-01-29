@@ -1,6 +1,6 @@
 # Test sdk/core/version module - Semantic Versioning
 
-import "../../../sdk/core/version"
+import "../../src/core/version"
 
 fn test_parse_basic(): int =>
     print("  Parse basic version 1.2.3... ")

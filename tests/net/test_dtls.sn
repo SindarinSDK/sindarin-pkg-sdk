@@ -5,12 +5,12 @@
 # Self-contained: starts a listener, connects a client, tests send/receive.
 # ==============================================================================
 
-import "../../../sdk/net/dtls"
+import "../../src/net/dtls"
 
 fn test_listener_bind(): void =>
     print("test_listener_bind: ")
-    var cert_path: str = "tests/sdk/net/test_dtls_cert.pem"
-    var key_path: str = "tests/sdk/net/test_dtls_key.pem"
+    var cert_path: str = "tests/net/test_dtls_cert.pem"
+    var key_path: str = "tests/net/test_dtls_key.pem"
 
     var server: DtlsListener = DtlsListener.bind(":0", cert_path, key_path)
     var port: int = server.port()
@@ -23,8 +23,8 @@ fn test_listener_bind(): void =>
 
 fn test_dtls_connect_and_close(): void =>
     print("test_dtls_connect_and_close: ")
-    var cert_path: str = "tests/sdk/net/test_dtls_cert.pem"
-    var key_path: str = "tests/sdk/net/test_dtls_key.pem"
+    var cert_path: str = "tests/net/test_dtls_cert.pem"
+    var key_path: str = "tests/net/test_dtls_key.pem"
 
     var server: DtlsListener = DtlsListener.bind(":0", cert_path, key_path)
     var port: int = server.port()
@@ -48,8 +48,8 @@ fn test_dtls_connect_and_close(): void =>
 
 fn test_dtls_send_receive(): void =>
     print("test_dtls_send_receive: ")
-    var cert_path: str = "tests/sdk/net/test_dtls_cert.pem"
-    var key_path: str = "tests/sdk/net/test_dtls_key.pem"
+    var cert_path: str = "tests/net/test_dtls_cert.pem"
+    var key_path: str = "tests/net/test_dtls_key.pem"
 
     var server: DtlsListener = DtlsListener.bind(":0", cert_path, key_path)
     var port: int = server.port()

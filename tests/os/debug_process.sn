@@ -1,4 +1,4 @@
-import "../../../sdk/os/process"
+import "../../src/os/process"
 
 fn main(): void =>
     var p: Process = Process.runArgs("echo", {"hello"})
