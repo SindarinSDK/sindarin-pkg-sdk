@@ -57,13 +57,14 @@ Full documentation is available in the [docs](./docs/) folder.
 
 ### Core
 
-General-purpose utilities for math, randomness, and identifiers.
+General-purpose utilities for math, randomness, identifiers, and versioning.
 
 | Module | Import | Description |
 |--------|--------|-------------|
 | [Math](./docs/core/math.md) | `import "sdk/core/math"` | Mathematical functions and constants |
 | [Random](./docs/core/random.md) | `import "sdk/core/random"` | Random number generation |
 | [UUID](./docs/core/uuid.md) | `import "sdk/core/uuid"` | UUID generation and parsing |
+| [Version](./docs/core/version.md) | `import "sdk/core/version"` | Semantic versioning and constraints |
 
 ### Crypto
 
