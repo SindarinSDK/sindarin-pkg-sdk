@@ -11,6 +11,14 @@
 #include "runtime/arena/managed_arena.h"
 #include "runtime/runtime_string_h.h"
 
+/* Platform-specific includes for CPU count */
+#if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__)
+    #define SN_OS_WINDOWS 1
+    #include <windows.h>
+#else
+    #include <unistd.h>
+#endif
+
 /* ============================================================================
  * Platform Detection Functions
  * ============================================================================
@@ -21,10 +29,11 @@
 /**
  * Check if running on Windows.
  * Returns 1 on Windows (any version), 0 otherwise.
+ * Includes MinGW/MSYS2 which are Windows environments.
  */
 int sn_os_is_windows(void)
 {
-#if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__)
     return 1;
 #else
     return 0;
@@ -60,10 +69,14 @@ int sn_os_is_linux(void)
 /**
  * Check if running on a Unix-like system.
  * Returns 1 on Linux, macOS, BSD, etc. Returns 0 on Windows.
+ * MinGW/MSYS2 are NOT considered Unix (they are Windows environments).
  */
 int sn_os_is_unix(void)
 {
-#if defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__))
+    /* Explicitly exclude Windows/MinGW/MSYS2 environments */
+#if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__)
+    return 0;
+#elif defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__))
     return 1;
 #else
     return 0;
@@ -82,7 +95,7 @@ RtHandle sn_os_name(RtManagedArena *arena)
 {
     const char *name;
 
-#if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__)
     name = "Windows";
 #elif defined(__APPLE__) && defined(__MACH__)
     name = "macOS";
@@ -99,4 +112,24 @@ RtHandle sn_os_name(RtManagedArena *arena)
 #endif
 
     return rt_managed_strdup(arena, RT_HANDLE_NULL, name);
+}
+
+/**
+ * Get the number of logical CPU cores available.
+ * Returns the number of processors/cores, or 1 if detection fails.
+ */
+int sn_os_cpu_count(void)
+{
+#ifdef SN_OS_WINDOWS
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    return (int)sysinfo.dwNumberOfProcessors;
+#else
+    /* POSIX: use sysconf for Linux, macOS, BSD, etc. */
+    long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
+    if (nprocs < 1) {
+        return 1;  /* Fallback to 1 if detection fails */
+    }
+    return (int)nprocs;
+#endif
 }

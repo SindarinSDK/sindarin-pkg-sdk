@@ -67,6 +67,11 @@ native struct OS =>
     static fn name(): str =>
         return sn_os_name()
 
+    # Get the number of logical CPU cores available.
+    # Returns the processor count, or 1 if detection fails.
+    static fn cpuCount(): int =>
+        return sn_os_cpu_count()
+
 # ==============================================================================
 # Runtime Function Declarations
 # ==============================================================================
@@ -81,3 +86,6 @@ native fn sn_os_is_unix(): int
 
 # OS name (needs arena for string allocation)
 native fn sn_os_name(arena): str
+
+# CPU count
+native fn sn_os_cpu_count(): int

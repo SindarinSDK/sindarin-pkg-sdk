@@ -31,6 +31,7 @@
 
 /* Include runtime arena for proper memory management */
 #include "runtime/runtime_arena.h"
+#include "runtime/runtime_array.h"
 #include "runtime/arena/managed_arena.h"
 
 /* ============================================================================
@@ -234,6 +235,38 @@ RtHandle sn_path_join3(RtManagedArena *arena, const char *path1, const char *pat
 
     /* Mark temp as dead since we don't need it anymore */
     rt_managed_mark_dead(arena, temp_h);
+
+    return result;
+}
+
+/* Join an array of path components (parts is a Sindarin str[] array) */
+RtHandle sn_path_join_all(RtManagedArena *arena, char **parts)
+{
+    /* Get array length */
+    size_t count = rt_array_length(parts);
+
+    if (count == 0) {
+        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+    }
+
+    if (count == 1) {
+        return rt_managed_strdup(arena, RT_HANDLE_NULL, parts[0]);
+    }
+
+    /* Start with the first element */
+    RtHandle result = rt_managed_strdup(arena, RT_HANDLE_NULL, parts[0]);
+
+    /* Join each subsequent part */
+    for (size_t i = 1; i < count; i++) {
+        char *current = rt_managed_pin_str(arena, result);
+
+        RtHandle new_result = sn_path_join2(arena, current, parts[i]);
+
+        rt_managed_unpin(arena, result);
+        rt_managed_mark_dead(arena, result);
+
+        result = new_result;
+    }
 
     return result;
 }

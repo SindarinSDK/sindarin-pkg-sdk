@@ -55,6 +55,10 @@ native struct Path =>
     static fn join3(path1: str, path2: str, path3: str): str =>
         return sn_path_join3(path1, path2, path3)
 
+    # Join an array of path components (variadic alternative)
+    static fn joinAll(parts: str[]): str =>
+        return sn_path_join_all(parts)
+
     # Resolve to absolute path
     static fn absolute(path: str): str =>
         return sn_path_absolute(path)
@@ -85,6 +89,7 @@ native fn sn_path_filename(arena, path: str): str
 native fn sn_path_extension(arena, path: str): str
 native fn sn_path_join2(arena, path1: str, path2: str): str
 native fn sn_path_join3(arena, path1: str, path2: str, path3: str): str
+native fn sn_path_join_all(arena, parts: str[]): str
 native fn sn_path_absolute(arena, path: str): str
 
 # Path query functions

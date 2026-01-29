@@ -16,7 +16,9 @@
 #include "runtime/arena/managed_arena.h"
 #include "runtime/runtime_string_h.h"
 
-#ifdef _WIN32
+/* Windows detection: _WIN32 for MSVC, __MINGW32__/__MINGW64__ for MinGW/MSYS2 */
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__MINGW64__)
+    #define SN_WINDOWS 1
     #include <windows.h>
 #else
     #include <unistd.h>
@@ -77,7 +79,7 @@ static RtProcess *sn_process_create(RtManagedArena *arena, int exit_code,
     return proc;
 }
 
-#ifdef _WIN32
+#ifdef SN_WINDOWS
 /* ============================================================================
  * Windows Implementation using CreateProcess
  * ============================================================================ */
@@ -520,7 +522,7 @@ static RtProcess *sn_process_run_internal(RtManagedArena *arena, const char *cmd
     return sn_process_create(arena, exit_code, stdout_data, stderr_data);
 }
 
-#endif /* _WIN32 / POSIX */
+#endif /* SN_WINDOWS / POSIX */
 
 /* ============================================================================
  * Public API Functions

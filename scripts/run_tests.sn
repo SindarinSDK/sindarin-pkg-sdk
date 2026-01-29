@@ -12,17 +12,17 @@
 //     --run-timeout SEC - Run timeout in seconds (default: 30)
 //     --verbose         - Show detailed output
 //     --no-color        - Disable colored output
-//     --parallel, -j N  - Run tests with N parallel workers (default: 4)
+//     --parallel, -j N  - Run tests with N parallel workers (default: CPU count)
 
-import "sdk/os/os"
-import "sdk/os/process"
-import "sdk/os/env"
-import "sdk/io/path"
-import "sdk/io/directory"
-import "sdk/io/textfile"
-import "sdk/io/stdio"
-import "sdk/core/uuid"
-import "sdk/time/time"
+import "../src/os/os"
+import "../src/os/process"
+import "../src/os/env"
+import "../src/io/path"
+import "../src/io/directory"
+import "../src/io/textfile"
+import "../src/io/stdio"
+import "../src/core/uuid"
+import "../src/time/time"
 
 // Maximum parallel workers (using fixed batch approach with explicit handle variables)
 static var MAX_PARALLEL: int = 8
@@ -377,18 +377,21 @@ fn findCompiler(specifiedPath: str): str =>
         return Path.absolute(candidate)
 
     // Check if sn is in PATH by running 'which sn' or 'where sn'
-    var platform: str = OS.name()
     var whichCmd: str = "which"
-    if platform == "windows" =>
+    if OS.isWindows() =>
         whichCmd = "where"
 
     var p: Process = Process.runArgs(whichCmd, {"sn"})
     var exitCode: int = p.exitCode()
 
     if exitCode == 0 =>
-        var snPath: str = p.stdout().trim()
-        if snPath != "" =>
-            return snPath
+        // Take only the first line (where/which may return multiple paths)
+        var output: str = p.stdout().trim()
+        var lines: str[] = output.splitLines()
+        if lines.length > 0 =>
+            var snPath: str = lines[0].trim()
+            if snPath != "" =>
+                return snPath
 
     return ""
 
@@ -821,7 +824,7 @@ struct Args =>
     runTimeout: int = 30
     verbose: bool = false
     noColor: bool = false
-    parallel: int = 4
+    parallel: int = 0  // 0 means auto-detect (use CPU count)
     excludedTests: str[]
     showHelp: bool = false
 
@@ -889,7 +892,7 @@ fn printUsage(): void =>
     print("  --exclude TESTS    Comma-separated list of tests to exclude\n")
     print("  --verbose, -v      Show detailed output\n")
     print("  --no-color         Disable colored output\n")
-    print("  --parallel, -j N   Run tests with N parallel workers (default: 4)\n")
+    print("  --parallel, -j N   Run tests with N parallel workers (default: CPU count)\n")
     print("  --help, -h         Show this help message\n")
 
 // ============================================================================
@@ -902,6 +905,10 @@ fn main(args: str[]): int =>
     // Default test type to "all" if not specified
     if parsedArgs.testType == "" =>
         parsedArgs.testType = "all"
+
+    // Default parallel workers to CPU count if not specified
+    if parsedArgs.parallel == 0 =>
+        parsedArgs.parallel = OS.cpuCount()
 
     if parsedArgs.showHelp =>
         printUsage()

@@ -8,6 +8,10 @@
 #------------------------------------------------------------------------------
 .PHONY: all test clean help
 
+# Disable implicit rules for .sn.c files (these are compiled by the Sindarin compiler)
+%.sn: %.sn.c
+	@:
+
 #------------------------------------------------------------------------------
 # Platform Detection
 #------------------------------------------------------------------------------
@@ -38,6 +42,10 @@ SN ?= sn
 SCRIPTS_DIR := scripts
 RUN_TESTS_SN := $(SCRIPTS_DIR)/run_tests.sn
 
+# SDK source files (for dependency tracking)
+# Note: .sn.c files are compiled by the Sindarin compiler, not tracked separately
+SDK_SOURCES := $(wildcard src/*/*.sn)
+
 # Compiled script binaries
 RUN_TESTS_BIN := $(BIN_DIR)/run_tests$(EXE_EXT)
 
@@ -50,7 +58,7 @@ all: test
 # test - Run SDK tests using compiled Sindarin test runner
 #------------------------------------------------------------------------------
 test: $(RUN_TESTS_BIN)
-	@$(RUN_TESTS_BIN) -j 4
+	@$(RUN_TESTS_BIN)
 
 #------------------------------------------------------------------------------
 # Build the test runner
@@ -58,7 +66,7 @@ test: $(RUN_TESTS_BIN)
 $(BIN_DIR):
 	@$(MKDIR) $(BIN_DIR)
 
-$(RUN_TESTS_BIN): $(RUN_TESTS_SN) | $(BIN_DIR)
+$(RUN_TESTS_BIN): $(RUN_TESTS_SN) $(SDK_SOURCES) | $(BIN_DIR)
 	@echo "Compiling run_tests.sn..."
 	@$(SN) $(RUN_TESTS_SN) -o $(RUN_TESTS_BIN) -l 1
 
