@@ -4,6 +4,6 @@ author: realorko
 description: A package which is decoupled from the sdk shipped with the sindarin compiler
 license: MIT
 dependencies:
-- name: sindarin-libs
+- name: sindarin-pkg-libs
   git: git@github.com:SindarinSDK/sindarin-pkg-libs-v2.git
   branch: main
