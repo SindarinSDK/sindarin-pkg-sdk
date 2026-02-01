@@ -9,7 +9,7 @@
 #include <string.h>
 #include "runtime/runtime_arena.h"
 #include "runtime/arena/managed_arena.h"
-#include "runtime/runtime_string_h.h"
+#include "runtime/string/runtime_string_h.h"
 
 /* Platform-specific includes for CPU count */
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__)

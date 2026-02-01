@@ -12,9 +12,9 @@
 
 /* Include runtime arena for proper memory management */
 #include "runtime/runtime_arena.h"
-#include "runtime/runtime_array.h"
+#include "runtime/array/runtime_array.h"
 #include "runtime/arena/managed_arena.h"
-#include "runtime/runtime_string_h.h"
+#include "runtime/string/runtime_string_h.h"
 
 /* Windows detection: _WIN32 for MSVC, __MINGW32__/__MINGW64__ for MinGW/MSYS2 */
 #if defined(_WIN32) || defined(__MINGW32__) || defined(__MINGW64__)

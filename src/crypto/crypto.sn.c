@@ -15,9 +15,9 @@
 #include <openssl/err.h>
 
 #include "runtime/runtime_arena.h"
-#include "runtime/runtime_array.h"
+#include "runtime/array/runtime_array.h"
 #include "runtime/arena/managed_arena.h"
-#include "runtime/runtime_array_h.h"
+#include "runtime/array/runtime_array_h.h"
 
 /* ============================================================================
  * RtCrypto Type Definition (Static-only, never instantiated)

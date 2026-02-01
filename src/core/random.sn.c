@@ -14,9 +14,9 @@
 
 /* Include runtime headers for arena and array only */
 #include "runtime/runtime_arena.h"
-#include "runtime/runtime_array.h"
+#include "runtime/array/runtime_array.h"
 #include "runtime/arena/managed_arena.h"
-#include "runtime/runtime_array_h.h"
+#include "runtime/array/runtime_array_h.h"
 
 /* Platform-specific includes for entropy sources */
 #if defined(__linux__)

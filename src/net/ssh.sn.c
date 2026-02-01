@@ -18,9 +18,9 @@
 
 /* Include runtime for proper memory management */
 #include "runtime/runtime_arena.h"
-#include "runtime/runtime_array.h"
+#include "runtime/array/runtime_array.h"
 #include "runtime/arena/managed_arena.h"
-#include "runtime/runtime_string_h.h"
+#include "runtime/string/runtime_string_h.h"
 
 /* libssh includes */
 #include <libssh/libssh.h>
