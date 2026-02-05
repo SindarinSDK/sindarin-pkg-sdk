@@ -71,6 +71,9 @@ typedef struct RtTcpStream {
     /* Configuration */
     int read_timeout_ms;        /* Read timeout: -1=blocking, 0=non-blocking, >0=timeout ms */
     bool eof_reached;           /* True if EOF has been encountered */
+
+    /* Arena tracking for memory release on close */
+    RtArena *arena;             /* Arena this stream was allocated from */
 } RtTcpStream;
 
 typedef struct RtTcpListener {
@@ -253,6 +256,9 @@ static RtTcpStream *sn_tcp_stream_create(RtArena *arena, socket_t sock, const ch
     /* Configuration defaults */
     stream->read_timeout_ms = -1;  /* Blocking by default */
     stream->eof_reached = false;
+
+    /* Store arena for memory release on close */
+    stream->arena = arena;
 
     /* Copy remote address string */
     if (remote_addr) {
@@ -870,6 +876,25 @@ void sn_tcp_stream_close(RtTcpStream *stream) {
     if (stream->socket_fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(stream->socket_fd);
         stream->socket_fd = INVALID_SOCKET_VAL;
+    }
+
+    /* Release arena-allocated memory to prevent memory leaks.
+     * The stream, read buffer, and remote address were all allocated
+     * with rt_arena_alloc (pinned memory), so we need to explicitly
+     * release them for GC to reclaim. */
+    if (stream->arena != NULL) {
+        if (stream->read_buf != NULL) {
+            rt_managed_release_pinned(stream->arena, stream->read_buf);
+            stream->read_buf = NULL;
+        }
+        if (stream->remote_addr != NULL) {
+            rt_managed_release_pinned(stream->arena, stream->remote_addr);
+            stream->remote_addr = NULL;
+        }
+        /* Release the stream struct itself */
+        RtArena *arena = stream->arena;
+        stream->arena = NULL;
+        rt_managed_release_pinned(arena, stream);
     }
 }
 
