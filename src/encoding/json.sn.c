@@ -21,6 +21,22 @@
 #include "runtime/array/runtime_array_h.h"
 
 /* ============================================================================
+ * Cleanup Callback for yyjson documents
+ * ============================================================================
+ * When a Json with is_root=1 is allocated, we register a cleanup callback
+ * that frees the yyjson_mut_doc when the arena is destroyed (e.g., when
+ * a thread terminates). This prevents memory leaks from accumulating.
+ * ============================================================================ */
+
+static void sn_json_doc_cleanup(void *data)
+{
+    yyjson_mut_doc *doc = (yyjson_mut_doc *)data;
+    if (doc != NULL) {
+        yyjson_mut_doc_free(doc);
+    }
+}
+
+/* ============================================================================
  * Json Type Definition
  * ============================================================================ */
 
@@ -34,7 +50,9 @@ typedef struct SnJson {
  * Internal Helper Functions
  * ============================================================================ */
 
-/* Create a new SnJson wrapper for a value within an existing document */
+/* Create a new SnJson wrapper for a value within an existing document.
+ * If is_root is true, registers a cleanup callback to free the yyjson doc
+ * when the arena is destroyed (e.g., when the thread terminates). */
 static SnJson *sn_json_wrap(RtArena *arena, yyjson_mut_doc *doc, yyjson_mut_val *val, int is_root)
 {
     SnJson *j = rt_arena_alloc(arena, sizeof(SnJson));
@@ -45,6 +63,14 @@ static SnJson *sn_json_wrap(RtArena *arena, yyjson_mut_doc *doc, yyjson_mut_val 
     j->doc = doc;
     j->val = val;
     j->is_root = is_root;
+
+    /* Register cleanup callback to free the yyjson doc when arena is destroyed.
+     * This prevents memory leaks when Json objects go out of scope.
+     * Priority 100 ensures Json cleanup happens after user cleanup callbacks. */
+    if (is_root && doc != NULL) {
+        rt_managed_on_cleanup((RtManagedArena *)arena, doc, sn_json_doc_cleanup, 100);
+    }
+
     return j;
 }
 
