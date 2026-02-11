@@ -18,22 +18,6 @@
 #include "runtime/array/runtime_array_v2.h"
 
 /* ============================================================================
- * Cleanup Callback for yyjson documents
- * ============================================================================
- * When a Json with is_root=1 is allocated, we register a cleanup callback
- * that frees the yyjson_mut_doc when the arena is destroyed (e.g., when
- * a thread terminates). This prevents memory leaks from accumulating.
- * ============================================================================ */
-
-static void sn_json_doc_cleanup(void *data)
-{
-    yyjson_mut_doc *doc = (yyjson_mut_doc *)data;
-    if (doc != NULL) {
-        yyjson_mut_doc_free(doc);
-    }
-}
-
-/* ============================================================================
  * Json Type Definition
  * ============================================================================ */
 
@@ -44,6 +28,24 @@ typedef struct SnJson {
 } SnJson;
 
 /* ============================================================================
+ * Cleanup Callback for yyjson documents
+ * ============================================================================
+ * When a Json with is_root=1 is allocated, we register a cleanup callback
+ * that frees the yyjson_mut_doc when the arena is destroyed (e.g., when
+ * a thread terminates). This prevents memory leaks from accumulating.
+ * ============================================================================ */
+
+static void sn_json_doc_cleanup(RtHandleV2 *data)
+{
+    rt_handle_v2_pin(data);
+    SnJson *j = (SnJson *)data->ptr;
+    if (j != NULL && j->doc != NULL) {
+        yyjson_mut_doc_free(j->doc);
+        j->doc = NULL;
+    }
+}
+
+/* ============================================================================
  * Internal Helper Functions
  * ============================================================================ */
 
@@ -52,11 +54,9 @@ typedef struct SnJson {
  * when the arena is destroyed (e.g., when the thread terminates). */
 static SnJson *sn_json_wrap(RtArenaV2 *arena, yyjson_mut_doc *doc, yyjson_mut_val *val, int is_root)
 {
-    SnJson *j = rt_arena_alloc(arena, sizeof(SnJson));
-    if (j == NULL) {
-        fprintf(stderr, "Json: memory allocation failed\n");
-        exit(1);
-    }
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnJson));
+    rt_handle_v2_pin(_h);
+    SnJson *j = (SnJson *)_h->ptr;
     j->doc = doc;
     j->val = val;
     j->is_root = is_root;
@@ -65,7 +65,7 @@ static SnJson *sn_json_wrap(RtArenaV2 *arena, yyjson_mut_doc *doc, yyjson_mut_va
      * This prevents memory leaks when Json objects go out of scope.
      * Priority 100 ensures Json cleanup happens after user cleanup callbacks. */
     if (is_root && doc != NULL) {
-        rt_arena_v2_on_cleanup(arena, doc, sn_json_doc_cleanup, 100);
+        rt_arena_v2_on_cleanup(arena, _h, sn_json_doc_cleanup, 100);
     }
 
     return j;

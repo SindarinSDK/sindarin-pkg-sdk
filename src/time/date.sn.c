@@ -155,7 +155,9 @@ int sn_date_is_valid_ymd(int year, int month, int day)
 
 static RtDate *sn_date_create(RtArenaV2 *arena, int32_t days)
 {
-    RtDate *date = (RtDate *)rt_arena_alloc(arena, sizeof(RtDate));
+    RtHandleV2 *_date_h = rt_arena_v2_alloc(arena, sizeof(RtDate));
+    rt_handle_v2_pin(_date_h);
+    RtDate *date = (RtDate *)_date_h->ptr;
     if (date == NULL) {
         fprintf(stderr, "sn_date_create: allocation failed\n");
         exit(1);
@@ -506,7 +508,9 @@ void *sn_date_to_time(RtArenaV2 *arena, RtDate *date)
     /* Convert days since epoch to milliseconds since epoch (midnight UTC) */
     long long ms = (long long)date->days * 24LL * 60LL * 60LL * 1000LL;
 
-    RtTime *time = (RtTime *)rt_arena_alloc(arena, sizeof(RtTime));
+    RtHandleV2 *_time_h = rt_arena_v2_alloc(arena, sizeof(RtTime));
+    rt_handle_v2_pin(_time_h);
+    RtTime *time = (RtTime *)_time_h->ptr;
     if (time == NULL) {
         fprintf(stderr, "sn_date_to_time: allocation failed\n");
         exit(1);

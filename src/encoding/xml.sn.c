@@ -56,11 +56,9 @@ static void sn_xml_init(void)
 /* Create a new SnXml wrapper for a node within an existing document */
 static SnXml *sn_xml_wrap(RtArenaV2 *arena, xmlDocPtr doc, xmlNodePtr node, int is_root)
 {
-    SnXml *x = rt_arena_alloc(arena, sizeof(SnXml));
-    if (x == NULL) {
-        fprintf(stderr, "Xml: memory allocation failed\n");
-        exit(1);
-    }
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnXml));
+    rt_handle_v2_pin(_h);
+    SnXml *x = (SnXml *)_h->ptr;
     x->doc = doc;
     x->node = node;
     x->is_root = is_root;
@@ -362,7 +360,8 @@ RtHandleV2 *sn_xml_attrs(RtArenaV2 *arena, SnXml *x)
     while (attr != NULL) {
         if (attr->name != NULL) {
             RtHandleV2 *name = rt_arena_v2_strdup(arena, (const char *)attr->name);
-            char *name_ptr = (char *)rt_handle_v2_pin(name);
+            rt_handle_v2_pin(name);
+            char *name_ptr = (char *)name->ptr;
             names = rt_array_push_string_v2(arena, names, name_ptr);
             rt_handle_v2_unpin(name);
         }

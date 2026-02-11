@@ -233,7 +233,9 @@ static inline void stream_consume(RtTcpStream *stream, size_t n) {
  * ============================================================================ */
 
 static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const char *remote_addr) {
-    RtTcpStream *stream = (RtTcpStream *)rt_arena_alloc(arena, sizeof(RtTcpStream));
+    RtHandleV2 *_stream_h = rt_arena_v2_alloc(arena, sizeof(RtTcpStream));
+    rt_handle_v2_pin(_stream_h);
+    RtTcpStream *stream = (RtTcpStream *)_stream_h->ptr;
     if (stream == NULL) {
         fprintf(stderr, "sn_tcp_stream_create: allocation failed\n");
         exit(1);
@@ -242,7 +244,9 @@ static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const 
 
     /* Initialize read buffer */
     stream->read_buf_capacity = SN_TCP_DEFAULT_BUFFER_SIZE;
-    stream->read_buf = (unsigned char *)rt_arena_alloc(arena, stream->read_buf_capacity);
+    RtHandleV2 *_buf_h = rt_arena_v2_alloc(arena, stream->read_buf_capacity);
+    rt_handle_v2_pin(_buf_h);
+    stream->read_buf = (unsigned char *)_buf_h->ptr;
     if (stream->read_buf == NULL) {
         fprintf(stderr, "sn_tcp_stream_create: buffer allocation failed\n");
         exit(1);
@@ -260,7 +264,9 @@ static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const 
     /* Copy remote address string */
     if (remote_addr) {
         size_t len = strlen(remote_addr) + 1;
-        stream->remote_addr = (char *)rt_arena_alloc(arena, len);
+        RtHandleV2 *_addr_h = rt_arena_v2_alloc(arena, len);
+        rt_handle_v2_pin(_addr_h);
+        stream->remote_addr = (char *)_addr_h->ptr;
         if (stream->remote_addr) {
             memcpy(stream->remote_addr, remote_addr, len);
         }
@@ -885,7 +891,9 @@ void sn_tcp_stream_close(RtTcpStream *stream) {
  * ============================================================================ */
 
 static RtTcpListener *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, int port) {
-    RtTcpListener *listener = (RtTcpListener *)rt_arena_alloc(arena, sizeof(RtTcpListener));
+    RtHandleV2 *_listener_h = rt_arena_v2_alloc(arena, sizeof(RtTcpListener));
+    rt_handle_v2_pin(_listener_h);
+    RtTcpListener *listener = (RtTcpListener *)_listener_h->ptr;
     if (listener == NULL) {
         fprintf(stderr, "sn_tcp_listener_create: allocation failed\n");
         exit(1);

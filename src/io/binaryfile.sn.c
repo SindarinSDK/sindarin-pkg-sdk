@@ -67,7 +67,9 @@ RtSnBinaryFile *sn_binary_file_open(RtArenaV2 *arena, const char *path)
     }
 
     /* Allocate file handle */
-    RtSnBinaryFile *file = rt_arena_alloc(arena, sizeof(RtSnBinaryFile));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtSnBinaryFile));
+    rt_handle_v2_pin(_h);
+    RtSnBinaryFile *file = (RtSnBinaryFile *)_h->ptr;
     if (file == NULL) {
         fclose(fp);
         fprintf(stderr, "SnBinaryFile.open: memory allocation failed\n");
@@ -75,7 +77,7 @@ RtSnBinaryFile *sn_binary_file_open(RtArenaV2 *arena, const char *path)
     }
 
     file->fp = fp;
-    file->path = rt_arena_strdup(arena, path);
+    { RtHandleV2 *_h = rt_arena_v2_strdup(arena, path); rt_handle_v2_pin(_h); file->path = (char *)_h->ptr; }
     file->is_open = 1;
 
     return file;

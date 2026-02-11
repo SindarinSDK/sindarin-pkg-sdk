@@ -376,7 +376,9 @@ RtUuid *sn_uuid_v4(RtArenaV2 *arena) {
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -420,7 +422,9 @@ RtUuid *sn_uuid_v5(RtArenaV2 *arena, RtUuid *namespace_uuid, const char *name) {
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -488,7 +492,9 @@ RtUuid *sn_uuid_v7(RtArenaV2 *arena) {
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -709,7 +715,9 @@ RtUuid *sn_uuid_nil(RtArenaV2 *arena) {
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -724,7 +732,9 @@ RtUuid *sn_uuid_max(RtArenaV2 *arena) {
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -743,7 +753,9 @@ RtUuid *sn_uuid_namespace_dns(RtArenaV2 *arena) {
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -757,7 +769,9 @@ RtUuid *sn_uuid_namespace_url(RtArenaV2 *arena) {
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -771,7 +785,9 @@ RtUuid *sn_uuid_namespace_oid(RtArenaV2 *arena) {
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -785,7 +801,9 @@ RtUuid *sn_uuid_namespace_x500(RtArenaV2 *arena) {
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -838,7 +856,9 @@ RtUuid *sn_uuid_from_string(RtArenaV2 *arena, const char *str) {
         bytes[i] = (uint8_t)((high_nibble << 4) | low_nibble);
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -886,7 +906,9 @@ RtUuid *sn_uuid_from_hex(RtArenaV2 *arena, const char *str) {
         bytes[i] = (uint8_t)((high_nibble << 4) | low_nibble);
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }
@@ -926,7 +948,9 @@ static RtUuid *sn_uuid_from_bytes(RtArenaV2 *arena, const unsigned char *bytes) 
         return NULL;
     }
 
-    RtUuid *uuid = rt_arena_alloc(arena, sizeof(RtUuid));
+    RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
+    rt_handle_v2_pin(_uuid_h);
+    RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
     if (uuid == NULL) {
         return NULL;
     }

@@ -38,7 +38,9 @@ typedef struct RtEnvironment {
 /* Create a string array in the arena */
 static char **sn_create_string_array(RtArenaV2 *arena, size_t count)
 {
-    char **result = rt_arena_alloc(arena, sizeof(RtArrayMetadataV2) + count * sizeof(char *));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtArrayMetadataV2) + count * sizeof(char *));
+    rt_handle_v2_pin(_h);
+    char **result = (char **)_h->ptr;
     if (result == NULL) {
         fprintf(stderr, "sn_create_string_array: allocation failed\n");
         exit(1);

@@ -271,7 +271,9 @@ static RtSshConnection *ssh_connect_and_handshake(RtArenaV2 *arena, const char *
     ssh_verify_known_host(session);
 
     /* Allocate Connection Struct */
-    RtSshConnection *conn = (RtSshConnection *)rt_arena_alloc(arena, sizeof(RtSshConnection));
+    RtHandleV2 *_conn_h = rt_arena_v2_alloc(arena, sizeof(RtSshConnection));
+    rt_handle_v2_pin(_conn_h);
+    RtSshConnection *conn = (RtSshConnection *)_conn_h->ptr;
     if (!conn) {
         fprintf(stderr, "SshConnection: allocation failed\n");
         ssh_disconnect(session);
@@ -283,7 +285,9 @@ static RtSshConnection *ssh_connect_and_handshake(RtArenaV2 *arena, const char *
 
     /* Copy address string into arena */
     size_t addr_len = strlen(address) + 1;
-    conn->remote_addr = (char *)rt_arena_alloc(arena, addr_len);
+    RtHandleV2 *_addr_h = rt_arena_v2_alloc(arena, addr_len);
+    rt_handle_v2_pin(_addr_h);
+    conn->remote_addr = (char *)_addr_h->ptr;
     if (conn->remote_addr) {
         memcpy(conn->remote_addr, address, addr_len);
     }
@@ -527,7 +531,9 @@ static RtSshExecResult *ssh_exec_internal(RtArenaV2 *arena, RtSshConnection *con
     ssh_channel_free(channel);
 
     /* Allocate result in arena */
-    RtSshExecResult *result = (RtSshExecResult *)rt_arena_alloc(arena, sizeof(RtSshExecResult));
+    RtHandleV2 *_result_h = rt_arena_v2_alloc(arena, sizeof(RtSshExecResult));
+    rt_handle_v2_pin(_result_h);
+    RtSshExecResult *result = (RtSshExecResult *)_result_h->ptr;
     if (!result) {
         fprintf(stderr, "SshConnection.exec: result allocation failed\n");
         free(out_buf);
@@ -536,13 +542,17 @@ static RtSshExecResult *ssh_exec_internal(RtArenaV2 *arena, RtSshConnection *con
     }
 
     /* Copy stdout to arena */
-    result->stdout_str = (char *)rt_arena_alloc(arena, out_len + 1);
+    RtHandleV2 *_stdout_h = rt_arena_v2_alloc(arena, out_len + 1);
+    rt_handle_v2_pin(_stdout_h);
+    result->stdout_str = (char *)_stdout_h->ptr;
     if (result->stdout_str) {
         memcpy(result->stdout_str, out_buf, out_len + 1);
     }
 
     /* Copy stderr to arena */
-    result->stderr_str = (char *)rt_arena_alloc(arena, err_len + 1);
+    RtHandleV2 *_stderr_h = rt_arena_v2_alloc(arena, err_len + 1);
+    rt_handle_v2_pin(_stderr_h);
+    result->stderr_str = (char *)_stderr_h->ptr;
     if (result->stderr_str) {
         memcpy(result->stderr_str, err_buf, err_len + 1);
     }
@@ -622,13 +632,17 @@ void sn_ssh_close(RtSshConnection *conn) {
 #define SSH_MAX_USERS 64
 
 RtSshServerConfig *sn_ssh_server_config_defaults(RtArenaV2 *arena) {
-    RtSshServerConfig *config = (RtSshServerConfig *)rt_arena_alloc(arena, sizeof(RtSshServerConfig));
+    RtHandleV2 *_config_h = rt_arena_v2_alloc(arena, sizeof(RtSshServerConfig));
+    rt_handle_v2_pin(_config_h);
+    RtSshServerConfig *config = (RtSshServerConfig *)_config_h->ptr;
     if (!config) {
         fprintf(stderr, "SshServerConfig.defaults: allocation failed\n");
         exit(1);
     }
     config->host_key_path = NULL;
-    config->users = (SshUserCredential *)rt_arena_alloc(arena, sizeof(SshUserCredential) * SSH_MAX_USERS);
+    RtHandleV2 *_users_h = rt_arena_v2_alloc(arena, sizeof(SshUserCredential) * SSH_MAX_USERS);
+    rt_handle_v2_pin(_users_h);
+    config->users = (SshUserCredential *)_users_h->ptr;
     config->user_count = 0;
     config->authorized_keys_dir = NULL;
     return config;
@@ -638,7 +652,9 @@ RtSshServerConfig *sn_ssh_server_config_set_host_key(RtArenaV2 *arena, RtSshServ
     (void)arena;
     if (!config || !path) return config;
     size_t len = strlen(path) + 1;
-    config->host_key_path = (char *)rt_arena_alloc(arena, len);
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, len);
+    rt_handle_v2_pin(_h);
+    config->host_key_path = (char *)_h->ptr;
     if (config->host_key_path) {
         memcpy(config->host_key_path, path, len);
     }
@@ -656,13 +672,17 @@ RtSshServerConfig *sn_ssh_server_config_add_user(RtArenaV2 *arena, RtSshServerCo
     int idx = (int)config->user_count;
 
     size_t ulen = strlen(username) + 1;
-    config->users[idx].username = (char *)rt_arena_alloc(arena, ulen);
+    RtHandleV2 *_uname_h = rt_arena_v2_alloc(arena, ulen);
+    rt_handle_v2_pin(_uname_h);
+    config->users[idx].username = (char *)_uname_h->ptr;
     if (config->users[idx].username) {
         memcpy(config->users[idx].username, username, ulen);
     }
 
     size_t plen = strlen(password) + 1;
-    config->users[idx].password = (char *)rt_arena_alloc(arena, plen);
+    RtHandleV2 *_pass_h = rt_arena_v2_alloc(arena, plen);
+    rt_handle_v2_pin(_pass_h);
+    config->users[idx].password = (char *)_pass_h->ptr;
     if (config->users[idx].password) {
         memcpy(config->users[idx].password, password, plen);
     }
@@ -676,7 +696,9 @@ RtSshServerConfig *sn_ssh_server_config_set_authorized_keys_dir(RtArenaV2 *arena
                                                                    const char *path) {
     if (!config || !path) return config;
     size_t len = strlen(path) + 1;
-    config->authorized_keys_dir = (char *)rt_arena_alloc(arena, len);
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, len);
+    rt_handle_v2_pin(_h);
+    config->authorized_keys_dir = (char *)_h->ptr;
     if (config->authorized_keys_dir) {
         memcpy(config->authorized_keys_dir, path, len);
     }
@@ -746,7 +768,9 @@ static RtSshListener *ssh_listener_bind_internal(RtArenaV2 *arena, const char *a
     }
 
     /* Allocate listener */
-    RtSshListener *listener = (RtSshListener *)rt_arena_alloc(arena, sizeof(RtSshListener));
+    RtHandleV2 *_listener_h = rt_arena_v2_alloc(arena, sizeof(RtSshListener));
+    rt_handle_v2_pin(_listener_h);
+    RtSshListener *listener = (RtSshListener *)_listener_h->ptr;
     if (!listener) {
         fprintf(stderr, "SshListener.bind: allocation failed\n");
         ssh_bind_free(sshbind);
@@ -851,7 +875,9 @@ RtSshSession *sn_ssh_listener_accept(RtArenaV2 *arena, RtSshListener *listener) 
                             authenticated = 1;
                             /* Copy username */
                             size_t ulen = strlen(user) + 1;
-                            auth_username = (char *)rt_arena_alloc(arena, ulen);
+                            RtHandleV2 *_uname_h = rt_arena_v2_alloc(arena, ulen);
+                            rt_handle_v2_pin(_uname_h);
+                            auth_username = (char *)_uname_h->ptr;
                             if (auth_username) memcpy(auth_username, user, ulen);
                             break;
                         }
@@ -909,7 +935,9 @@ RtSshSession *sn_ssh_listener_accept(RtArenaV2 *arena, RtSshListener *listener) 
     }
 
     /* Allocate session struct */
-    RtSshSession *sess = (RtSshSession *)rt_arena_alloc(arena, sizeof(RtSshSession));
+    RtHandleV2 *_sess_h = rt_arena_v2_alloc(arena, sizeof(RtSshSession));
+    rt_handle_v2_pin(_sess_h);
+    RtSshSession *sess = (RtSshSession *)_sess_h->ptr;
     if (!sess) {
         fprintf(stderr, "SshListener.accept: session allocation failed\n");
         ssh_disconnect(session);
@@ -921,7 +949,9 @@ RtSshSession *sn_ssh_listener_accept(RtArenaV2 *arena, RtSshListener *listener) 
     sess->username = auth_username;
 
     size_t rlen = strlen(remote_addr_buf) + 1;
-    sess->remote_addr = (char *)rt_arena_alloc(arena, rlen);
+    RtHandleV2 *_raddr_h = rt_arena_v2_alloc(arena, rlen);
+    rt_handle_v2_pin(_raddr_h);
+    sess->remote_addr = (char *)_raddr_h->ptr;
     if (sess->remote_addr) {
         memcpy(sess->remote_addr, remote_addr_buf, rlen);
     }
@@ -998,7 +1028,9 @@ RtSshChannel *sn_ssh_session_accept_channel(RtArenaV2 *arena, RtSshSession *sess
                 const char *cmd = ssh_message_channel_request_command(msg);
                 if (cmd) {
                     size_t clen = strlen(cmd) + 1;
-                    command = (char *)rt_arena_alloc(arena, clen);
+                    RtHandleV2 *_cmd_h = rt_arena_v2_alloc(arena, clen);
+                    rt_handle_v2_pin(_cmd_h);
+                    command = (char *)_cmd_h->ptr;
                     if (command) memcpy(command, cmd, clen);
                 }
                 is_shell = 0;
@@ -1027,7 +1059,9 @@ RtSshChannel *sn_ssh_session_accept_channel(RtArenaV2 *arena, RtSshSession *sess
     }
 
     /* Allocate channel struct */
-    RtSshChannel *ch = (RtSshChannel *)rt_arena_alloc(arena, sizeof(RtSshChannel));
+    RtHandleV2 *_ch_h = rt_arena_v2_alloc(arena, sizeof(RtSshChannel));
+    rt_handle_v2_pin(_ch_h);
+    RtSshChannel *ch = (RtSshChannel *)_ch_h->ptr;
     if (!ch) {
         fprintf(stderr, "SshSession.acceptChannel: allocation failed\n");
         exit(1);

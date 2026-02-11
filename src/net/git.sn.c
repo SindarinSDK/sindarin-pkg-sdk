@@ -151,12 +151,16 @@ static int git_credential_cb(git_credential **out, const char *url,
 
 static char *arena_strdup(RtArenaV2 *arena, const char *str) {
     if (!str) {
-        char *empty = (char *)rt_arena_alloc(arena, 1);
+        RtHandleV2 *_h = rt_arena_v2_alloc(arena, 1);
+        rt_handle_v2_pin(_h);
+        char *empty = (char *)_h->ptr;
         if (empty) empty[0] = '\0';
         return empty;
     }
     size_t len = strlen(str) + 1;
-    char *copy = (char *)rt_arena_alloc(arena, len);
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, len);
+    rt_handle_v2_pin(_h);
+    char *copy = (char *)_h->ptr;
     if (copy) memcpy(copy, str, len);
     return copy;
 }
@@ -211,7 +215,9 @@ RtGitRepo *sn_git_repo_open(RtArenaV2 *arena, const char *path) {
     int rc = git_repository_open(&repo, path);
     check_git_error(rc, "GitRepo.open");
 
-    RtGitRepo *result = (RtGitRepo *)rt_arena_alloc(arena, sizeof(RtGitRepo));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRepo));
+    rt_handle_v2_pin(_h);
+    RtGitRepo *result = (RtGitRepo *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitRepo.open: allocation failed\n");
         git_repository_free(repo);
@@ -236,7 +242,9 @@ RtGitRepo *sn_git_repo_clone(RtArenaV2 *arena, const char *url, const char *path
     int rc = git_clone(&repo, url, path, &opts);
     check_git_error(rc, "GitRepo.clone");
 
-    RtGitRepo *result = (RtGitRepo *)rt_arena_alloc(arena, sizeof(RtGitRepo));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRepo));
+    rt_handle_v2_pin(_h);
+    RtGitRepo *result = (RtGitRepo *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitRepo.clone: allocation failed\n");
         git_repository_free(repo);
@@ -257,7 +265,9 @@ RtGitRepo *sn_git_repo_init(RtArenaV2 *arena, const char *path) {
     int rc = git_repository_init(&repo, path, 0);
     check_git_error(rc, "GitRepo.init");
 
-    RtGitRepo *result = (RtGitRepo *)rt_arena_alloc(arena, sizeof(RtGitRepo));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRepo));
+    rt_handle_v2_pin(_h);
+    RtGitRepo *result = (RtGitRepo *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitRepo.init: allocation failed\n");
         git_repository_free(repo);
@@ -278,7 +288,9 @@ RtGitRepo *sn_git_repo_init_bare(RtArenaV2 *arena, const char *path) {
     int rc = git_repository_init(&repo, path, 1);
     check_git_error(rc, "GitRepo.initBare");
 
-    RtGitRepo *result = (RtGitRepo *)rt_arena_alloc(arena, sizeof(RtGitRepo));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRepo));
+    rt_handle_v2_pin(_h);
+    RtGitRepo *result = (RtGitRepo *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitRepo.initBare: allocation failed\n");
         git_repository_free(repo);
@@ -332,7 +344,9 @@ RtHandleV2 *sn_git_repo_status(RtArenaV2 *arena, RtGitRepo *self) {
         }
         if (!filepath) continue;
 
-        RtGitStatus *s = (RtGitStatus *)rt_arena_alloc(arena, sizeof(RtGitStatus));
+        RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitStatus));
+        rt_handle_v2_pin(_h);
+        RtGitStatus *s = (RtGitStatus *)_h->ptr;
         if (!s) continue;
 
         s->path_str = arena_strdup(arena, filepath);
@@ -427,7 +441,9 @@ void sn_git_repo_unstage(RtGitRepo *self, const char *path) {
  * ============================================================================ */
 
 static RtGitCommit *create_commit_from_git(RtArenaV2 *arena, git_commit *commit) {
-    RtGitCommit *result = (RtGitCommit *)rt_arena_alloc(arena, sizeof(RtGitCommit));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitCommit));
+    rt_handle_v2_pin(_h);
+    RtGitCommit *result = (RtGitCommit *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitCommit: allocation failed\n");
         exit(1);
@@ -687,7 +703,9 @@ RtHandleV2 *sn_git_repo_branches(RtArenaV2 *arena, RtGitRepo *self) {
         const char *branch_name = NULL;
         git_branch_name(&branch_name, ref);
 
-        RtGitBranch *b = (RtGitBranch *)rt_arena_alloc(arena, sizeof(RtGitBranch));
+        RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitBranch));
+        rt_handle_v2_pin(_h);
+        RtGitBranch *b = (RtGitBranch *)_h->ptr;
         if (!b) {
             git_reference_free(ref);
             continue;
@@ -746,7 +764,9 @@ RtGitBranch *sn_git_repo_create_branch(RtArenaV2 *arena, RtGitRepo *self, const 
     rc = git_branch_create(&new_ref, repo, name, head_commit, 0);
     check_git_error(rc, "GitRepo.createBranch");
 
-    RtGitBranch *b = (RtGitBranch *)rt_arena_alloc(arena, sizeof(RtGitBranch));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitBranch));
+    rt_handle_v2_pin(_h);
+    RtGitBranch *b = (RtGitBranch *)_h->ptr;
     if (!b) {
         fprintf(stderr, "GitRepo.createBranch: allocation failed\n");
         exit(1);
@@ -848,7 +868,9 @@ RtHandleV2 *sn_git_repo_remotes(RtArenaV2 *arena, RtGitRepo *self) {
         rc = git_remote_lookup(&remote, repo, remote_names.strings[i]);
         if (rc < 0) continue;
 
-        RtGitRemote *r = (RtGitRemote *)rt_arena_alloc(arena, sizeof(RtGitRemote));
+        RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRemote));
+        rt_handle_v2_pin(_h);
+        RtGitRemote *r = (RtGitRemote *)_h->ptr;
         if (!r) {
             git_remote_free(remote);
             continue;
@@ -878,7 +900,9 @@ RtGitRemote *sn_git_repo_add_remote(RtArenaV2 *arena, RtGitRepo *self,
     int rc = git_remote_create(&remote, repo, name, url);
     check_git_error(rc, "GitRepo.addRemote");
 
-    RtGitRemote *r = (RtGitRemote *)rt_arena_alloc(arena, sizeof(RtGitRemote));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRemote));
+    rt_handle_v2_pin(_h);
+    RtGitRemote *r = (RtGitRemote *)_h->ptr;
     if (!r) {
         fprintf(stderr, "GitRepo.addRemote: allocation failed\n");
         git_remote_free(remote);
@@ -1105,7 +1129,9 @@ static RtHandleV2 *build_diff_array_h(RtArenaV2 *arena, git_diff *diff) {
         const git_diff_delta *delta = git_diff_get_delta(diff, i);
         if (!delta) continue;
 
-        RtGitDiff *d = (RtGitDiff *)rt_arena_alloc(arena, sizeof(RtGitDiff));
+        RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitDiff));
+        rt_handle_v2_pin(_h);
+        RtGitDiff *d = (RtGitDiff *)_h->ptr;
         if (!d) continue;
 
         d->path_str = arena_strdup(arena, delta->new_file.path ? delta->new_file.path : "");
@@ -1186,7 +1212,9 @@ RtHandleV2 *sn_git_repo_tags(RtArenaV2 *arena, RtGitRepo *self) {
     for (size_t i = 0; i < tag_names.count; i++) {
         const char *tag_name = tag_names.strings[i];
 
-        RtGitTag *t = (RtGitTag *)rt_arena_alloc(arena, sizeof(RtGitTag));
+        RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitTag));
+        rt_handle_v2_pin(_h);
+        RtGitTag *t = (RtGitTag *)_h->ptr;
         if (!t) continue;
 
         t->name_str = arena_strdup(arena, tag_name);
@@ -1254,7 +1282,9 @@ RtGitTag *sn_git_repo_create_tag(RtArenaV2 *arena, RtGitRepo *self, const char *
     rc = git_tag_create_lightweight(&tag_oid, repo, name, target, 0);
     check_git_error(rc, "GitRepo.createTag");
 
-    RtGitTag *t = (RtGitTag *)rt_arena_alloc(arena, sizeof(RtGitTag));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitTag));
+    rt_handle_v2_pin(_h);
+    RtGitTag *t = (RtGitTag *)_h->ptr;
     if (!t) {
         fprintf(stderr, "GitRepo.createTag: allocation failed\n");
         git_object_free(target);
@@ -1300,7 +1330,9 @@ RtGitTag *sn_git_repo_create_annotated_tag(RtArenaV2 *arena, RtGitRepo *self,
     rc = git_tag_create(&tag_oid, repo, name, target, sig, message, 0);
     check_git_error(rc, "GitRepo.createAnnotatedTag");
 
-    RtGitTag *t = (RtGitTag *)rt_arena_alloc(arena, sizeof(RtGitTag));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitTag));
+    rt_handle_v2_pin(_h);
+    RtGitTag *t = (RtGitTag *)_h->ptr;
     if (!t) {
         fprintf(stderr, "GitRepo.createAnnotatedTag: allocation failed\n");
         exit(1);

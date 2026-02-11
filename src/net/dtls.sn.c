@@ -450,7 +450,9 @@ RtDtlsConnection *sn_dtls_connection_connect(RtArenaV2 *arena, const char *addre
     }
 
     /* Allocate and return connection */
-    RtDtlsConnection *conn = (RtDtlsConnection *)rt_arena_alloc(arena, sizeof(RtDtlsConnection));
+    RtHandleV2 *_conn_h = rt_arena_v2_alloc(arena, sizeof(RtDtlsConnection));
+    rt_handle_v2_pin(_conn_h);
+    RtDtlsConnection *conn = (RtDtlsConnection *)_conn_h->ptr;
     if (conn == NULL) {
         fprintf(stderr, "DtlsConnection.connect: allocation failed\n");
         exit(1);
@@ -462,7 +464,9 @@ RtDtlsConnection *sn_dtls_connection_connect(RtArenaV2 *arena, const char *addre
 
     /* Copy remote address string */
     size_t addr_len = strlen(address) + 1;
-    conn->remote_addr = (char *)rt_arena_alloc(arena, addr_len);
+    RtHandleV2 *_addr_h = rt_arena_v2_alloc(arena, addr_len);
+    rt_handle_v2_pin(_addr_h);
+    conn->remote_addr = (char *)_addr_h->ptr;
     if (conn->remote_addr) {
         memcpy(conn->remote_addr, address, addr_len);
     }
@@ -722,7 +726,9 @@ static void dtls_listener_thread_func(RtDtlsListener *listener) {
         }
 
         /* Create DtlsConnection */
-        RtDtlsConnection *conn = (RtDtlsConnection *)rt_arena_alloc(listener->arena, sizeof(RtDtlsConnection));
+        RtHandleV2 *_conn_h = rt_arena_v2_alloc(listener->arena, sizeof(RtDtlsConnection));
+        rt_handle_v2_pin(_conn_h);
+        RtDtlsConnection *conn = (RtDtlsConnection *)_conn_h->ptr;
         if (conn == NULL) {
             SSL_shutdown(ssl);
             SSL_free(ssl);
@@ -734,7 +740,9 @@ static void dtls_listener_thread_func(RtDtlsListener *listener) {
         conn->ctx = NULL;  /* Server connections don't own the context */
 
         size_t addr_len = strlen(addr_str) + 1;
-        conn->remote_addr = (char *)rt_arena_alloc(listener->arena, addr_len);
+        RtHandleV2 *_addr_h = rt_arena_v2_alloc(listener->arena, addr_len);
+        rt_handle_v2_pin(_addr_h);
+        conn->remote_addr = (char *)_addr_h->ptr;
         if (conn->remote_addr) {
             memcpy(conn->remote_addr, addr_str, addr_len);
         }
@@ -883,7 +891,9 @@ RtDtlsListener *sn_dtls_listener_bind(RtArenaV2 *arena, const char *address,
     }
 
     /* Create listener struct */
-    RtDtlsListener *listener = (RtDtlsListener *)rt_arena_alloc(arena, sizeof(RtDtlsListener));
+    RtHandleV2 *_listener_h = rt_arena_v2_alloc(arena, sizeof(RtDtlsListener));
+    rt_handle_v2_pin(_listener_h);
+    RtDtlsListener *listener = (RtDtlsListener *)_listener_h->ptr;
     if (listener == NULL) {
         CLOSE_SOCKET(sock);
         SSL_CTX_free(ctx);

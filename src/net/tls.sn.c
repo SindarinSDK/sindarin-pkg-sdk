@@ -396,7 +396,9 @@ static int tls_parse_address(const char *address, char *host, size_t host_len, i
 static RtTlsStream *sn_tls_stream_create(RtArenaV2 *arena, socket_t sock,
                                            SSL_CTX *ctx, SSL *ssl,
                                            const char *remote_addr) {
-    RtTlsStream *stream = (RtTlsStream *)rt_arena_alloc(arena, sizeof(RtTlsStream));
+    RtHandleV2 *_stream_h = rt_arena_v2_alloc(arena, sizeof(RtTlsStream));
+    rt_handle_v2_pin(_stream_h);
+    RtTlsStream *stream = (RtTlsStream *)_stream_h->ptr;
     if (stream == NULL) {
         fprintf(stderr, "TlsStream: allocation failed\n");
         exit(1);
@@ -408,7 +410,9 @@ static RtTlsStream *sn_tls_stream_create(RtArenaV2 *arena, socket_t sock,
 
     /* Initialize read buffer */
     stream->read_buf_capacity = SN_TLS_DEFAULT_BUFFER_SIZE;
-    stream->read_buf = (unsigned char *)rt_arena_alloc(arena, stream->read_buf_capacity);
+    RtHandleV2 *_buf_h = rt_arena_v2_alloc(arena, stream->read_buf_capacity);
+    rt_handle_v2_pin(_buf_h);
+    stream->read_buf = (unsigned char *)_buf_h->ptr;
     if (stream->read_buf == NULL) {
         fprintf(stderr, "TlsStream: buffer allocation failed\n");
         exit(1);
@@ -420,7 +424,9 @@ static RtTlsStream *sn_tls_stream_create(RtArenaV2 *arena, socket_t sock,
     /* Copy remote address string */
     if (remote_addr) {
         size_t len = strlen(remote_addr) + 1;
-        stream->remote_addr = (char *)rt_arena_alloc(arena, len);
+        RtHandleV2 *_addr_h = rt_arena_v2_alloc(arena, len);
+        rt_handle_v2_pin(_addr_h);
+        stream->remote_addr = (char *)_addr_h->ptr;
         if (stream->remote_addr) {
             memcpy(stream->remote_addr, remote_addr, len);
         }
@@ -680,7 +686,9 @@ RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtTlsStream *stream) {
                     total_len--;
                 }
 
-                char *temp = (char *)rt_arena_alloc(arena, total_len + 1);
+                RtHandleV2 *_temp_h1 = rt_arena_v2_alloc(arena, total_len + 1);
+                rt_handle_v2_pin(_temp_h1);
+                char *temp = (char *)_temp_h1->ptr;
                 if (temp == NULL) {
                     if (accum_buffer) free(accum_buffer);
                     fprintf(stderr, "TlsStream.readLine: arena alloc failed\n");
@@ -761,7 +769,9 @@ RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtTlsStream *stream) {
         total_len--;
     }
 
-    char *temp = (char *)rt_arena_alloc(arena, total_len + 1);
+    RtHandleV2 *_temp_h2 = rt_arena_v2_alloc(arena, total_len + 1);
+    rt_handle_v2_pin(_temp_h2);
+    char *temp = (char *)_temp_h2->ptr;
     if (temp == NULL) {
         if (accum_buffer) free(accum_buffer);
         fprintf(stderr, "TlsStream.readLine: arena alloc failed\n");
@@ -986,7 +996,9 @@ RtTlsListener *sn_tls_listener_bind(RtArenaV2 *arena, const char *address,
     }
 
     /* Create listener struct */
-    RtTlsListener *listener = (RtTlsListener *)rt_arena_alloc(arena, sizeof(RtTlsListener));
+    RtHandleV2 *_listener_h = rt_arena_v2_alloc(arena, sizeof(RtTlsListener));
+    rt_handle_v2_pin(_listener_h);
+    RtTlsListener *listener = (RtTlsListener *)_listener_h->ptr;
     if (listener == NULL) {
         CLOSE_SOCKET(sock);
         SSL_CTX_free(ctx);

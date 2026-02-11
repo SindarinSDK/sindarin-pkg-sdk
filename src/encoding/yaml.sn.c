@@ -159,11 +159,9 @@ static void sn_yaml_map_set(SnYamlNode *map, const char *key, SnYamlNode *value)
 
 static SnYaml *sn_yaml_wrap(RtArenaV2 *arena, SnYamlNode *root, SnYamlNode *node, int is_root)
 {
-    SnYaml *y = rt_arena_alloc(arena, sizeof(SnYaml));
-    if (y == NULL) {
-        fprintf(stderr, "Yaml: memory allocation failed\n");
-        exit(1);
-    }
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnYaml));
+    rt_handle_v2_pin(_h);
+    SnYaml *y = (SnYaml *)_h->ptr;
     y->root = root;
     y->node = node;
     y->is_root = is_root;
@@ -477,7 +475,8 @@ RtHandleV2 *sn_yaml_keys(RtArenaV2 *arena, SnYaml *y)
     RtHandleV2 *keys = rt_array_create_string_v2(arena, 0, NULL);
     for (int i = 0; i < y->node->map_count; i++) {
         RtHandleV2 *dup = rt_arena_v2_strdup(arena, y->node->map_pairs[i].key ? y->node->map_pairs[i].key : "");
-        keys = rt_array_push_string_v2(arena, keys, (const char *)rt_handle_v2_pin(dup));
+        rt_handle_v2_pin(dup);
+        keys = rt_array_push_string_v2(arena, keys, (const char *)dup->ptr);
         rt_handle_v2_unpin(dup);
     }
     return keys;

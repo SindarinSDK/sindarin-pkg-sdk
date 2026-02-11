@@ -233,7 +233,8 @@ RtHandleV2 *sn_path_join3(RtArenaV2 *arena, const char *path1, const char *path2
     RtHandleV2 *temp_h = sn_path_join2(arena, path1, path2);
 
     /* Pin to get pointer for second join */
-    char *temp = (char *)rt_handle_v2_pin(temp_h);
+    rt_handle_v2_pin(temp_h);
+    char *temp = (char *)temp_h->ptr;
 
     /* Join temp with path3 */
     RtHandleV2 *result = sn_path_join2(arena, temp, path3);
@@ -265,7 +266,8 @@ RtHandleV2 *sn_path_join_all(RtArenaV2 *arena, char **parts)
 
     /* Join each subsequent part */
     for (size_t i = 1; i < count; i++) {
-        char *current = (char *)rt_handle_v2_pin(result);
+        rt_handle_v2_pin(result);
+        char *current = (char *)result->ptr;
 
         RtHandleV2 *new_result = sn_path_join2(arena, current, parts[i]);
 

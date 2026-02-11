@@ -116,7 +116,9 @@ static int udp_wait_readable(RtUdpSocket *socket_obj) {
 }
 
 static RtUdpSocket *sn_udp_socket_create(RtArenaV2 *arena, socket_t sock, int port) {
-    RtUdpSocket *socket_obj = (RtUdpSocket *)rt_arena_alloc(arena, sizeof(RtUdpSocket));
+    RtHandleV2 *_socket_h = rt_arena_v2_alloc(arena, sizeof(RtUdpSocket));
+    rt_handle_v2_pin(_socket_h);
+    RtUdpSocket *socket_obj = (RtUdpSocket *)_socket_h->ptr;
     if (socket_obj == NULL) {
         fprintf(stderr, "sn_udp_socket_create: allocation failed\n");
         exit(1);
@@ -338,7 +340,9 @@ long sn_udp_socket_send_to(RtUdpSocket *socket_obj, unsigned char *data, const c
 
 /* Receive datagram and sender address */
 RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *socket_obj, long maxBytes) {
-    RtUdpReceiveResult *result = (RtUdpReceiveResult *)rt_arena_alloc(arena, sizeof(RtUdpReceiveResult));
+    RtHandleV2 *_result_h = rt_arena_v2_alloc(arena, sizeof(RtUdpReceiveResult));
+    rt_handle_v2_pin(_result_h);
+    RtUdpReceiveResult *result = (RtUdpReceiveResult *)_result_h->ptr;
     if (result == NULL) {
         fprintf(stderr, "sn_udp_socket_receive_from: allocation failed\n");
         exit(1);
@@ -347,7 +351,7 @@ RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *so
     if (socket_obj == NULL || maxBytes <= 0) {
         /* Return empty result */
         result->data = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-        result->sender = rt_arena_strdup(arena, "");
+        { RtHandleV2 *_h = rt_arena_v2_strdup(arena, ""); rt_handle_v2_pin(_h); result->sender = (char *)_h->ptr; }
         return result;
     }
 
@@ -357,7 +361,7 @@ RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *so
         if (wait_result == 0) {
             /* Timeout - return empty result */
             result->data = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-            result->sender = rt_arena_strdup(arena, "");
+            { RtHandleV2 *_h = rt_arena_v2_strdup(arena, ""); rt_handle_v2_pin(_h); result->sender = (char *)_h->ptr; }
             return result;
         }
         if (wait_result < 0) {
@@ -395,7 +399,7 @@ RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *so
     inet_ntop(AF_INET, &sender_addr.sin_addr, ip_str, sizeof(ip_str));
     snprintf(sender_str, sizeof(sender_str), "%s:%d", ip_str, ntohs(sender_addr.sin_port));
 
-    result->sender = rt_arena_strdup(arena, sender_str);
+    { RtHandleV2 *_h = rt_arena_v2_strdup(arena, sender_str); rt_handle_v2_pin(_h); result->sender = (char *)_h->ptr; }
     if (result->sender == NULL) {
         fprintf(stderr, "sn_udp_socket_receive_from: sender allocation failed\n");
         exit(1);

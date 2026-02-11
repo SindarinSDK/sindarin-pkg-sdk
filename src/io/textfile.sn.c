@@ -65,7 +65,9 @@ RtSnTextFile *sn_text_file_open(RtArenaV2 *arena, const char *path)
     }
 
     /* Allocate TextFile struct from arena */
-    RtSnTextFile *file = rt_arena_alloc(arena, sizeof(RtSnTextFile));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtSnTextFile));
+    rt_handle_v2_pin(_h);
+    RtSnTextFile *file = (RtSnTextFile *)_h->ptr;
     if (file == NULL) {
         fclose(fp);
         fprintf(stderr, "SnTextFile.open: memory allocation failed\n");
@@ -73,7 +75,7 @@ RtSnTextFile *sn_text_file_open(RtArenaV2 *arena, const char *path)
     }
 
     file->fp = fp;
-    file->path = rt_arena_strdup(arena, path);
+    { RtHandleV2 *_h = rt_arena_v2_strdup(arena, path); rt_handle_v2_pin(_h); file->path = (char *)_h->ptr; }
     file->is_open = 1;
 
     return file;
@@ -465,7 +467,8 @@ RtHandleV2 *sn_text_file_read_lines(RtArenaV2 *arena, RtSnTextFile *file)
     while (c != EOF) {
         ungetc(c, fp);
         RtHandleV2 *line = sn_text_file_read_line(arena, file);
-        const char *line_str = (const char *)rt_handle_v2_pin(line);
+        rt_handle_v2_pin(line);
+        const char *line_str = (const char *)line->ptr;
         lines = rt_array_push_string_v2(arena, lines, line_str);
         rt_handle_v2_unpin(line);
         c = fgetc(fp);

@@ -428,7 +428,9 @@ static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, Rt
         return NULL;
     }
     size_t len = strlen(host) + strlen(port) + 2;
-    char *result = (char *)rt_arena_alloc(arena, len);
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, len);
+    rt_handle_v2_pin(_h);
+    char *result = (char *)_h->ptr;
     snprintf(result, len, "%s:%s", host, port);
     return result;
 }
@@ -990,10 +992,12 @@ static RtQuicConnection *quic_connection_create(RtArenaV2 *arena, const char *ad
     socklen_t local_len = sizeof(local_addr);
     getsockname(sock, (struct sockaddr *)&local_addr, &local_len);
 
-    /* Allocate connection from arena. rt_arena_alloc uses pinned allocations
-     * that will never be moved by the compactor, which is required because
-     * RtQuicConnection contains pthread_mutex_t and pthread_cond_t. */
-    RtQuicConnection *conn = (RtQuicConnection *)rt_arena_alloc(arena, sizeof(RtQuicConnection));
+    /* Allocate connection from arena. rt_arena_v2_alloc + pin ensures pinned
+     * allocations that will never be moved by the compactor, which is required
+     * because RtQuicConnection contains pthread_mutex_t and pthread_cond_t. */
+    RtHandleV2 *_conn_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConnection));
+    rt_handle_v2_pin(_conn_h);
+    RtQuicConnection *conn = (RtQuicConnection *)_conn_h->ptr;
     memset(conn, 0, sizeof(RtQuicConnection));
     conn->arena = arena;
     conn->socket_fd = sock;
@@ -1183,9 +1187,11 @@ static RtQuicConnection *quic_server_connection_create(RtArenaV2 *arena, socket_
                                                         const uint8_t *pkt, size_t pktlen,
                                                         const ngtcp2_pkt_hd *hd,
                                                         RtQuicConfig *config) {
-    /* Allocate connection from arena. rt_arena_alloc uses pinned allocations
-     * that will never be moved by the compactor. */
-    RtQuicConnection *conn = (RtQuicConnection *)rt_arena_alloc(arena, sizeof(RtQuicConnection));
+    /* Allocate connection from arena. rt_arena_v2_alloc + pin ensures pinned
+     * allocations that will never be moved by the compactor. */
+    RtHandleV2 *_conn_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConnection));
+    rt_handle_v2_pin(_conn_h);
+    RtQuicConnection *conn = (RtQuicConnection *)_conn_h->ptr;
     memset(conn, 0, sizeof(RtQuicConnection));
     conn->arena = arena;
     conn->is_server = true;
@@ -1514,7 +1520,9 @@ handle_timers:
  * ============================================================================ */
 
 RtQuicConfig *sn_quic_config_defaults(RtArenaV2 *arena) {
-    RtQuicConfig *config = (RtQuicConfig *)rt_arena_alloc(arena, sizeof(RtQuicConfig));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
+    rt_handle_v2_pin(_h);
+    RtQuicConfig *config = (RtQuicConfig *)_h->ptr;
     config->max_bidi_streams = QUIC_DEFAULT_MAX_BIDI_STREAMS;
     config->max_uni_streams = QUIC_DEFAULT_MAX_UNI_STREAMS;
     config->max_stream_window = QUIC_DEFAULT_MAX_STREAM_WINDOW;
@@ -1631,7 +1639,9 @@ RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtQuicStream *stream) {
                 /* Strip \r if present */
                 if (line_len > 0 && start[line_len - 1] == '\r') line_len--;
 
-                char *temp = (char *)rt_arena_alloc(arena, line_len + 1);
+                RtHandleV2 *_line_h = rt_arena_v2_alloc(arena, line_len + 1);
+                rt_handle_v2_pin(_line_h);
+                char *temp = (char *)_line_h->ptr;
                 memcpy(temp, start, line_len);
                 temp[line_len] = '\0';
                 stream->recv_buf.read_pos += i + 1;
@@ -1642,7 +1652,9 @@ RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtQuicStream *stream) {
 
         if (stream->recv_buf.fin_received || stream->closed) {
             /* Return remaining data as last line */
-            char *temp = (char *)rt_arena_alloc(arena, avail + 1);
+            RtHandleV2 *_rem_h = rt_arena_v2_alloc(arena, avail + 1);
+            rt_handle_v2_pin(_rem_h);
+            char *temp = (char *)_rem_h->ptr;
             if (avail > 0) memcpy(temp, start, avail);
             temp[avail] = '\0';
             stream->recv_buf.read_pos += avail;
@@ -2159,9 +2171,11 @@ static RtQuicListener *quic_listener_create(RtArenaV2 *arena, const char *addres
         bound_port = ntohs(((struct sockaddr_in6 *)&bound_addr)->sin6_port);
     }
 
-    /* Create listener struct from arena. rt_arena_alloc uses pinned allocations
-     * that will never be moved by the compactor. */
-    RtQuicListener *listener = (RtQuicListener *)rt_arena_alloc(arena, sizeof(RtQuicListener));
+    /* Create listener struct from arena. rt_arena_v2_alloc + pin ensures pinned
+     * allocations that will never be moved by the compactor. */
+    RtHandleV2 *_listener_h = rt_arena_v2_alloc(arena, sizeof(RtQuicListener));
+    rt_handle_v2_pin(_listener_h);
+    RtQuicListener *listener = (RtQuicListener *)_listener_h->ptr;
     memset(listener, 0, sizeof(RtQuicListener));
     listener->arena = arena;
     listener->socket_fd = sock;

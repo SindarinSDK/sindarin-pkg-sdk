@@ -83,7 +83,7 @@ static char *join_path(RtArenaV2 *arena, const char *path1, const char *path2)
 
     /* If path1 is empty, return path2 */
     if (len1 == 0) {
-        return rt_arena_strdup(arena, path2);
+        { RtHandleV2 *_h = rt_arena_v2_strdup(arena, path2); rt_handle_v2_pin(_h); return (char *)_h->ptr; }
     }
 
     /* Check if path1 already ends with separator */
@@ -91,7 +91,9 @@ static char *join_path(RtArenaV2 *arena, const char *path1, const char *path2)
 
     /* Allocate: path1 + optional separator + path2 + null */
     size_t result_len = len1 + (has_trailing_sep ? 0 : 1) + len2 + 1;
-    char *result = rt_arena_alloc(arena, result_len);
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, result_len);
+    rt_handle_v2_pin(_h);
+    char *result = (char *)_h->ptr;
 
     memcpy(result, path1, len1);
     size_t pos = len1;
@@ -109,7 +111,9 @@ static char *join_with_forward_slash(RtArenaV2 *arena, const char *prefix, const
 {
     size_t prefix_len = strlen(prefix);
     size_t name_len = strlen(name);
-    char *result = rt_arena_alloc(arena, prefix_len + 1 + name_len + 1);
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, prefix_len + 1 + name_len + 1);
+    rt_handle_v2_pin(_h);
+    char *result = (char *)_h->ptr;
     memcpy(result, prefix, prefix_len);
     result[prefix_len] = '/';
     memcpy(result + prefix_len + 1, name, name_len);
@@ -121,7 +125,9 @@ static char *join_with_forward_slash(RtArenaV2 *arena, const char *prefix, const
 static char **create_string_array(RtArenaV2 *arena, size_t initial_capacity)
 {
     size_t capacity = initial_capacity > 4 ? initial_capacity : 4;
-    RtArrayMetadataV2 *meta = rt_arena_alloc(arena, sizeof(RtArrayMetadataV2) + capacity * sizeof(char *));
+    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtArrayMetadataV2) + capacity * sizeof(char *));
+    rt_handle_v2_pin(_h);
+    RtArrayMetadataV2 *meta = (RtArrayMetadataV2 *)_h->ptr;
     if (meta == NULL) {
         fprintf(stderr, "create_string_array: allocation failed\n");
         exit(1);
@@ -141,7 +147,9 @@ static char **push_string_to_array(RtArenaV2 *arena, char **arr, const char *str
     if ((size_t)meta->size >= meta->capacity) {
         /* Need to grow the array */
         size_t new_capacity = meta->capacity * 2;
-        RtArrayMetadataV2 *new_meta = rt_arena_alloc(alloc_arena, sizeof(RtArrayMetadataV2) + new_capacity * sizeof(char *));
+        RtHandleV2 *_h_grow = rt_arena_v2_alloc(alloc_arena, sizeof(RtArrayMetadataV2) + new_capacity * sizeof(char *));
+        rt_handle_v2_pin(_h_grow);
+        RtArrayMetadataV2 *new_meta = (RtArrayMetadataV2 *)_h_grow->ptr;
         if (new_meta == NULL) {
             fprintf(stderr, "push_string_to_array: allocation failed\n");
             exit(1);
@@ -155,7 +163,7 @@ static char **push_string_to_array(RtArenaV2 *arena, char **arr, const char *str
         meta = new_meta;
     }
 
-    arr[meta->size] = rt_arena_strdup(alloc_arena, str);
+    { RtHandleV2 *_h = rt_arena_v2_strdup(alloc_arena, str); rt_handle_v2_pin(_h); arr[meta->size] = (char *)_h->ptr; }
     meta->size++;
     return arr;
 }

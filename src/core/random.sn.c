@@ -182,7 +182,9 @@ RtRandom *sn_random_create(RtArenaV2 *arena)
         return NULL;
     }
 
-    RtRandom *rng = rt_arena_alloc(arena, sizeof(RtRandom));
+    RtHandleV2 *_rng_h = rt_arena_v2_alloc(arena, sizeof(RtRandom));
+    rt_handle_v2_pin(_rng_h);
+    RtRandom *rng = (RtRandom *)_rng_h->ptr;
     rng->is_seeded = 0;
 
     sn_random_fill_entropy((uint8_t *)rng->state, sizeof(rng->state));
@@ -196,7 +198,9 @@ RtRandom *sn_random_create_with_seed(RtArenaV2 *arena, long long seed)
         return NULL;
     }
 
-    RtRandom *rng = rt_arena_alloc(arena, sizeof(RtRandom));
+    RtHandleV2 *_rng_h = rt_arena_v2_alloc(arena, sizeof(RtRandom));
+    rt_handle_v2_pin(_rng_h);
+    RtRandom *rng = (RtRandom *)_rng_h->ptr;
     rng->is_seeded = 1;
 
     xoshiro256_seed(rng->state, (uint64_t)seed);
@@ -790,7 +794,9 @@ static double *sn_random_build_cumulative(RtArenaV2 *arena, double *weights, lon
         return NULL;
     }
 
-    double *cumulative = rt_arena_alloc(arena, (size_t)len * sizeof(double));
+    RtHandleV2 *_cumul_h = rt_arena_v2_alloc(arena, (size_t)len * sizeof(double));
+    rt_handle_v2_pin(_cumul_h);
+    double *cumulative = (double *)_cumul_h->ptr;
 
     double running_sum = 0.0;
     for (long i = 0; i < len; i++) {
