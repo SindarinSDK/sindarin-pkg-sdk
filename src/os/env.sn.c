@@ -10,9 +10,7 @@
 #include <string.h>
 
 /* Include runtime arena and array for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/array/runtime_array_h.h"
+#include "runtime/array/runtime_array_v2.h"
 
 /* ============================================================================
  * Platform-Specific Includes
@@ -34,34 +32,33 @@ typedef struct RtEnvironment {
 } RtEnvironment;
 
 /* ============================================================================
- * Array Metadata Structure (must match runtime)
- * ============================================================================ */
-
-typedef struct {
-    RtArena *arena;
-    size_t size;
-    size_t capacity;
-} RtArrayMetadata;
-
-/* ============================================================================
  * Helper Functions
  * ============================================================================ */
 
 /* Create a string array in the arena */
-static char **sn_create_string_array(RtArena *arena, size_t count)
+static char **sn_create_string_array(RtArenaV2 *arena, size_t count)
 {
-    char **result = rt_arena_alloc(arena, sizeof(RtArrayMetadata) + count * sizeof(char *));
+    char **result = rt_arena_alloc(arena, sizeof(RtArrayMetadataV2) + count * sizeof(char *));
     if (result == NULL) {
         fprintf(stderr, "sn_create_string_array: allocation failed\n");
         exit(1);
     }
 
-    RtArrayMetadata *meta = (RtArrayMetadata *)result;
+    RtArrayMetadataV2 *meta = (RtArrayMetadataV2 *)result;
     meta->arena = arena;
     meta->size = count;
     meta->capacity = count;
 
     return (char **)(meta + 1);
+}
+
+/* Helper: strndup into arena (V2 API doesn't have strndup) */
+static RtHandleV2 *sn_arena_strndup(RtArenaV2 *arena, const char *str, size_t n) {
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, n + 1);
+    char *ptr = (char *)h->ptr;
+    memcpy(ptr, str, n);
+    ptr[n] = '\0';
+    return h;
 }
 
 /* ============================================================================
@@ -71,7 +68,7 @@ static char **sn_create_string_array(RtArena *arena, size_t count)
 #ifdef _WIN32
 
 /* Windows implementation using GetEnvironmentVariable */
-RtHandle sn_env_get_required(RtManagedArena *arena, const char *name)
+RtHandleV2 *sn_env_get_required(RtArenaV2 *arena, const char *name)
 {
     if (arena == NULL || name == NULL) {
         fprintf(stderr, "RuntimeError: Environment variable name cannot be null\n");
@@ -100,15 +97,15 @@ RtHandle sn_env_get_required(RtManagedArena *arena, const char *name)
         exit(1);
     }
 
-    RtHandle h = rt_managed_strdup(arena, RT_HANDLE_NULL, buffer);
+    RtHandleV2 *h = rt_arena_v2_strdup(arena,buffer);
     free(buffer);
     return h;
 }
 
-RtHandle sn_env_get_default(RtManagedArena *arena, const char *name, const char *default_value)
+RtHandleV2 *sn_env_get_default(RtArenaV2 *arena, const char *name, const char *default_value)
 {
     if (arena == NULL || name == NULL) {
-        return default_value ? rt_managed_strdup(arena, RT_HANDLE_NULL, default_value) : RT_HANDLE_NULL;
+        return default_value ? rt_arena_v2_strdup(arena,default_value) : NULL;
     }
 
     /* First call to get required buffer size */
@@ -116,9 +113,9 @@ RtHandle sn_env_get_default(RtManagedArena *arena, const char *name, const char 
     if (size == 0) {
         /* Variable not found, return default */
         if (default_value != NULL) {
-            return rt_managed_strdup(arena, RT_HANDLE_NULL, default_value);
+            return rt_arena_v2_strdup(arena,default_value);
         }
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     /* Allocate temporary buffer and get the value */
@@ -133,12 +130,12 @@ RtHandle sn_env_get_default(RtManagedArena *arena, const char *name, const char 
         free(buffer);
         /* Error, return default */
         if (default_value != NULL) {
-            return rt_managed_strdup(arena, RT_HANDLE_NULL, default_value);
+            return rt_arena_v2_strdup(arena,default_value);
         }
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    RtHandle h = rt_managed_strdup(arena, RT_HANDLE_NULL, buffer);
+    RtHandleV2 *h = rt_arena_v2_strdup(arena,buffer);
     free(buffer);
     return h;
 }
@@ -170,16 +167,16 @@ void sn_env_set(const char *name, const char *value)
     _putenv_s(name, value);
 }
 
-RtHandle sn_env_all(RtManagedArena *arena)
+RtHandleV2 *sn_env_all(RtArenaV2 *arena)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     /* Get the environment block */
     LPCH envStrings = GetEnvironmentStringsA();
     if (envStrings == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     /* First pass: count entries */
@@ -194,9 +191,9 @@ RtHandle sn_env_all(RtManagedArena *arena)
     }
 
     /* Allocate temporary storage for inner handles */
-    RtHandle *temp_handles = NULL;
+    RtHandleV2 **temp_handles = NULL;
     if (count > 0) {
-        temp_handles = (RtHandle *)malloc(count * sizeof(RtHandle));
+        temp_handles = (RtHandleV2 **)malloc(count * sizeof(RtHandleV2 *));
         if (temp_handles == NULL) {
             FreeEnvironmentStringsA(envStrings);
             fprintf(stderr, "sn_env_all: allocation failed\n");
@@ -215,12 +212,12 @@ RtHandle sn_env_all(RtManagedArena *arena)
                 size_t name_len = eq - ptr;
 
                 /* Create pair as string handles */
-                RtHandle name_h = rt_managed_strndup(arena, RT_HANDLE_NULL, ptr, name_len);
-                RtHandle value_h = rt_managed_strdup(arena, RT_HANDLE_NULL, eq + 1);
+                RtHandleV2 *name_h = sn_arena_strndup(arena, ptr, name_len);
+                RtHandleV2 *value_h = rt_arena_v2_strdup(arena,eq + 1);
 
                 /* Create inner array of 2 string handles */
-                RtHandle pair_handles[2] = { name_h, value_h };
-                RtHandle inner_h = rt_array_create_uint32_h(arena, 2, pair_handles);
+                RtHandleV2 *pair_handles[2] = { name_h, value_h };
+                RtHandleV2 *inner_h = rt_array_create_ptr_v2(arena, 2, (void **)pair_handles);
                 temp_handles[idx++] = inner_h;
             }
         }
@@ -230,7 +227,7 @@ RtHandle sn_env_all(RtManagedArena *arena)
     FreeEnvironmentStringsA(envStrings);
 
     /* Create outer array handle from temporary handles */
-    RtHandle result = rt_array_create_uint32_h(arena, idx, temp_handles);
+    RtHandleV2 *result = rt_array_create_ptr_v2(arena, idx, (void **)temp_handles);
     free(temp_handles);
     return result;
 }
@@ -239,7 +236,7 @@ RtHandle sn_env_all(RtManagedArena *arena)
 
 /* POSIX implementation using getenv and environ */
 
-RtHandle sn_env_get_required(RtManagedArena *arena, const char *name)
+RtHandleV2 *sn_env_get_required(RtArenaV2 *arena, const char *name)
 {
     if (arena == NULL || name == NULL) {
         fprintf(stderr, "RuntimeError: Environment variable name cannot be null\n");
@@ -253,25 +250,25 @@ RtHandle sn_env_get_required(RtManagedArena *arena, const char *name)
     }
 
     /* Copy to managed arena (getenv returns pointer to static storage) */
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, value);
+    return rt_arena_v2_strdup(arena,value);
 }
 
-RtHandle sn_env_get_default(RtManagedArena *arena, const char *name, const char *default_value)
+RtHandleV2 *sn_env_get_default(RtArenaV2 *arena, const char *name, const char *default_value)
 {
     if (arena == NULL || name == NULL) {
-        return default_value ? rt_managed_strdup(arena, RT_HANDLE_NULL, default_value) : RT_HANDLE_NULL;
+        return default_value ? rt_arena_v2_strdup(arena,default_value) : NULL;
     }
 
     const char *value = getenv(name);
     if (value != NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, value);
+        return rt_arena_v2_strdup(arena,value);
     }
 
     /* Variable not set, return default */
     if (default_value != NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, default_value);
+        return rt_arena_v2_strdup(arena,default_value);
     }
-    return RT_HANDLE_NULL;
+    return NULL;
 }
 
 int sn_env_has(const char *name)
@@ -298,10 +295,10 @@ void sn_env_set(const char *name, const char *value)
     }
 }
 
-RtHandle sn_env_all(RtManagedArena *arena)
+RtHandleV2 *sn_env_all(RtArenaV2 *arena)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     /* Count entries */
@@ -311,9 +308,9 @@ RtHandle sn_env_all(RtManagedArena *arena)
     }
 
     /* Allocate temporary storage for inner handles */
-    RtHandle *temp_handles = NULL;
+    RtHandleV2 **temp_handles = NULL;
     if (count > 0) {
-        temp_handles = (RtHandle *)malloc(count * sizeof(RtHandle));
+        temp_handles = (RtHandleV2 **)malloc(count * sizeof(RtHandleV2 *));
         if (temp_handles == NULL) {
             fprintf(stderr, "sn_env_all: allocation failed\n");
             exit(1);
@@ -326,25 +323,25 @@ RtHandle sn_env_all(RtManagedArena *arena)
         const char *eq = strchr(entry, '=');
 
         /* Create inner pair as handle array using handle-based allocation */
-        RtHandle name_h, value_h;
+        RtHandleV2 *name_h, *value_h;
         if (eq != NULL) {
             size_t name_len = eq - entry;
-            name_h = rt_managed_strndup(arena, RT_HANDLE_NULL, entry, name_len);
-            value_h = rt_managed_strdup(arena, RT_HANDLE_NULL, eq + 1);
+            name_h = sn_arena_strndup(arena, entry, name_len);
+            value_h = rt_arena_v2_strdup(arena,eq + 1);
         } else {
             /* Malformed entry (no '='), use empty value */
-            name_h = rt_managed_strdup(arena, RT_HANDLE_NULL, entry);
-            value_h = rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+            name_h = rt_arena_v2_strdup(arena,entry);
+            value_h = rt_arena_v2_strdup(arena,"");
         }
 
         /* Create inner array of 2 string handles using handle-based allocation */
-        RtHandle pair_handles[2] = { name_h, value_h };
-        RtHandle inner_h = rt_array_create_uint32_h(arena, 2, pair_handles);
+        RtHandleV2 *pair_handles[2] = { name_h, value_h };
+        RtHandleV2 *inner_h = rt_array_create_ptr_v2(arena, 2, (void **)pair_handles);
         temp_handles[i] = inner_h;
     }
 
     /* Create outer array handle from temporary handles */
-    RtHandle result = rt_array_create_uint32_h(arena, count, temp_handles);
+    RtHandleV2 *result = rt_array_create_ptr_v2(arena, count, (void **)temp_handles);
     free(temp_handles);
     return result;
 }

@@ -11,10 +11,7 @@
 #include <stdint.h>
 
 /* Include runtime arena for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/array/runtime_array_h.h"
+#include "runtime/array/runtime_array_v2.h"
 
 /* ============================================================================
  * Bytes Type Definition (unused, just for namespace)
@@ -52,10 +49,10 @@ static const signed char base64_decode_table[256] = {
  * ============================================================================ */
 
 /* Decode hexadecimal string to byte array */
-RtHandle sn_bytes_from_hex(RtManagedArena *arena, const char *hex)
+RtHandleV2 *sn_bytes_from_hex(RtArenaV2 *arena, const char *hex)
 {
     if (hex == NULL) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     size_t hex_len = strlen(hex);
@@ -110,21 +107,21 @@ RtHandle sn_bytes_from_hex(RtManagedArena *arena, const char *hex)
         temp_bytes[i] = (unsigned char)((hi_val << 4) | lo_val);
     }
 
-    RtHandle result = rt_array_create_byte_h(arena, byte_len, temp_bytes);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, byte_len, sizeof(unsigned char), temp_bytes);
     free(temp_bytes);
     return result;
 }
 
 /* Decode Base64 string to byte array */
-RtHandle sn_bytes_from_base64(RtManagedArena *arena, const char *b64)
+RtHandleV2 *sn_bytes_from_base64(RtArenaV2 *arena, const char *b64)
 {
     if (b64 == NULL) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     size_t len = strlen(b64);
     if (len == 0) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     /* Count padding characters */
@@ -185,7 +182,7 @@ RtHandle sn_bytes_from_base64(RtManagedArena *arena, const char *b64)
         }
     }
 
-    RtHandle result = rt_array_create_byte_h(arena, out_len, temp_bytes);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, out_len, sizeof(unsigned char), temp_bytes);
     free(temp_bytes);
     return result;
 }

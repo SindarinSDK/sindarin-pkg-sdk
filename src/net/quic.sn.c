@@ -21,11 +21,8 @@
 #include <time.h>
 
 /* Include runtime for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/array/runtime_array_h.h"
-#include "runtime/string/runtime_string_h.h"
+#include "runtime/array/runtime_array_v2.h"
+#include "runtime/string/runtime_string_v2.h"
 
 /* ngtcp2 includes */
 #include <ngtcp2/ngtcp2.h>
@@ -256,7 +253,7 @@ typedef struct RtQuicConnection {
     size_t resumption_token_len;
 
     /* Arena for allocations */
-    RtArena *arena;
+    RtArenaV2 *arena;
 } RtQuicConnection;
 
 typedef struct RtQuicListener {
@@ -290,7 +287,7 @@ typedef struct RtQuicListener {
     socklen_t local_addrlen;
 
     /* Arena */
-    RtArena *arena;
+    RtArenaV2 *arena;
 } RtQuicListener;
 
 /* ============================================================================
@@ -422,7 +419,7 @@ static int parse_address(const char *address, char *host, size_t hostlen, char *
     return 0;
 }
 
-static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, RtArena *arena) {
+static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, RtArenaV2 *arena) {
     char host[NI_MAXHOST];
     char port[NI_MAXSERV];
     (void)addrlen;
@@ -947,7 +944,7 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
  * Connection Creation (Client)
  * ============================================================================ */
 
-static RtQuicConnection *quic_connection_create(RtArena *arena, const char *address,
+static RtQuicConnection *quic_connection_create(RtArenaV2 *arena, const char *address,
                                                  RtQuicConfig *config, bool early,
                                                  const uint8_t *token, size_t token_len) {
     ensure_winsock_initialized();
@@ -1177,7 +1174,7 @@ static RtQuicConnection *quic_connection_create(RtArena *arena, const char *addr
  * Connection Creation (Server-side, called from listener)
  * ============================================================================ */
 
-static RtQuicConnection *quic_server_connection_create(RtArena *arena, socket_t sock,
+static RtQuicConnection *quic_server_connection_create(RtArenaV2 *arena, socket_t sock,
                                                         SSL_CTX *ssl_ctx,
                                                         struct sockaddr_storage *remote,
                                                         socklen_t remote_len,
@@ -1516,7 +1513,7 @@ handle_timers:
  * QuicConfig API
  * ============================================================================ */
 
-RtQuicConfig *sn_quic_config_defaults(RtArena *arena) {
+RtQuicConfig *sn_quic_config_defaults(RtArenaV2 *arena) {
     RtQuicConfig *config = (RtQuicConfig *)rt_arena_alloc(arena, sizeof(RtQuicConfig));
     config->max_bidi_streams = QUIC_DEFAULT_MAX_BIDI_STREAMS;
     config->max_uni_streams = QUIC_DEFAULT_MAX_UNI_STREAMS;
@@ -1526,31 +1523,31 @@ RtQuicConfig *sn_quic_config_defaults(RtArena *arena) {
     return config;
 }
 
-RtQuicConfig *sn_quic_config_set_max_bidi_streams(RtArena *arena, RtQuicConfig *config, int n) {
+RtQuicConfig *sn_quic_config_set_max_bidi_streams(RtArenaV2 *arena, RtQuicConfig *config, int n) {
     (void)arena;
     config->max_bidi_streams = n;
     return config;
 }
 
-RtQuicConfig *sn_quic_config_set_max_uni_streams(RtArena *arena, RtQuicConfig *config, int n) {
+RtQuicConfig *sn_quic_config_set_max_uni_streams(RtArenaV2 *arena, RtQuicConfig *config, int n) {
     (void)arena;
     config->max_uni_streams = n;
     return config;
 }
 
-RtQuicConfig *sn_quic_config_set_max_stream_window(RtArena *arena, RtQuicConfig *config, int bytes) {
+RtQuicConfig *sn_quic_config_set_max_stream_window(RtArenaV2 *arena, RtQuicConfig *config, int bytes) {
     (void)arena;
     config->max_stream_window = bytes;
     return config;
 }
 
-RtQuicConfig *sn_quic_config_set_max_conn_window(RtArena *arena, RtQuicConfig *config, int bytes) {
+RtQuicConfig *sn_quic_config_set_max_conn_window(RtArenaV2 *arena, RtQuicConfig *config, int bytes) {
     (void)arena;
     config->max_conn_window = bytes;
     return config;
 }
 
-RtQuicConfig *sn_quic_config_set_idle_timeout(RtArena *arena, RtQuicConfig *config, int ms) {
+RtQuicConfig *sn_quic_config_set_idle_timeout(RtArenaV2 *arena, RtQuicConfig *config, int ms) {
     (void)arena;
     config->idle_timeout_ms = ms;
     return config;
@@ -1560,9 +1557,9 @@ RtQuicConfig *sn_quic_config_set_idle_timeout(RtArena *arena, RtQuicConfig *conf
  * QuicStream API
  * ============================================================================ */
 
-RtHandle sn_quic_stream_read(RtManagedArena *arena, RtQuicStream *stream, long maxBytes) {
+RtHandleV2 *sn_quic_stream_read(RtArenaV2 *arena, RtQuicStream *stream, long maxBytes) {
     if (!stream || maxBytes <= 0) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     MUTEX_LOCK(&stream->stream_mutex);
@@ -1576,11 +1573,11 @@ RtHandle sn_quic_stream_read(RtManagedArena *arena, RtQuicStream *stream, long m
     size_t avail = stream_buf_available(&stream->recv_buf);
     if (avail == 0) {
         MUTEX_UNLOCK(&stream->stream_mutex);
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     size_t to_read = avail < (size_t)maxBytes ? avail : (size_t)maxBytes;
-    RtHandle result = rt_array_create_byte_h(arena, to_read,
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, to_read, sizeof(unsigned char),
         stream->recv_buf.data + stream->recv_buf.read_pos);
     stream->recv_buf.read_pos += to_read;
 
@@ -1588,9 +1585,9 @@ RtHandle sn_quic_stream_read(RtManagedArena *arena, RtQuicStream *stream, long m
     return result;
 }
 
-RtHandle sn_quic_stream_read_all(RtManagedArena *arena, RtQuicStream *stream) {
+RtHandleV2 *sn_quic_stream_read_all(RtArenaV2 *arena, RtQuicStream *stream) {
     if (!stream) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     MUTEX_LOCK(&stream->stream_mutex);
@@ -1601,22 +1598,22 @@ RtHandle sn_quic_stream_read_all(RtManagedArena *arena, RtQuicStream *stream) {
     }
 
     size_t avail = stream_buf_available(&stream->recv_buf);
-    RtHandle result;
+    RtHandleV2 *result;
     if (avail > 0) {
-        result = rt_array_create_byte_h(arena, avail,
+        result = rt_array_create_generic_v2(arena, avail, sizeof(unsigned char),
             stream->recv_buf.data + stream->recv_buf.read_pos);
         stream->recv_buf.read_pos += avail;
     } else {
-        result = rt_array_create_byte_h(arena, 0, NULL);
+        result = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     MUTEX_UNLOCK(&stream->stream_mutex);
     return result;
 }
 
-RtHandle sn_quic_stream_read_line(RtManagedArena *arena, RtQuicStream *stream) {
+RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtQuicStream *stream) {
     if (!stream) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
 
     MUTEX_LOCK(&stream->stream_mutex);
@@ -1634,23 +1631,23 @@ RtHandle sn_quic_stream_read_line(RtManagedArena *arena, RtQuicStream *stream) {
                 /* Strip \r if present */
                 if (line_len > 0 && start[line_len - 1] == '\r') line_len--;
 
-                char *temp = (char *)rt_arena_alloc((RtArena *)arena, line_len + 1);
+                char *temp = (char *)rt_arena_alloc(arena, line_len + 1);
                 memcpy(temp, start, line_len);
                 temp[line_len] = '\0';
                 stream->recv_buf.read_pos += i + 1;
                 MUTEX_UNLOCK(&stream->stream_mutex);
-                return rt_managed_strdup(arena, RT_HANDLE_NULL, temp);
+                return rt_arena_v2_strdup(arena, temp);
             }
         }
 
         if (stream->recv_buf.fin_received || stream->closed) {
             /* Return remaining data as last line */
-            char *temp = (char *)rt_arena_alloc((RtArena *)arena, avail + 1);
+            char *temp = (char *)rt_arena_alloc(arena, avail + 1);
             if (avail > 0) memcpy(temp, start, avail);
             temp[avail] = '\0';
             stream->recv_buf.read_pos += avail;
             MUTEX_UNLOCK(&stream->stream_mutex);
-            return rt_managed_strdup(arena, RT_HANDLE_NULL, temp);
+            return rt_arena_v2_strdup(arena, temp);
         }
 
         COND_WAIT(&stream->read_cond, &stream->stream_mutex);
@@ -1659,7 +1656,7 @@ RtHandle sn_quic_stream_read_line(RtManagedArena *arena, RtQuicStream *stream) {
 
 long sn_quic_stream_write(RtQuicStream *stream, unsigned char *data) {
     if (!stream || !data) return 0;
-    size_t data_len = rt_array_length(data);
+    size_t data_len = rt_v2_data_array_length(data);
     if (data_len == 0) return 0;
 
     RtQuicConnection *conn = (RtQuicConnection *)stream->conn_ptr;
@@ -1820,25 +1817,25 @@ void sn_quic_stream_close(RtQuicStream *stream) {
  * QuicConnection API
  * ============================================================================ */
 
-RtQuicConnection *sn_quic_connection_connect(RtArena *arena, const char *address) {
+RtQuicConnection *sn_quic_connection_connect(RtArenaV2 *arena, const char *address) {
     return quic_connection_create(arena, address, NULL, false, NULL, 0);
 }
 
-RtQuicConnection *sn_quic_connection_connect_with(RtArena *arena, const char *address,
+RtQuicConnection *sn_quic_connection_connect_with(RtArenaV2 *arena, const char *address,
                                                     RtQuicConfig *config) {
     return quic_connection_create(arena, address, config, false, NULL, 0);
 }
 
-RtQuicConnection *sn_quic_connection_connect_early(RtArena *arena, const char *address,
+RtQuicConnection *sn_quic_connection_connect_early(RtArenaV2 *arena, const char *address,
                                                      unsigned char *token) {
-    if (!token || rt_array_length(token) == 0) {
+    if (!token || rt_v2_data_array_length(token) == 0) {
         return quic_connection_create(arena, address, NULL, false, NULL, 0);
     }
     return quic_connection_create(arena, address, NULL, true,
-                                   (const uint8_t *)token, rt_array_length(token));
+                                   (const uint8_t *)token, rt_v2_data_array_length(token));
 }
 
-RtQuicStream *sn_quic_connection_open_stream(RtArena *arena, RtQuicConnection *conn) {
+RtQuicStream *sn_quic_connection_open_stream(RtArenaV2 *arena, RtQuicConnection *conn) {
     if (!conn || conn->closed) return NULL;
     (void)arena;
 
@@ -1857,7 +1854,7 @@ RtQuicStream *sn_quic_connection_open_stream(RtArena *arena, RtQuicConnection *c
     return stream;
 }
 
-RtQuicStream *sn_quic_connection_open_uni_stream(RtArena *arena, RtQuicConnection *conn) {
+RtQuicStream *sn_quic_connection_open_uni_stream(RtArenaV2 *arena, RtQuicConnection *conn) {
     if (!conn || conn->closed) return NULL;
     (void)arena;
 
@@ -1877,7 +1874,7 @@ RtQuicStream *sn_quic_connection_open_uni_stream(RtArena *arena, RtQuicConnectio
     return stream;
 }
 
-RtQuicStream *sn_quic_connection_accept_stream(RtArena *arena, RtQuicConnection *conn) {
+RtQuicStream *sn_quic_connection_accept_stream(RtArenaV2 *arena, RtQuicConnection *conn) {
     if (!conn) return NULL;
     (void)arena;
 
@@ -1901,12 +1898,12 @@ RtQuicStream *sn_quic_connection_accept_stream(RtArena *arena, RtQuicConnection 
     return stream;
 }
 
-RtHandle sn_quic_connection_resumption_token(RtManagedArena *arena, RtQuicConnection *conn) {
+RtHandleV2 *sn_quic_connection_resumption_token(RtArenaV2 *arena, RtQuicConnection *conn) {
     if (!conn || !conn->resumption_token || conn->resumption_token_len == 0) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
-    return rt_array_create_byte_h(arena, conn->resumption_token_len, conn->resumption_token);
+    return rt_array_create_generic_v2(arena, conn->resumption_token_len, sizeof(unsigned char), conn->resumption_token);
 }
 
 void sn_quic_connection_migrate(RtQuicConnection *conn, const char *newLocalAddress) {
@@ -1986,11 +1983,11 @@ void sn_quic_connection_migrate(RtQuicConnection *conn, const char *newLocalAddr
     freeaddrinfo(res);
 }
 
-RtHandle sn_quic_connection_remote_address(RtManagedArena *arena, RtQuicConnection *conn) {
+RtHandleV2 *sn_quic_connection_remote_address(RtArenaV2 *arena, RtQuicConnection *conn) {
     if (!conn || !conn->remote_addr_str) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, conn->remote_addr_str);
+    return rt_arena_v2_strdup(arena, conn->remote_addr_str);
 }
 
 void sn_quic_connection_close(RtQuicConnection *conn) {
@@ -2097,7 +2094,7 @@ void sn_quic_connection_close(RtQuicConnection *conn) {
  * QuicListener API
  * ============================================================================ */
 
-static RtQuicListener *quic_listener_create(RtArena *arena, const char *address,
+static RtQuicListener *quic_listener_create(RtArenaV2 *arena, const char *address,
                                              const char *cert_file, const char *key_file,
                                              RtQuicConfig *config) {
     ensure_winsock_initialized();
@@ -2200,18 +2197,18 @@ static RtQuicListener *quic_listener_create(RtArena *arena, const char *address,
     return listener;
 }
 
-RtQuicListener *sn_quic_listener_bind(RtArena *arena, const char *address,
+RtQuicListener *sn_quic_listener_bind(RtArenaV2 *arena, const char *address,
                                         const char *certFile, const char *keyFile) {
     return quic_listener_create(arena, address, certFile, keyFile, NULL);
 }
 
-RtQuicListener *sn_quic_listener_bind_with(RtArena *arena, const char *address,
+RtQuicListener *sn_quic_listener_bind_with(RtArenaV2 *arena, const char *address,
                                              const char *certFile, const char *keyFile,
                                              RtQuicConfig *config) {
     return quic_listener_create(arena, address, certFile, keyFile, config);
 }
 
-RtQuicConnection *sn_quic_listener_accept(RtArena *arena, RtQuicListener *listener) {
+RtQuicConnection *sn_quic_listener_accept(RtArenaV2 *arena, RtQuicListener *listener) {
     if (!listener) return NULL;
     (void)arena;
 

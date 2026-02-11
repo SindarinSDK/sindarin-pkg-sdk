@@ -7,8 +7,7 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "runtime/runtime_arena.h"
-#include "runtime/arena/managed_arena.h"
+#include "runtime/arena/arena_v2.h"
 #include "runtime/runtime_io.h"
 
 /* ============================================================================
@@ -32,13 +31,13 @@ typedef struct RtStderr {
  * ============================================================================ */
 
 /* Read a line from standard input (strips trailing newline) */
-RtHandle sn_stdin_read_line(RtManagedArena *arena)
+RtHandleV2 *sn_stdin_read_line(RtArenaV2 *arena)
 {
     /* Read a line from stdin, stripping trailing newline */
     char buffer[4096];
     if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
         /* EOF or error - return empty string */
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
     /* Strip trailing newline if present */
@@ -48,7 +47,7 @@ RtHandle sn_stdin_read_line(RtManagedArena *arena)
         len--;
     }
 
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, buffer);
+    return rt_arena_v2_strdup(arena,buffer);
 }
 
 /* Read a single character from standard input (returns -1 on EOF) */
@@ -58,15 +57,15 @@ long sn_stdin_read_char(void)
 }
 
 /* Read a whitespace-delimited word from standard input */
-RtHandle sn_stdin_read_word(RtManagedArena *arena)
+RtHandleV2 *sn_stdin_read_word(RtArenaV2 *arena)
 {
     char buffer[4096];
     if (scanf("%4095s", buffer) != 1) {
         /* EOF or error - return empty string */
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, buffer);
+    return rt_arena_v2_strdup(arena,buffer);
 }
 
 /* Check if characters are available on stdin */

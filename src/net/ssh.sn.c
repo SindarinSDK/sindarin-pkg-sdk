@@ -17,10 +17,8 @@
 #include <stdbool.h>
 
 /* Include runtime for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/string/runtime_string_h.h"
+#include "runtime/array/runtime_array_v2.h"
+#include "runtime/string/runtime_string_v2.h"
 
 /* libssh includes */
 #include <libssh/libssh.h>
@@ -233,7 +231,7 @@ static int ssh_parse_address(const char *address, char *host, size_t host_len, i
  * Internal: SSH Session Connect + Handshake
  * ============================================================================ */
 
-static RtSshConnection *ssh_connect_and_handshake(RtArena *arena, const char *address) {
+static RtSshConnection *ssh_connect_and_handshake(RtArenaV2 *arena, const char *address) {
     ensure_libssh_initialized();
 
     if (address == NULL) {
@@ -297,7 +295,7 @@ static RtSshConnection *ssh_connect_and_handshake(RtArena *arena, const char *ad
  * Authentication: Password
  * ============================================================================ */
 
-RtSshConnection *sn_ssh_connect_password(RtArena *arena, const char *address,
+RtSshConnection *sn_ssh_connect_password(RtArenaV2 *arena, const char *address,
                                            const char *username, const char *password) {
     RtSshConnection *conn = ssh_connect_and_handshake(arena, address);
     ssh_session session = (ssh_session)conn->session_ptr;
@@ -317,7 +315,7 @@ RtSshConnection *sn_ssh_connect_password(RtArena *arena, const char *address,
  * Authentication: Public Key
  * ============================================================================ */
 
-RtSshConnection *sn_ssh_connect_key(RtArena *arena, const char *address,
+RtSshConnection *sn_ssh_connect_key(RtArenaV2 *arena, const char *address,
                                       const char *username, const char *privateKeyPath,
                                       const char *passphrase) {
     RtSshConnection *conn = ssh_connect_and_handshake(arena, address);
@@ -354,7 +352,7 @@ RtSshConnection *sn_ssh_connect_key(RtArena *arena, const char *address,
  * Authentication: SSH Agent
  * ============================================================================ */
 
-RtSshConnection *sn_ssh_connect_agent(RtArena *arena, const char *address,
+RtSshConnection *sn_ssh_connect_agent(RtArenaV2 *arena, const char *address,
                                         const char *username) {
     RtSshConnection *conn = ssh_connect_and_handshake(arena, address);
     ssh_session session = (ssh_session)conn->session_ptr;
@@ -374,7 +372,7 @@ RtSshConnection *sn_ssh_connect_agent(RtArena *arena, const char *address,
  * Authentication: Keyboard-Interactive
  * ============================================================================ */
 
-RtSshConnection *sn_ssh_connect_interactive(RtArena *arena, const char *address,
+RtSshConnection *sn_ssh_connect_interactive(RtArenaV2 *arena, const char *address,
                                               const char *username, const char *password) {
     RtSshConnection *conn = ssh_connect_and_handshake(arena, address);
     ssh_session session = (ssh_session)conn->session_ptr;
@@ -403,7 +401,7 @@ RtSshConnection *sn_ssh_connect_interactive(RtArena *arena, const char *address,
  * Command Execution (Internal)
  * ============================================================================ */
 
-static RtSshExecResult *ssh_exec_internal(RtArena *arena, RtSshConnection *conn,
+static RtSshExecResult *ssh_exec_internal(RtArenaV2 *arena, RtSshConnection *conn,
                                             const char *command) {
     if (!conn || !conn->session_ptr) {
         fprintf(stderr, "SshConnection.exec: connection is closed\n");
@@ -562,13 +560,13 @@ static RtSshExecResult *ssh_exec_internal(RtArena *arena, RtSshConnection *conn,
  * ============================================================================ */
 
 /* Execute command, return stdout only */
-RtHandle sn_ssh_run(RtManagedArena *arena, RtSshConnection *conn, const char *command) {
-    RtSshExecResult *result = ssh_exec_internal((RtArena *)arena, conn, command);
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, result->stdout_str ? result->stdout_str : "");
+RtHandleV2 *sn_ssh_run(RtArenaV2 *arena, RtSshConnection *conn, const char *command) {
+    RtSshExecResult *result = ssh_exec_internal(arena, conn, command);
+    return rt_arena_v2_strdup(arena, result->stdout_str ? result->stdout_str : "");
 }
 
 /* Execute command, return full result struct */
-RtSshExecResult *sn_ssh_exec(RtArena *arena, RtSshConnection *conn, const char *command) {
+RtSshExecResult *sn_ssh_exec(RtArenaV2 *arena, RtSshConnection *conn, const char *command) {
     return ssh_exec_internal(arena, conn, command);
 }
 
@@ -576,25 +574,25 @@ RtSshExecResult *sn_ssh_exec(RtArena *arena, RtSshConnection *conn, const char *
  * Getters
  * ============================================================================ */
 
-RtHandle sn_ssh_get_remote_address(RtManagedArena *arena, RtSshConnection *conn) {
+RtHandleV2 *sn_ssh_get_remote_address(RtArenaV2 *arena, RtSshConnection *conn) {
     if (conn == NULL || conn->remote_addr == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, conn->remote_addr);
+    return rt_arena_v2_strdup(arena, conn->remote_addr);
 }
 
-RtHandle sn_ssh_exec_result_get_stdout(RtManagedArena *arena, RtSshExecResult *result) {
+RtHandleV2 *sn_ssh_exec_result_get_stdout(RtArenaV2 *arena, RtSshExecResult *result) {
     if (result == NULL || result->stdout_str == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, result->stdout_str);
+    return rt_arena_v2_strdup(arena, result->stdout_str);
 }
 
-RtHandle sn_ssh_exec_result_get_stderr(RtManagedArena *arena, RtSshExecResult *result) {
+RtHandleV2 *sn_ssh_exec_result_get_stderr(RtArenaV2 *arena, RtSshExecResult *result) {
     if (result == NULL || result->stderr_str == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, result->stderr_str);
+    return rt_arena_v2_strdup(arena, result->stderr_str);
 }
 
 long sn_ssh_exec_result_get_exit_code(RtSshExecResult *result) {
@@ -623,7 +621,7 @@ void sn_ssh_close(RtSshConnection *conn) {
 
 #define SSH_MAX_USERS 64
 
-RtSshServerConfig *sn_ssh_server_config_defaults(RtArena *arena) {
+RtSshServerConfig *sn_ssh_server_config_defaults(RtArenaV2 *arena) {
     RtSshServerConfig *config = (RtSshServerConfig *)rt_arena_alloc(arena, sizeof(RtSshServerConfig));
     if (!config) {
         fprintf(stderr, "SshServerConfig.defaults: allocation failed\n");
@@ -636,7 +634,7 @@ RtSshServerConfig *sn_ssh_server_config_defaults(RtArena *arena) {
     return config;
 }
 
-RtSshServerConfig *sn_ssh_server_config_set_host_key(RtArena *arena, RtSshServerConfig *config, const char *path) {
+RtSshServerConfig *sn_ssh_server_config_set_host_key(RtArenaV2 *arena, RtSshServerConfig *config, const char *path) {
     (void)arena;
     if (!config || !path) return config;
     size_t len = strlen(path) + 1;
@@ -647,7 +645,7 @@ RtSshServerConfig *sn_ssh_server_config_set_host_key(RtArena *arena, RtSshServer
     return config;
 }
 
-RtSshServerConfig *sn_ssh_server_config_add_user(RtArena *arena, RtSshServerConfig *config,
+RtSshServerConfig *sn_ssh_server_config_add_user(RtArenaV2 *arena, RtSshServerConfig *config,
                                                    const char *username, const char *password) {
     if (!config || !username || !password) return config;
     if (config->user_count >= SSH_MAX_USERS) {
@@ -673,7 +671,7 @@ RtSshServerConfig *sn_ssh_server_config_add_user(RtArena *arena, RtSshServerConf
     return config;
 }
 
-RtSshServerConfig *sn_ssh_server_config_set_authorized_keys_dir(RtArena *arena,
+RtSshServerConfig *sn_ssh_server_config_set_authorized_keys_dir(RtArenaV2 *arena,
                                                                    RtSshServerConfig *config,
                                                                    const char *path) {
     if (!config || !path) return config;
@@ -689,7 +687,7 @@ RtSshServerConfig *sn_ssh_server_config_set_authorized_keys_dir(RtArena *arena,
  * Server: SshListener
  * ============================================================================ */
 
-static RtSshListener *ssh_listener_bind_internal(RtArena *arena, const char *address,
+static RtSshListener *ssh_listener_bind_internal(RtArenaV2 *arena, const char *address,
                                                    RtSshServerConfig *config) {
     ensure_libssh_initialized();
 
@@ -762,14 +760,14 @@ static RtSshListener *ssh_listener_bind_internal(RtArena *arena, const char *add
     return listener;
 }
 
-RtSshListener *sn_ssh_listener_bind(RtArena *arena, const char *address, const char *hostKeyPath) {
+RtSshListener *sn_ssh_listener_bind(RtArenaV2 *arena, const char *address, const char *hostKeyPath) {
     /* Create a simple config with just the host key */
     RtSshServerConfig *config = sn_ssh_server_config_defaults(arena);
     sn_ssh_server_config_set_host_key(arena, config, hostKeyPath);
     return ssh_listener_bind_internal(arena, address, config);
 }
 
-RtSshListener *sn_ssh_listener_bind_with(RtArena *arena, const char *address,
+RtSshListener *sn_ssh_listener_bind_with(RtArenaV2 *arena, const char *address,
                                             RtSshServerConfig *config) {
     return ssh_listener_bind_internal(arena, address, config);
 }
@@ -791,7 +789,7 @@ void sn_ssh_listener_close(RtSshListener *listener) {
  * Server: Accept Session (Authentication)
  * ============================================================================ */
 
-RtSshSession *sn_ssh_listener_accept(RtArena *arena, RtSshListener *listener) {
+RtSshSession *sn_ssh_listener_accept(RtArenaV2 *arena, RtSshListener *listener) {
     if (!listener || !listener->bind_ptr) {
         fprintf(stderr, "SshListener.accept: listener is closed\n");
         exit(1);
@@ -935,18 +933,18 @@ RtSshSession *sn_ssh_listener_accept(RtArena *arena, RtSshListener *listener) {
  * Server: SshSession
  * ============================================================================ */
 
-RtHandle sn_ssh_session_get_username(RtManagedArena *arena, RtSshSession *session) {
+RtHandleV2 *sn_ssh_session_get_username(RtArenaV2 *arena, RtSshSession *session) {
     if (!session || !session->username) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, session->username);
+    return rt_arena_v2_strdup(arena, session->username);
 }
 
-RtHandle sn_ssh_session_get_remote_address(RtManagedArena *arena, RtSshSession *session) {
+RtHandleV2 *sn_ssh_session_get_remote_address(RtArenaV2 *arena, RtSshSession *session) {
     if (!session || !session->remote_addr) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, session->remote_addr);
+    return rt_arena_v2_strdup(arena, session->remote_addr);
 }
 
 void sn_ssh_session_close(RtSshSession *session) {
@@ -962,7 +960,7 @@ void sn_ssh_session_close(RtSshSession *session) {
  * Server: Accept Channel
  * ============================================================================ */
 
-RtSshChannel *sn_ssh_session_accept_channel(RtArena *arena, RtSshSession *session) {
+RtSshChannel *sn_ssh_session_accept_channel(RtArenaV2 *arena, RtSshSession *session) {
     if (!session || !session->session_ptr) {
         fprintf(stderr, "SshSession.acceptChannel: session is closed\n");
         exit(1);
@@ -1046,11 +1044,11 @@ RtSshChannel *sn_ssh_session_accept_channel(RtArena *arena, RtSshSession *sessio
  * Server: SshChannel Operations
  * ============================================================================ */
 
-RtHandle sn_ssh_channel_get_command(RtManagedArena *arena, RtSshChannel *channel) {
+RtHandleV2 *sn_ssh_channel_get_command(RtArenaV2 *arena, RtSshChannel *channel) {
     if (!channel || !channel->command_str) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, channel->command_str);
+    return rt_arena_v2_strdup(arena, channel->command_str);
 }
 
 long sn_ssh_channel_is_shell(RtSshChannel *channel) {
@@ -1058,9 +1056,9 @@ long sn_ssh_channel_is_shell(RtSshChannel *channel) {
     return channel->is_shell;
 }
 
-unsigned char *sn_ssh_channel_read(RtArena *arena, RtSshChannel *channel, long maxBytes) {
+RtHandleV2 *sn_ssh_channel_read(RtArenaV2 *arena, RtSshChannel *channel, long maxBytes) {
     if (!channel || !channel->channel_ptr || maxBytes <= 0) {
-        return rt_array_create_byte(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     ssh_channel ch = (ssh_channel)channel->channel_ptr;
@@ -1069,23 +1067,23 @@ unsigned char *sn_ssh_channel_read(RtArena *arena, RtSshChannel *channel, long m
     size_t buf_size = (size_t)maxBytes;
     unsigned char *temp = (unsigned char *)malloc(buf_size);
     if (!temp) {
-        return rt_array_create_byte(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     int n = ssh_channel_read(ch, temp, (uint32_t)buf_size, 0);
     if (n <= 0) {
         free(temp);
-        return rt_array_create_byte(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
-    unsigned char *result = rt_array_create_byte(arena, (size_t)n, temp);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)n, sizeof(unsigned char), temp);
     free(temp);
     return result;
 }
 
-RtHandle sn_ssh_channel_read_line(RtManagedArena *arena, RtSshChannel *channel) {
+RtHandleV2 *sn_ssh_channel_read_line(RtArenaV2 *arena, RtSshChannel *channel) {
     if (!channel || !channel->channel_ptr) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
 
     ssh_channel ch = (ssh_channel)channel->channel_ptr;
@@ -1094,7 +1092,7 @@ RtHandle sn_ssh_channel_read_line(RtManagedArena *arena, RtSshChannel *channel) 
     size_t cap = 256, len = 0;
     char *buf = (char *)malloc(cap);
     if (!buf) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
 
     while (1) {
@@ -1115,7 +1113,7 @@ RtHandle sn_ssh_channel_read_line(RtManagedArena *arena, RtSshChannel *channel) 
     buf[len] = '\0';
 
     /* Copy to managed arena */
-    RtHandle result = rt_managed_strdup(arena, RT_HANDLE_NULL, buf);
+    RtHandleV2 *result = rt_arena_v2_strdup(arena, buf);
     free(buf);
     return result;
 }
@@ -1123,7 +1121,7 @@ RtHandle sn_ssh_channel_read_line(RtManagedArena *arena, RtSshChannel *channel) 
 long sn_ssh_channel_write(RtSshChannel *channel, unsigned char *data) {
     if (!channel || !channel->channel_ptr || !data) return 0;
 
-    size_t length = rt_array_length(data);
+    size_t length = rt_v2_data_array_length(data);
     if (length == 0) return 0;
 
     ssh_channel ch = (ssh_channel)channel->channel_ptr;

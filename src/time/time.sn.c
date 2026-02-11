@@ -26,8 +26,7 @@
 #define GMTIME_R(time_ptr, tm_ptr) gmtime_r(time_ptr, tm_ptr)
 #endif
 
-#include "runtime/runtime_arena.h"
-#include "runtime/arena/managed_arena.h"
+#include "runtime/arena/arena_v2.h"
 
 /* ============================================================================
  * RtTime Structure (matches runtime definition)
@@ -42,7 +41,7 @@ typedef struct RtTime {
  * ============================================================================ */
 
 /* Create RtTime from milliseconds using arena allocation */
-static RtTime *sn_time_create(RtArena *arena, long long milliseconds)
+static RtTime *sn_time_create(RtArenaV2 *arena, long long milliseconds)
 {
     if (arena == NULL) {
         fprintf(stderr, "sn_time_create: NULL arena\n");
@@ -156,19 +155,19 @@ static void sn_time_to_tm(RtTime *time, struct tm *tm_result)
  * ============================================================================ */
 
 /* Create Time from milliseconds since Unix epoch */
-RtTime *sn_time_from_millis(RtArena *arena, long long ms)
+RtTime *sn_time_from_millis(RtArenaV2 *arena, long long ms)
 {
     return sn_time_create(arena, ms);
 }
 
 /* Create Time from seconds since Unix epoch */
-RtTime *sn_time_from_seconds(RtArena *arena, long long s)
+RtTime *sn_time_from_seconds(RtArenaV2 *arena, long long s)
 {
     return sn_time_create(arena, s * 1000);
 }
 
 /* Get current local time */
-RtTime *sn_time_now(RtArena *arena)
+RtTime *sn_time_now(RtArenaV2 *arena)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -177,7 +176,7 @@ RtTime *sn_time_now(RtArena *arena)
 }
 
 /* Get current UTC time */
-RtTime *sn_time_utc(RtArena *arena)
+RtTime *sn_time_utc(RtArenaV2 *arena)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -281,31 +280,31 @@ long sn_time_get_weekday(RtTime *time)
  * ============================================================================ */
 
 /* Format as date string (YYYY-MM-DD) */
-RtHandle sn_time_to_date(RtManagedArena *arena, RtTime *time)
+RtHandleV2 *sn_time_to_date(RtArenaV2 *arena, RtTime *time)
 {
-    if (arena == NULL || time == NULL) return RT_HANDLE_NULL;
+    if (arena == NULL || time == NULL) return NULL;
     struct tm tm;
     sn_time_to_tm(time, &tm);
     char buf[16];
     sprintf(buf, "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, buf);
+    return rt_arena_v2_strdup(arena,buf);
 }
 
 /* Format as time string (HH:mm:ss) */
-RtHandle sn_time_to_time(RtManagedArena *arena, RtTime *time)
+RtHandleV2 *sn_time_to_time(RtArenaV2 *arena, RtTime *time)
 {
-    if (arena == NULL || time == NULL) return RT_HANDLE_NULL;
+    if (arena == NULL || time == NULL) return NULL;
     struct tm tm;
     sn_time_to_tm(time, &tm);
     char buf[16];
     sprintf(buf, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, buf);
+    return rt_arena_v2_strdup(arena,buf);
 }
 
 /* Format as ISO 8601 string (YYYY-MM-DDTHH:mm:ss.SSSZ) */
-RtHandle sn_time_to_iso(RtManagedArena *arena, RtTime *time)
+RtHandleV2 *sn_time_to_iso(RtArenaV2 *arena, RtTime *time)
 {
-    if (arena == NULL || time == NULL) return RT_HANDLE_NULL;
+    if (arena == NULL || time == NULL) return NULL;
     time_t secs = time->milliseconds / 1000;
     long millis = time->milliseconds % 1000;
     struct tm tm;
@@ -314,13 +313,13 @@ RtHandle sn_time_to_iso(RtManagedArena *arena, RtTime *time)
     sprintf(buf, "%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ",
             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
             tm.tm_hour, tm.tm_min, tm.tm_sec, millis);
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, buf);
+    return rt_arena_v2_strdup(arena,buf);
 }
 
 /* Format time using pattern string */
-RtHandle sn_time_format(RtManagedArena *arena, RtTime *time, const char *pattern)
+RtHandleV2 *sn_time_format(RtArenaV2 *arena, RtTime *time, const char *pattern)
 {
-    if (arena == NULL || time == NULL || pattern == NULL) return RT_HANDLE_NULL;
+    if (arena == NULL || time == NULL || pattern == NULL) return NULL;
 
     struct tm tm;
     sn_time_to_tm(time, &tm);
@@ -394,7 +393,7 @@ RtHandle sn_time_format(RtManagedArena *arena, RtTime *time, const char *pattern
     }
 
     result[out_pos] = '\0';
-    RtHandle handle = rt_managed_strdup(arena, RT_HANDLE_NULL, result);
+    RtHandleV2 *handle = rt_arena_v2_strdup(arena,result);
     free(result);
     return handle;
 }
@@ -404,32 +403,32 @@ RtHandle sn_time_format(RtManagedArena *arena, RtTime *time, const char *pattern
  * ============================================================================ */
 
 /* Add milliseconds to time */
-RtTime *sn_time_add(RtArena *arena, RtTime *time, long long ms)
+RtTime *sn_time_add(RtArenaV2 *arena, RtTime *time, long long ms)
 {
     if (arena == NULL || time == NULL) return NULL;
     return sn_time_create(arena, time->milliseconds + ms);
 }
 
 /* Add seconds to time */
-RtTime *sn_time_add_seconds(RtArena *arena, RtTime *time, long seconds)
+RtTime *sn_time_add_seconds(RtArenaV2 *arena, RtTime *time, long seconds)
 {
     return sn_time_add(arena, time, seconds * 1000LL);
 }
 
 /* Add minutes to time */
-RtTime *sn_time_add_minutes(RtArena *arena, RtTime *time, long minutes)
+RtTime *sn_time_add_minutes(RtArenaV2 *arena, RtTime *time, long minutes)
 {
     return sn_time_add(arena, time, minutes * 60 * 1000LL);
 }
 
 /* Add hours to time */
-RtTime *sn_time_add_hours(RtArena *arena, RtTime *time, long hours)
+RtTime *sn_time_add_hours(RtArenaV2 *arena, RtTime *time, long hours)
 {
     return sn_time_add(arena, time, hours * 60 * 60 * 1000LL);
 }
 
 /* Add days to time */
-RtTime *sn_time_add_days(RtArena *arena, RtTime *time, long days)
+RtTime *sn_time_add_days(RtArenaV2 *arena, RtTime *time, long days)
 {
     return sn_time_add(arena, time, days * 24 * 60 * 60 * 1000LL);
 }

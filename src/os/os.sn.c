@@ -7,9 +7,8 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "runtime/runtime_arena.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/string/runtime_string_h.h"
+#include "runtime/arena/arena_v2.h"
+#include "runtime/string/runtime_string_v2.h"
 
 /* Platform-specific includes for CPU count */
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__MINGW64__)
@@ -91,7 +90,7 @@ int sn_os_is_unix(void)
  * Get the name of the current operating system.
  * Returns a string: "Windows", "macOS", "Linux", or "Unknown".
  */
-RtHandle sn_os_name(RtManagedArena *arena)
+RtHandleV2 *sn_os_name(RtArenaV2 *arena)
 {
     const char *name;
 
@@ -111,7 +110,7 @@ RtHandle sn_os_name(RtManagedArena *arena)
     name = "Unknown";
 #endif
 
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, name);
+    return rt_arena_v2_strdup(arena,name);
 }
 
 /**

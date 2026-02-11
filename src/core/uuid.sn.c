@@ -50,8 +50,7 @@
 #endif
 
 /* Include runtime arena for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/arena/managed_arena.h"
+#include "runtime/arena/arena_v2.h"
 
 /* ============================================================================
  * UUID Type Definition
@@ -372,7 +371,7 @@ static void sha1_final(SHA1_Context *ctx, uint8_t digest[SHA1_DIGEST_SIZE]) {
  * UUIDv4 Generation
  * ============================================================================ */
 
-RtUuid *sn_uuid_v4(RtArena *arena) {
+RtUuid *sn_uuid_v4(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -416,7 +415,7 @@ RtUuid *sn_uuid_v4(RtArena *arena) {
  * UUIDv5 Generation
  * ============================================================================ */
 
-RtUuid *sn_uuid_v5(RtArena *arena, RtUuid *namespace_uuid, const char *name) {
+RtUuid *sn_uuid_v5(RtArenaV2 *arena, RtUuid *namespace_uuid, const char *name) {
     if (arena == NULL || namespace_uuid == NULL || name == NULL) {
         return NULL;
     }
@@ -484,7 +483,7 @@ RtUuid *sn_uuid_v5(RtArena *arena, RtUuid *namespace_uuid, const char *name) {
  * UUIDv7 Generation
  * ============================================================================ */
 
-RtUuid *sn_uuid_v7(RtArena *arena) {
+RtUuid *sn_uuid_v7(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -522,7 +521,7 @@ RtUuid *sn_uuid_v7(RtArena *arena) {
 }
 
 /* Create using recommended default (v7) */
-RtUuid *sn_uuid_create(RtArena *arena) {
+RtUuid *sn_uuid_create(RtArenaV2 *arena) {
     return sn_uuid_v7(arena);
 }
 
@@ -590,9 +589,9 @@ long long sn_uuid_get_timestamp(RtUuid *uuid) {
  * Conversion Methods
  * ============================================================================ */
 
-RtHandle sn_uuid_to_string(RtManagedArena *arena, RtUuid *uuid) {
+RtHandleV2 *sn_uuid_to_string(RtArenaV2 *arena, RtUuid *uuid) {
     if (arena == NULL || uuid == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     uint32_t time_low = (uint32_t)(uuid->high >> 32);
@@ -606,12 +605,12 @@ RtHandle sn_uuid_to_string(RtManagedArena *arena, RtUuid *uuid) {
              time_low, time_mid, time_hi_version, clock_seq,
              (unsigned long long)node);
 
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, buf);
+    return rt_arena_v2_strdup(arena, buf);
 }
 
-RtHandle sn_uuid_to_hex(RtManagedArena *arena, RtUuid *uuid) {
+RtHandleV2 *sn_uuid_to_hex(RtArenaV2 *arena, RtUuid *uuid) {
     if (arena == NULL || uuid == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     char buf[33];
@@ -619,16 +618,16 @@ RtHandle sn_uuid_to_hex(RtManagedArena *arena, RtUuid *uuid) {
              (unsigned long long)uuid->high,
              (unsigned long long)uuid->low);
 
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, buf);
+    return rt_arena_v2_strdup(arena, buf);
 }
 
 /* URL-safe base64 alphabet (RFC 4648 section 5) */
 static const char BASE64_URL_ALPHABET[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
-RtHandle sn_uuid_to_base64(RtManagedArena *arena, RtUuid *uuid) {
+RtHandleV2 *sn_uuid_to_base64(RtArenaV2 *arena, RtUuid *uuid) {
     if (arena == NULL || uuid == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     unsigned char bytes[16];
@@ -667,7 +666,7 @@ RtHandle sn_uuid_to_base64(RtManagedArena *arena, RtUuid *uuid) {
     buf[out_idx++] = BASE64_URL_ALPHABET[(bytes[15] << 4) & 0x3F];
     buf[out_idx] = '\0';
 
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, buf);
+    return rt_arena_v2_strdup(arena, buf);
 }
 
 /* ============================================================================
@@ -705,7 +704,7 @@ int sn_uuid_is_greater_than(RtUuid *uuid, RtUuid *other) {
  * Special UUIDs
  * ============================================================================ */
 
-RtUuid *sn_uuid_nil(RtArena *arena) {
+RtUuid *sn_uuid_nil(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -720,7 +719,7 @@ RtUuid *sn_uuid_nil(RtArena *arena) {
     return uuid;
 }
 
-RtUuid *sn_uuid_max(RtArena *arena) {
+RtUuid *sn_uuid_max(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -739,7 +738,7 @@ RtUuid *sn_uuid_max(RtArena *arena) {
  * Namespace Accessors
  * ============================================================================ */
 
-RtUuid *sn_uuid_namespace_dns(RtArena *arena) {
+RtUuid *sn_uuid_namespace_dns(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -753,7 +752,7 @@ RtUuid *sn_uuid_namespace_dns(RtArena *arena) {
     return uuid;
 }
 
-RtUuid *sn_uuid_namespace_url(RtArena *arena) {
+RtUuid *sn_uuid_namespace_url(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -767,7 +766,7 @@ RtUuid *sn_uuid_namespace_url(RtArena *arena) {
     return uuid;
 }
 
-RtUuid *sn_uuid_namespace_oid(RtArena *arena) {
+RtUuid *sn_uuid_namespace_oid(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -781,7 +780,7 @@ RtUuid *sn_uuid_namespace_oid(RtArena *arena) {
     return uuid;
 }
 
-RtUuid *sn_uuid_namespace_x500(RtArena *arena) {
+RtUuid *sn_uuid_namespace_x500(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -810,7 +809,7 @@ static int hex_char_to_int(char c) {
  * Parsing Methods
  * ============================================================================ */
 
-RtUuid *sn_uuid_from_string(RtArena *arena, const char *str) {
+RtUuid *sn_uuid_from_string(RtArenaV2 *arena, const char *str) {
     if (arena == NULL || str == NULL) {
         return NULL;
     }
@@ -865,7 +864,7 @@ RtUuid *sn_uuid_from_string(RtArena *arena, const char *str) {
     return uuid;
 }
 
-RtUuid *sn_uuid_from_hex(RtArena *arena, const char *str) {
+RtUuid *sn_uuid_from_hex(RtArenaV2 *arena, const char *str) {
     if (arena == NULL || str == NULL) {
         return NULL;
     }
@@ -922,7 +921,7 @@ static int base64_url_char_to_int(char c) {
     return -1;
 }
 
-static RtUuid *sn_uuid_from_bytes(RtArena *arena, const unsigned char *bytes) {
+static RtUuid *sn_uuid_from_bytes(RtArenaV2 *arena, const unsigned char *bytes) {
     if (arena == NULL || bytes == NULL) {
         return NULL;
     }
@@ -953,7 +952,7 @@ static RtUuid *sn_uuid_from_bytes(RtArena *arena, const unsigned char *bytes) {
     return uuid;
 }
 
-RtUuid *sn_uuid_from_base64(RtArena *arena, const char *str) {
+RtUuid *sn_uuid_from_base64(RtArenaV2 *arena, const char *str) {
     if (arena == NULL || str == NULL) {
         return NULL;
     }

@@ -16,11 +16,8 @@
 #include <stdbool.h>
 
 /* Include runtime for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/string/runtime_string_h.h"
-#include "runtime/array/runtime_array_h.h"
+#include "runtime/array/runtime_array_v2.h"
+#include "runtime/string/runtime_string_v2.h"
 
 /* OpenSSL includes */
 #include <openssl/ssl.h>
@@ -396,7 +393,7 @@ static int tls_parse_address(const char *address, char *host, size_t host_len, i
  * TlsStream Creation
  * ============================================================================ */
 
-static RtTlsStream *sn_tls_stream_create(RtArena *arena, socket_t sock,
+static RtTlsStream *sn_tls_stream_create(RtArenaV2 *arena, socket_t sock,
                                            SSL_CTX *ctx, SSL *ssl,
                                            const char *remote_addr) {
     RtTlsStream *stream = (RtTlsStream *)rt_arena_alloc(arena, sizeof(RtTlsStream));
@@ -438,7 +435,7 @@ static RtTlsStream *sn_tls_stream_create(RtArena *arena, socket_t sock,
  * TlsStream Connect
  * ============================================================================ */
 
-RtTlsStream *sn_tls_stream_connect(RtArena *arena, const char *address) {
+RtTlsStream *sn_tls_stream_connect(RtArenaV2 *arena, const char *address) {
     ensure_winsock_initialized();
     ensure_openssl_initialized();
 
@@ -574,9 +571,9 @@ RtTlsStream *sn_tls_stream_connect(RtArena *arena, const char *address) {
  * ============================================================================ */
 
 /* Read up to maxBytes (may return fewer) */
-RtHandle sn_tls_stream_read(RtManagedArena *arena, RtTlsStream *stream, long maxBytes) {
+RtHandleV2 *sn_tls_stream_read(RtArenaV2 *arena, RtTlsStream *stream, long maxBytes) {
     if (stream == NULL || maxBytes <= 0) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     /* If buffer is empty, fill it */
@@ -592,7 +589,7 @@ RtHandle sn_tls_stream_read(RtManagedArena *arena, RtTlsStream *stream, long max
     size_t available = tls_stream_buffered(stream);
     size_t to_read = ((size_t)maxBytes < available) ? (size_t)maxBytes : available;
 
-    RtHandle result = rt_array_create_byte_h(arena, to_read,
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, to_read, sizeof(unsigned char),
                                               stream->read_buf + stream->read_buf_pos);
     tls_stream_consume(stream, to_read);
 
@@ -600,9 +597,9 @@ RtHandle sn_tls_stream_read(RtManagedArena *arena, RtTlsStream *stream, long max
 }
 
 /* Read until connection closes */
-RtHandle sn_tls_stream_read_all(RtManagedArena *arena, RtTlsStream *stream) {
+RtHandleV2 *sn_tls_stream_read_all(RtArenaV2 *arena, RtTlsStream *stream) {
     if (stream == NULL) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     size_t capacity = 4096;
@@ -649,16 +646,16 @@ RtHandle sn_tls_stream_read_all(RtManagedArena *arena, RtTlsStream *stream) {
         }
     }
 
-    RtHandle result = rt_array_create_byte_h(arena, total_read, temp_buffer);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, total_read, sizeof(unsigned char), temp_buffer);
     free(temp_buffer);
 
     return result;
 }
 
 /* Read until newline */
-RtHandle sn_tls_stream_read_line(RtManagedArena *arena, RtTlsStream *stream) {
+RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtTlsStream *stream) {
     if (stream == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
 
     size_t accum_capacity = 0;
@@ -683,7 +680,7 @@ RtHandle sn_tls_stream_read_line(RtManagedArena *arena, RtTlsStream *stream) {
                     total_len--;
                 }
 
-                char *temp = (char *)rt_arena_alloc((RtArena *)arena, total_len + 1);
+                char *temp = (char *)rt_arena_alloc(arena, total_len + 1);
                 if (temp == NULL) {
                     if (accum_buffer) free(accum_buffer);
                     fprintf(stderr, "TlsStream.readLine: arena alloc failed\n");
@@ -707,7 +704,7 @@ RtHandle sn_tls_stream_read_line(RtManagedArena *arena, RtTlsStream *stream) {
                 }
 
                 if (accum_buffer) free(accum_buffer);
-                return rt_managed_strdup(arena, RT_HANDLE_NULL, temp);
+                return rt_arena_v2_strdup(arena, temp);
             }
         }
 
@@ -764,7 +761,7 @@ RtHandle sn_tls_stream_read_line(RtManagedArena *arena, RtTlsStream *stream) {
         total_len--;
     }
 
-    char *temp = (char *)rt_arena_alloc((RtArena *)arena, total_len + 1);
+    char *temp = (char *)rt_arena_alloc(arena, total_len + 1);
     if (temp == NULL) {
         if (accum_buffer) free(accum_buffer);
         fprintf(stderr, "TlsStream.readLine: arena alloc failed\n");
@@ -777,7 +774,7 @@ RtHandle sn_tls_stream_read_line(RtManagedArena *arena, RtTlsStream *stream) {
     temp[total_len] = '\0';
 
     if (accum_buffer) free(accum_buffer);
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, temp);
+    return rt_arena_v2_strdup(arena, temp);
 }
 
 /* ============================================================================
@@ -787,7 +784,7 @@ RtHandle sn_tls_stream_read_line(RtManagedArena *arena, RtTlsStream *stream) {
 long sn_tls_stream_write(RtTlsStream *stream, unsigned char *data) {
     if (stream == NULL || data == NULL) return 0;
 
-    size_t length = rt_array_length(data);
+    size_t length = rt_v2_data_array_length(data);
     if (length == 0) return 0;
 
     SSL *ssl = (SSL *)stream->ssl_ptr;
@@ -830,11 +827,11 @@ void sn_tls_stream_write_line(RtTlsStream *stream, const char *text) {
  * TlsStream Getters
  * ============================================================================ */
 
-RtHandle sn_tls_stream_get_remote_address(RtManagedArena *arena, RtTlsStream *stream) {
+RtHandleV2 *sn_tls_stream_get_remote_address(RtArenaV2 *arena, RtTlsStream *stream) {
     if (stream == NULL || stream->remote_addr == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, stream->remote_addr);
+    return rt_arena_v2_strdup(arena, stream->remote_addr);
 }
 
 /* ============================================================================
@@ -876,7 +873,7 @@ typedef struct RtTlsListener {
  * TlsListener Bind
  * ============================================================================ */
 
-RtTlsListener *sn_tls_listener_bind(RtArena *arena, const char *address,
+RtTlsListener *sn_tls_listener_bind(RtArenaV2 *arena, const char *address,
                                       const char *cert_file, const char *key_file) {
     ensure_winsock_initialized();
     ensure_openssl_initialized();
@@ -1008,7 +1005,7 @@ RtTlsListener *sn_tls_listener_bind(RtArena *arena, const char *address,
  * TlsListener Accept (blocks until a connection is available)
  * ============================================================================ */
 
-RtTlsStream *sn_tls_listener_accept(RtArena *arena, RtTlsListener *listener) {
+RtTlsStream *sn_tls_listener_accept(RtArenaV2 *arena, RtTlsListener *listener) {
     if (listener == NULL) {
         fprintf(stderr, "TlsListener.accept: listener is NULL\n");
         exit(1);

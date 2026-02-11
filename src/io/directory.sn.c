@@ -39,10 +39,7 @@
 #endif
 
 /* Include runtime arena for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/array/runtime_array_h.h"
+#include "runtime/array/runtime_array_v2.h"
 
 /* ============================================================================
  * Directory Type Definition (unused, just for namespace)
@@ -76,7 +73,7 @@ static int path_is_directory(const char *path)
 }
 
 /* Join two paths */
-static char *join_path(RtArena *arena, const char *path1, const char *path2)
+static char *join_path(RtArenaV2 *arena, const char *path1, const char *path2)
 {
     if (path1 == NULL) path1 = "";
     if (path2 == NULL) path2 = "";
@@ -108,7 +105,7 @@ static char *join_path(RtArena *arena, const char *path1, const char *path2)
 }
 
 /* Join two paths with forward slash (for consistent cross-platform relative paths) */
-static char *join_with_forward_slash(RtArena *arena, const char *prefix, const char *name)
+static char *join_with_forward_slash(RtArenaV2 *arena, const char *prefix, const char *name)
 {
     size_t prefix_len = strlen(prefix);
     size_t name_len = strlen(name);
@@ -121,10 +118,10 @@ static char *join_with_forward_slash(RtArena *arena, const char *prefix, const c
 }
 
 /* Create string array helper */
-static char **create_string_array(RtArena *arena, size_t initial_capacity)
+static char **create_string_array(RtArenaV2 *arena, size_t initial_capacity)
 {
     size_t capacity = initial_capacity > 4 ? initial_capacity : 4;
-    RtArrayMetadata *meta = rt_arena_alloc(arena, sizeof(RtArrayMetadata) + capacity * sizeof(char *));
+    RtArrayMetadataV2 *meta = rt_arena_alloc(arena, sizeof(RtArrayMetadataV2) + capacity * sizeof(char *));
     if (meta == NULL) {
         fprintf(stderr, "create_string_array: allocation failed\n");
         exit(1);
@@ -136,15 +133,15 @@ static char **create_string_array(RtArena *arena, size_t initial_capacity)
 }
 
 /* Push string to array helper */
-static char **push_string_to_array(RtArena *arena, char **arr, const char *str)
+static char **push_string_to_array(RtArenaV2 *arena, char **arr, const char *str)
 {
-    RtArrayMetadata *meta = ((RtArrayMetadata *)arr) - 1;
-    RtArena *alloc_arena = meta->arena ? meta->arena : arena;
+    RtArrayMetadataV2 *meta = ((RtArrayMetadataV2 *)arr) - 1;
+    RtArenaV2 *alloc_arena = meta->arena ? meta->arena : arena;
 
     if ((size_t)meta->size >= meta->capacity) {
         /* Need to grow the array */
         size_t new_capacity = meta->capacity * 2;
-        RtArrayMetadata *new_meta = rt_arena_alloc(alloc_arena, sizeof(RtArrayMetadata) + new_capacity * sizeof(char *));
+        RtArrayMetadataV2 *new_meta = rt_arena_alloc(alloc_arena, sizeof(RtArrayMetadataV2) + new_capacity * sizeof(char *));
         if (new_meta == NULL) {
             fprintf(stderr, "push_string_to_array: allocation failed\n");
             exit(1);
@@ -168,16 +165,16 @@ static char **push_string_to_array(RtArena *arena, char **arr, const char *str)
  * ============================================================================ */
 
 /* List files in a directory (non-recursive) */
-RtHandle sn_directory_list(RtManagedArena *arena, const char *path)
+RtHandleV2 *sn_directory_list(RtArenaV2 *arena, const char *path)
 {
     if (path == NULL) {
-        return rt_array_create_string_h(arena, 0, NULL);  /* Return empty array */
+        return rt_array_create_string_v2(arena, 0, NULL);  /* Return empty array */
     }
 
     DIR *dir = opendir(path);
     if (dir == NULL) {
         /* Directory doesn't exist or can't be opened - return empty array */
-        return rt_array_create_string_h(arena, 0, NULL);
+        return rt_array_create_string_v2(arena, 0, NULL);
     }
 
     /* Collect strings into temporary buffer */
@@ -186,7 +183,7 @@ RtHandle sn_directory_list(RtManagedArena *arena, const char *path)
     char **buf = malloc(capacity * sizeof(char *));
     if (buf == NULL) {
         closedir(dir);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     struct dirent *entry;
@@ -204,7 +201,7 @@ RtHandle sn_directory_list(RtManagedArena *arena, const char *path)
                 for (size_t i = 0; i < count; i++) free(buf[i]);
                 free(buf);
                 closedir(dir);
-                return RT_HANDLE_NULL;
+                return NULL;
             }
             buf = new_buf;
         }
@@ -214,7 +211,7 @@ RtHandle sn_directory_list(RtManagedArena *arena, const char *path)
             for (size_t i = 0; i < count; i++) free(buf[i]);
             free(buf);
             closedir(dir);
-            return RT_HANDLE_NULL;
+            return NULL;
         }
         count++;
     }
@@ -222,7 +219,7 @@ RtHandle sn_directory_list(RtManagedArena *arena, const char *path)
     closedir(dir);
 
     /* Create handle-based array */
-    RtHandle result = rt_array_create_string_h(arena, count, (const char **)buf);
+    RtHandleV2 *result = rt_array_create_string_v2(arena, count, (const char **)buf);
 
     /* Free temporary buffer */
     for (size_t i = 0; i < count; i++) free(buf[i]);
@@ -370,7 +367,7 @@ static int list_recursive_helper_collect(StringCollector *sc, const char *base_p
 }
 
 /* List files in a directory recursively */
-RtHandle sn_directory_list_recursive(RtManagedArena *arena, const char *path)
+RtHandleV2 *sn_directory_list_recursive(RtArenaV2 *arena, const char *path)
 {
     if (path == NULL) {
         fprintf(stderr, "SnDirectory.listRecursive: path cannot be null\n");
@@ -385,17 +382,17 @@ RtHandle sn_directory_list_recursive(RtManagedArena *arena, const char *path)
     /* Initialize collector */
     StringCollector sc;
     if (string_collector_init(&sc, 64) != 0) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     /* Collect all paths recursively */
     if (list_recursive_helper_collect(&sc, path, "") != 0) {
         string_collector_free(&sc);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     /* Create handle-based array */
-    RtHandle result = rt_array_create_string_h(arena, sc.count, (const char **)sc.buf);
+    RtHandleV2 *result = rt_array_create_string_v2(arena, sc.count, (const char **)sc.buf);
 
     /* Free temporary buffer */
     string_collector_free(&sc);

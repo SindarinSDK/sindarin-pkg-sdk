@@ -16,10 +16,7 @@
 #include <stdbool.h>
 
 /* Include runtime for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/array/runtime_array_h.h"
+#include "runtime/array/runtime_array_v2.h"
 
 /* libgit2 includes */
 #include <git2.h>
@@ -152,7 +149,7 @@ static int git_credential_cb(git_credential **out, const char *url,
  * Helper Functions
  * ============================================================================ */
 
-static char *arena_strdup(RtArena *arena, const char *str) {
+static char *arena_strdup(RtArenaV2 *arena, const char *str) {
     if (!str) {
         char *empty = (char *)rt_arena_alloc(arena, 1);
         if (empty) empty[0] = '\0';
@@ -207,7 +204,7 @@ static void check_git_error(int rc, const char *context) {
  * GitRepo Factory Functions
  * ============================================================================ */
 
-RtGitRepo *sn_git_repo_open(RtArena *arena, const char *path) {
+RtGitRepo *sn_git_repo_open(RtArenaV2 *arena, const char *path) {
     ensure_libgit2_initialized();
 
     git_repository *repo = NULL;
@@ -228,7 +225,7 @@ RtGitRepo *sn_git_repo_open(RtArena *arena, const char *path) {
     return result;
 }
 
-RtGitRepo *sn_git_repo_clone(RtArena *arena, const char *url, const char *path) {
+RtGitRepo *sn_git_repo_clone(RtArenaV2 *arena, const char *url, const char *path) {
     ensure_libgit2_initialized();
 
     git_repository *repo = NULL;
@@ -253,7 +250,7 @@ RtGitRepo *sn_git_repo_clone(RtArena *arena, const char *url, const char *path) 
     return result;
 }
 
-RtGitRepo *sn_git_repo_init(RtArena *arena, const char *path) {
+RtGitRepo *sn_git_repo_init(RtArenaV2 *arena, const char *path) {
     ensure_libgit2_initialized();
 
     git_repository *repo = NULL;
@@ -274,7 +271,7 @@ RtGitRepo *sn_git_repo_init(RtArena *arena, const char *path) {
     return result;
 }
 
-RtGitRepo *sn_git_repo_init_bare(RtArena *arena, const char *path) {
+RtGitRepo *sn_git_repo_init_bare(RtArenaV2 *arena, const char *path) {
     ensure_libgit2_initialized();
 
     git_repository *repo = NULL;
@@ -298,7 +295,7 @@ RtGitRepo *sn_git_repo_init_bare(RtArena *arena, const char *path) {
  * GitRepo Status & Staging
  * ============================================================================ */
 
-RtHandle sn_git_repo_status(RtManagedArena *arena, RtGitRepo *self) {
+RtHandleV2 *sn_git_repo_status(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.status: repository is closed\n");
         exit(1);
@@ -318,7 +315,7 @@ RtHandle sn_git_repo_status(RtManagedArena *arena, RtGitRepo *self) {
     size_t count = git_status_list_entrycount(status_list);
 
     /* Build handle-based array of RtGitStatus pointers */
-    RtHandle result = RT_HANDLE_NULL;
+    RtHandleV2 *result = NULL;
 
     for (size_t i = 0; i < count; i++) {
         const git_status_entry *entry = git_status_byindex(status_list, i);
@@ -335,14 +332,14 @@ RtHandle sn_git_repo_status(RtManagedArena *arena, RtGitRepo *self) {
         }
         if (!filepath) continue;
 
-        RtGitStatus *s = (RtGitStatus *)rt_arena_alloc((RtArena *)arena, sizeof(RtGitStatus));
+        RtGitStatus *s = (RtGitStatus *)rt_arena_alloc(arena, sizeof(RtGitStatus));
         if (!s) continue;
 
-        s->path_str = arena_strdup((RtArena *)arena, filepath);
-        s->status_str = arena_strdup((RtArena *)arena, status_str);
+        s->path_str = arena_strdup(arena, filepath);
+        s->status_str = arena_strdup(arena, status_str);
         s->is_staged = is_staged;
 
-        result = rt_array_push_voidptr_h(arena, result, s);
+        result = rt_array_push_voidptr_v2(arena, result, s);
     }
 
     git_status_list_free(status_list);
@@ -429,7 +426,7 @@ void sn_git_repo_unstage(RtGitRepo *self, const char *path) {
  * GitRepo Commits & Log
  * ============================================================================ */
 
-static RtGitCommit *create_commit_from_git(RtArena *arena, git_commit *commit) {
+static RtGitCommit *create_commit_from_git(RtArenaV2 *arena, git_commit *commit) {
     RtGitCommit *result = (RtGitCommit *)rt_arena_alloc(arena, sizeof(RtGitCommit));
     if (!result) {
         fprintf(stderr, "GitCommit: allocation failed\n");
@@ -461,7 +458,7 @@ static RtGitCommit *create_commit_from_git(RtArena *arena, git_commit *commit) {
     return result;
 }
 
-RtGitCommit *sn_git_repo_commit(RtArena *arena, RtGitRepo *self, const char *message) {
+RtGitCommit *sn_git_repo_commit(RtArenaV2 *arena, RtGitRepo *self, const char *message) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.commit: repository is closed\n");
         exit(1);
@@ -532,7 +529,7 @@ RtGitCommit *sn_git_repo_commit(RtArena *arena, RtGitRepo *self, const char *mes
     return result;
 }
 
-RtGitCommit *sn_git_repo_commit_as(RtArena *arena, RtGitRepo *self, const char *message,
+RtGitCommit *sn_git_repo_commit_as(RtArenaV2 *arena, RtGitRepo *self, const char *message,
                                      const char *authorName, const char *authorEmail) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.commitAs: repository is closed\n");
@@ -600,7 +597,7 @@ RtGitCommit *sn_git_repo_commit_as(RtArena *arena, RtGitRepo *self, const char *
     return result;
 }
 
-RtHandle sn_git_repo_log(RtManagedArena *arena, RtGitRepo *self, long maxCount) {
+RtHandleV2 *sn_git_repo_log(RtArenaV2 *arena, RtGitRepo *self, long maxCount) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.log: repository is closed\n");
         exit(1);
@@ -616,13 +613,13 @@ RtHandle sn_git_repo_log(RtManagedArena *arena, RtGitRepo *self, long maxCount) 
     if (rc < 0) {
         /* Empty repository - no HEAD */
         git_revwalk_free(walker);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     git_revwalk_sorting(walker, GIT_SORT_TIME);
 
     /* Build handle-based array of RtGitCommit pointers */
-    RtHandle result = RT_HANDLE_NULL;
+    RtHandleV2 *result = NULL;
     size_t max = (size_t)(maxCount > 0 ? maxCount : 100);
     size_t count = 0;
     git_oid oid;
@@ -632,8 +629,8 @@ RtHandle sn_git_repo_log(RtManagedArena *arena, RtGitRepo *self, long maxCount) 
         rc = git_commit_lookup(&commit, repo, &oid);
         if (rc < 0) continue;
 
-        RtGitCommit *c = create_commit_from_git((RtArena *)arena, commit);
-        result = rt_array_push_voidptr_h(arena, result, c);
+        RtGitCommit *c = create_commit_from_git(arena, commit);
+        result = rt_array_push_voidptr_v2(arena, result, c);
         count++;
 
         git_commit_free(commit);
@@ -643,7 +640,7 @@ RtHandle sn_git_repo_log(RtManagedArena *arena, RtGitRepo *self, long maxCount) 
     return result;
 }
 
-RtGitCommit *sn_git_repo_head_commit(RtArena *arena, RtGitRepo *self) {
+RtGitCommit *sn_git_repo_head_commit(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.head: repository is closed\n");
         exit(1);
@@ -669,7 +666,7 @@ RtGitCommit *sn_git_repo_head_commit(RtArena *arena, RtGitRepo *self) {
  * GitRepo Branches
  * ============================================================================ */
 
-RtHandle sn_git_repo_branches(RtManagedArena *arena, RtGitRepo *self) {
+RtHandleV2 *sn_git_repo_branches(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.branches: repository is closed\n");
         exit(1);
@@ -682,7 +679,7 @@ RtHandle sn_git_repo_branches(RtManagedArena *arena, RtGitRepo *self) {
     check_git_error(rc, "GitRepo.branches");
 
     /* Build handle-based array of RtGitBranch pointers */
-    RtHandle result = RT_HANDLE_NULL;
+    RtHandleV2 *result = NULL;
     git_reference *ref = NULL;
     git_branch_t branch_type;
 
@@ -690,17 +687,17 @@ RtHandle sn_git_repo_branches(RtManagedArena *arena, RtGitRepo *self) {
         const char *branch_name = NULL;
         git_branch_name(&branch_name, ref);
 
-        RtGitBranch *b = (RtGitBranch *)rt_arena_alloc((RtArena *)arena, sizeof(RtGitBranch));
+        RtGitBranch *b = (RtGitBranch *)rt_arena_alloc(arena, sizeof(RtGitBranch));
         if (!b) {
             git_reference_free(ref);
             continue;
         }
 
-        b->name_str = arena_strdup((RtArena *)arena, branch_name ? branch_name : "");
+        b->name_str = arena_strdup(arena, branch_name ? branch_name : "");
         b->is_head = git_branch_is_head(ref) ? 1 : 0;
         b->is_remote = (branch_type == GIT_BRANCH_REMOTE) ? 1 : 0;
 
-        result = rt_array_push_voidptr_h(arena, result, b);
+        result = rt_array_push_voidptr_v2(arena, result, b);
         git_reference_free(ref);
     }
 
@@ -708,9 +705,9 @@ RtHandle sn_git_repo_branches(RtManagedArena *arena, RtGitRepo *self) {
     return result;
 }
 
-RtHandle sn_git_repo_current_branch(RtManagedArena *arena, RtGitRepo *self) {
+RtHandleV2 *sn_git_repo_current_branch(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->repo_ptr) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
 
     git_repository *repo = (git_repository *)self->repo_ptr;
@@ -718,18 +715,18 @@ RtHandle sn_git_repo_current_branch(RtManagedArena *arena, RtGitRepo *self) {
 
     int rc = git_repository_head(&head_ref, repo);
     if (rc < 0) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
 
     const char *branch_name = NULL;
     rc = git_branch_name(&branch_name, head_ref);
-    RtHandle result = rt_managed_strdup(arena, RT_HANDLE_NULL, (rc == 0 && branch_name) ? branch_name : "");
+    RtHandleV2 *result = rt_arena_v2_strdup(arena, (rc == 0 && branch_name) ? branch_name : "");
 
     git_reference_free(head_ref);
     return result;
 }
 
-RtGitBranch *sn_git_repo_create_branch(RtArena *arena, RtGitRepo *self, const char *name) {
+RtGitBranch *sn_git_repo_create_branch(RtArenaV2 *arena, RtGitRepo *self, const char *name) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.createBranch: repository is closed\n");
         exit(1);
@@ -831,7 +828,7 @@ void sn_git_repo_checkout(RtGitRepo *self, const char *refName) {
  * GitRepo Remotes
  * ============================================================================ */
 
-RtHandle sn_git_repo_remotes(RtManagedArena *arena, RtGitRepo *self) {
+RtHandleV2 *sn_git_repo_remotes(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.remotes: repository is closed\n");
         exit(1);
@@ -844,23 +841,23 @@ RtHandle sn_git_repo_remotes(RtManagedArena *arena, RtGitRepo *self) {
     check_git_error(rc, "GitRepo.remotes");
 
     /* Build handle-based array of RtGitRemote pointers */
-    RtHandle result = RT_HANDLE_NULL;
+    RtHandleV2 *result = NULL;
 
     for (size_t i = 0; i < remote_names.count; i++) {
         git_remote *remote = NULL;
         rc = git_remote_lookup(&remote, repo, remote_names.strings[i]);
         if (rc < 0) continue;
 
-        RtGitRemote *r = (RtGitRemote *)rt_arena_alloc((RtArena *)arena, sizeof(RtGitRemote));
+        RtGitRemote *r = (RtGitRemote *)rt_arena_alloc(arena, sizeof(RtGitRemote));
         if (!r) {
             git_remote_free(remote);
             continue;
         }
 
-        r->name_str = arena_strdup((RtArena *)arena, git_remote_name(remote));
-        r->url_str = arena_strdup((RtArena *)arena, git_remote_url(remote));
+        r->name_str = arena_strdup(arena, git_remote_name(remote));
+        r->url_str = arena_strdup(arena, git_remote_url(remote));
 
-        result = rt_array_push_voidptr_h(arena, result, r);
+        result = rt_array_push_voidptr_v2(arena, result, r);
         git_remote_free(remote);
     }
 
@@ -868,7 +865,7 @@ RtHandle sn_git_repo_remotes(RtManagedArena *arena, RtGitRepo *self) {
     return result;
 }
 
-RtGitRemote *sn_git_repo_add_remote(RtArena *arena, RtGitRepo *self,
+RtGitRemote *sn_git_repo_add_remote(RtArenaV2 *arena, RtGitRepo *self,
                                       const char *name, const char *url) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.addRemote: repository is closed\n");
@@ -974,7 +971,7 @@ void sn_git_repo_push(RtGitRepo *self, const char *remoteName) {
     git_remote_free(remote);
 }
 
-void sn_git_repo_pull(RtArena *arena, RtGitRepo *self, const char *remoteName) {
+void sn_git_repo_pull(RtArenaV2 *arena, RtGitRepo *self, const char *remoteName) {
     (void)arena;
 
     if (!self || !self->repo_ptr) {
@@ -1098,30 +1095,30 @@ void sn_git_repo_pull(RtArena *arena, RtGitRepo *self, const char *remoteName) {
  * GitRepo Diff
  * ============================================================================ */
 
-static RtHandle build_diff_array_h(RtManagedArena *arena, git_diff *diff) {
+static RtHandleV2 *build_diff_array_h(RtArenaV2 *arena, git_diff *diff) {
     size_t num_deltas = git_diff_num_deltas(diff);
 
     /* Build handle-based array of RtGitDiff pointers */
-    RtHandle result = RT_HANDLE_NULL;
+    RtHandleV2 *result = NULL;
 
     for (size_t i = 0; i < num_deltas; i++) {
         const git_diff_delta *delta = git_diff_get_delta(diff, i);
         if (!delta) continue;
 
-        RtGitDiff *d = (RtGitDiff *)rt_arena_alloc((RtArena *)arena, sizeof(RtGitDiff));
+        RtGitDiff *d = (RtGitDiff *)rt_arena_alloc(arena, sizeof(RtGitDiff));
         if (!d) continue;
 
-        d->path_str = arena_strdup((RtArena *)arena, delta->new_file.path ? delta->new_file.path : "");
-        d->status_str = arena_strdup((RtArena *)arena, diff_status_to_string(delta->status));
-        d->old_path_str = arena_strdup((RtArena *)arena, delta->old_file.path ? delta->old_file.path : "");
+        d->path_str = arena_strdup(arena, delta->new_file.path ? delta->new_file.path : "");
+        d->status_str = arena_strdup(arena, diff_status_to_string(delta->status));
+        d->old_path_str = arena_strdup(arena, delta->old_file.path ? delta->old_file.path : "");
 
-        result = rt_array_push_voidptr_h(arena, result, d);
+        result = rt_array_push_voidptr_v2(arena, result, d);
     }
 
     return result;
 }
 
-RtHandle sn_git_repo_diff(RtManagedArena *arena, RtGitRepo *self) {
+RtHandleV2 *sn_git_repo_diff(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.diff: repository is closed\n");
         exit(1);
@@ -1134,12 +1131,12 @@ RtHandle sn_git_repo_diff(RtManagedArena *arena, RtGitRepo *self) {
     int rc = git_diff_index_to_workdir(&diff, repo, NULL, &opts);
     check_git_error(rc, "GitRepo.diff");
 
-    RtHandle result = build_diff_array_h(arena, diff);
+    RtHandleV2 *result = build_diff_array_h(arena, diff);
     git_diff_free(diff);
     return result;
 }
 
-RtHandle sn_git_repo_diff_staged(RtManagedArena *arena, RtGitRepo *self) {
+RtHandleV2 *sn_git_repo_diff_staged(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.diffStaged: repository is closed\n");
         exit(1);
@@ -1160,7 +1157,7 @@ RtHandle sn_git_repo_diff_staged(RtManagedArena *arena, RtGitRepo *self) {
     rc = git_diff_tree_to_index(&diff, repo, head_tree, NULL, &opts);
     check_git_error(rc, "GitRepo.diffStaged");
 
-    RtHandle result = build_diff_array_h(arena, diff);
+    RtHandleV2 *result = build_diff_array_h(arena, diff);
 
     git_diff_free(diff);
     if (head_obj) git_object_free(head_obj);
@@ -1171,7 +1168,7 @@ RtHandle sn_git_repo_diff_staged(RtManagedArena *arena, RtGitRepo *self) {
  * GitRepo Tags
  * ============================================================================ */
 
-RtHandle sn_git_repo_tags(RtManagedArena *arena, RtGitRepo *self) {
+RtHandleV2 *sn_git_repo_tags(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.tags: repository is closed\n");
         exit(1);
@@ -1184,15 +1181,15 @@ RtHandle sn_git_repo_tags(RtManagedArena *arena, RtGitRepo *self) {
     check_git_error(rc, "GitRepo.tags");
 
     /* Build handle-based array of RtGitTag pointers */
-    RtHandle result = RT_HANDLE_NULL;
+    RtHandleV2 *result = NULL;
 
     for (size_t i = 0; i < tag_names.count; i++) {
         const char *tag_name = tag_names.strings[i];
 
-        RtGitTag *t = (RtGitTag *)rt_arena_alloc((RtArena *)arena, sizeof(RtGitTag));
+        RtGitTag *t = (RtGitTag *)rt_arena_alloc(arena, sizeof(RtGitTag));
         if (!t) continue;
 
-        t->name_str = arena_strdup((RtArena *)arena, tag_name);
+        t->name_str = arena_strdup(arena, tag_name);
 
         /* Try to look up as annotated tag */
         char refname[256];
@@ -1212,32 +1209,32 @@ RtHandle sn_git_repo_tags(RtManagedArena *arena, RtGitRepo *self) {
                 const git_oid *target_oid = git_tag_target_id(tag_obj);
                 char target_buf[GIT_OID_SHA1_HEXSIZE + 1];
                 git_oid_tostr(target_buf, sizeof(target_buf), target_oid);
-                t->target_id_str = arena_strdup((RtArena *)arena, target_buf);
+                t->target_id_str = arena_strdup(arena, target_buf);
 
                 const char *msg = git_tag_message(tag_obj);
-                t->message_str = arena_strdup((RtArena *)arena, msg ? msg : "");
+                t->message_str = arena_strdup(arena, msg ? msg : "");
 
                 git_tag_free(tag_obj);
             } else {
                 /* Lightweight tag - the OID points directly to a commit */
                 t->is_lightweight = 1;
-                t->target_id_str = arena_strdup((RtArena *)arena, oid_buf);
-                t->message_str = arena_strdup((RtArena *)arena, "");
+                t->target_id_str = arena_strdup(arena, oid_buf);
+                t->message_str = arena_strdup(arena, "");
             }
         } else {
-            t->target_id_str = arena_strdup((RtArena *)arena, "");
-            t->message_str = arena_strdup((RtArena *)arena, "");
+            t->target_id_str = arena_strdup(arena, "");
+            t->message_str = arena_strdup(arena, "");
             t->is_lightweight = 1;
         }
 
-        result = rt_array_push_voidptr_h(arena, result, t);
+        result = rt_array_push_voidptr_v2(arena, result, t);
     }
 
     git_strarray_dispose(&tag_names);
     return result;
 }
 
-RtGitTag *sn_git_repo_create_tag(RtArena *arena, RtGitRepo *self, const char *name) {
+RtGitTag *sn_git_repo_create_tag(RtArenaV2 *arena, RtGitRepo *self, const char *name) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.createTag: repository is closed\n");
         exit(1);
@@ -1276,7 +1273,7 @@ RtGitTag *sn_git_repo_create_tag(RtArena *arena, RtGitRepo *self, const char *na
     return t;
 }
 
-RtGitTag *sn_git_repo_create_annotated_tag(RtArena *arena, RtGitRepo *self,
+RtGitTag *sn_git_repo_create_annotated_tag(RtArenaV2 *arena, RtGitRepo *self,
                                              const char *name, const char *message) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.createAnnotatedTag: repository is closed\n");
@@ -1337,11 +1334,11 @@ void sn_git_repo_delete_tag(RtGitRepo *self, const char *name) {
  * GitRepo Getters
  * ============================================================================ */
 
-RtHandle sn_git_repo_get_path(RtManagedArena *arena, RtGitRepo *self) {
+RtHandleV2 *sn_git_repo_get_path(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->path_str) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, self->path_str);
+    return rt_arena_v2_strdup(arena, self->path_str);
 }
 
 long sn_git_repo_is_bare(RtGitRepo *self) {
@@ -1365,24 +1362,24 @@ void sn_git_repo_close(RtGitRepo *self) {
  * GitCommit Getters
  * ============================================================================ */
 
-RtHandle sn_git_commit_get_id(RtManagedArena *arena, RtGitCommit *commit) {
-    if (!commit || !commit->id_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, commit->id_str);
+RtHandleV2 *sn_git_commit_get_id(RtArenaV2 *arena, RtGitCommit *commit) {
+    if (!commit || !commit->id_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, commit->id_str);
 }
 
-RtHandle sn_git_commit_get_message(RtManagedArena *arena, RtGitCommit *commit) {
-    if (!commit || !commit->message_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, commit->message_str);
+RtHandleV2 *sn_git_commit_get_message(RtArenaV2 *arena, RtGitCommit *commit) {
+    if (!commit || !commit->message_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, commit->message_str);
 }
 
-RtHandle sn_git_commit_get_author(RtManagedArena *arena, RtGitCommit *commit) {
-    if (!commit || !commit->author_name) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, commit->author_name);
+RtHandleV2 *sn_git_commit_get_author(RtArenaV2 *arena, RtGitCommit *commit) {
+    if (!commit || !commit->author_name) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, commit->author_name);
 }
 
-RtHandle sn_git_commit_get_email(RtManagedArena *arena, RtGitCommit *commit) {
-    if (!commit || !commit->author_email_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, commit->author_email_str);
+RtHandleV2 *sn_git_commit_get_email(RtArenaV2 *arena, RtGitCommit *commit) {
+    if (!commit || !commit->author_email_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, commit->author_email_str);
 }
 
 long long sn_git_commit_get_timestamp(RtGitCommit *commit) {
@@ -1394,9 +1391,9 @@ long long sn_git_commit_get_timestamp(RtGitCommit *commit) {
  * GitBranch Getters
  * ============================================================================ */
 
-RtHandle sn_git_branch_get_name(RtManagedArena *arena, RtGitBranch *branch) {
-    if (!branch || !branch->name_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, branch->name_str);
+RtHandleV2 *sn_git_branch_get_name(RtArenaV2 *arena, RtGitBranch *branch) {
+    if (!branch || !branch->name_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, branch->name_str);
 }
 
 long sn_git_branch_is_head(RtGitBranch *branch) {
@@ -1413,47 +1410,47 @@ long sn_git_branch_is_remote(RtGitBranch *branch) {
  * GitRemote Getters
  * ============================================================================ */
 
-RtHandle sn_git_remote_get_name(RtManagedArena *arena, RtGitRemote *remote) {
-    if (!remote || !remote->name_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, remote->name_str);
+RtHandleV2 *sn_git_remote_get_name(RtArenaV2 *arena, RtGitRemote *remote) {
+    if (!remote || !remote->name_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, remote->name_str);
 }
 
-RtHandle sn_git_remote_get_url(RtManagedArena *arena, RtGitRemote *remote) {
-    if (!remote || !remote->url_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, remote->url_str);
+RtHandleV2 *sn_git_remote_get_url(RtArenaV2 *arena, RtGitRemote *remote) {
+    if (!remote || !remote->url_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, remote->url_str);
 }
 
 /* ============================================================================
  * GitDiff Getters
  * ============================================================================ */
 
-RtHandle sn_git_diff_get_path(RtManagedArena *arena, RtGitDiff *diff) {
-    if (!diff || !diff->path_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, diff->path_str);
+RtHandleV2 *sn_git_diff_get_path(RtArenaV2 *arena, RtGitDiff *diff) {
+    if (!diff || !diff->path_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, diff->path_str);
 }
 
-RtHandle sn_git_diff_get_status(RtManagedArena *arena, RtGitDiff *diff) {
-    if (!diff || !diff->status_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, diff->status_str);
+RtHandleV2 *sn_git_diff_get_status(RtArenaV2 *arena, RtGitDiff *diff) {
+    if (!diff || !diff->status_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, diff->status_str);
 }
 
-RtHandle sn_git_diff_get_old_path(RtManagedArena *arena, RtGitDiff *diff) {
-    if (!diff || !diff->old_path_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, diff->old_path_str);
+RtHandleV2 *sn_git_diff_get_old_path(RtArenaV2 *arena, RtGitDiff *diff) {
+    if (!diff || !diff->old_path_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, diff->old_path_str);
 }
 
 /* ============================================================================
  * GitStatus Getters
  * ============================================================================ */
 
-RtHandle sn_git_status_get_path(RtManagedArena *arena, RtGitStatus *status) {
-    if (!status || !status->path_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, status->path_str);
+RtHandleV2 *sn_git_status_get_path(RtArenaV2 *arena, RtGitStatus *status) {
+    if (!status || !status->path_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, status->path_str);
 }
 
-RtHandle sn_git_status_get_status(RtManagedArena *arena, RtGitStatus *status) {
-    if (!status || !status->status_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, status->status_str);
+RtHandleV2 *sn_git_status_get_status(RtArenaV2 *arena, RtGitStatus *status) {
+    if (!status || !status->status_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, status->status_str);
 }
 
 long sn_git_status_is_staged(RtGitStatus *status) {
@@ -1465,19 +1462,19 @@ long sn_git_status_is_staged(RtGitStatus *status) {
  * GitTag Getters
  * ============================================================================ */
 
-RtHandle sn_git_tag_get_name(RtManagedArena *arena, RtGitTag *tag) {
-    if (!tag || !tag->name_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, tag->name_str);
+RtHandleV2 *sn_git_tag_get_name(RtArenaV2 *arena, RtGitTag *tag) {
+    if (!tag || !tag->name_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, tag->name_str);
 }
 
-RtHandle sn_git_tag_get_target_id(RtManagedArena *arena, RtGitTag *tag) {
-    if (!tag || !tag->target_id_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, tag->target_id_str);
+RtHandleV2 *sn_git_tag_get_target_id(RtArenaV2 *arena, RtGitTag *tag) {
+    if (!tag || !tag->target_id_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, tag->target_id_str);
 }
 
-RtHandle sn_git_tag_get_message(RtManagedArena *arena, RtGitTag *tag) {
-    if (!tag || !tag->message_str) return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, tag->message_str);
+RtHandleV2 *sn_git_tag_get_message(RtArenaV2 *arena, RtGitTag *tag) {
+    if (!tag || !tag->message_str) return rt_arena_v2_strdup(arena, "");
+    return rt_arena_v2_strdup(arena, tag->message_str);
 }
 
 long sn_git_tag_is_lightweight(RtGitTag *tag) {

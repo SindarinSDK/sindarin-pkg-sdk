@@ -17,10 +17,7 @@
 #include <stdbool.h>
 
 /* Include runtime for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/array/runtime_array_h.h"
+#include "runtime/array/runtime_array_v2.h"
 
 /* OpenSSL includes */
 #include <openssl/ssl.h>
@@ -289,7 +286,7 @@ static int dtls_parse_address(const char *address, char *host, size_t host_len, 
  * DtlsConnection Connect
  * ============================================================================ */
 
-RtDtlsConnection *sn_dtls_connection_connect(RtArena *arena, const char *address) {
+RtDtlsConnection *sn_dtls_connection_connect(RtArenaV2 *arena, const char *address) {
     ensure_winsock_initialized();
     ensure_openssl_initialized();
 
@@ -481,7 +478,7 @@ RtDtlsConnection *sn_dtls_connection_connect(RtArena *arena, const char *address
 long sn_dtls_connection_send(RtDtlsConnection *conn, unsigned char *data) {
     if (conn == NULL || data == NULL) return 0;
 
-    size_t length = rt_array_length(data);
+    size_t length = rt_v2_data_array_length(data);
     if (length == 0) return 0;
 
     SSL *ssl = (SSL *)conn->ssl_ptr;
@@ -497,9 +494,9 @@ long sn_dtls_connection_send(RtDtlsConnection *conn, unsigned char *data) {
 }
 
 /* Receive an encrypted datagram (up to maxBytes) */
-RtHandle sn_dtls_connection_receive(RtManagedArena *arena, RtDtlsConnection *conn, long maxBytes) {
+RtHandleV2 *sn_dtls_connection_receive(RtArenaV2 *arena, RtDtlsConnection *conn, long maxBytes) {
     if (conn == NULL || maxBytes <= 0) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     SSL *ssl = (SSL *)conn->ssl_ptr;
@@ -519,10 +516,10 @@ RtHandle sn_dtls_connection_receive(RtManagedArena *arena, RtDtlsConnection *con
 
         if (ssl_err == SSL_ERROR_ZERO_RETURN) {
             /* Connection closed cleanly */
-            return rt_array_create_byte_h(arena, 0, NULL);
+            return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
         } else if (ssl_err == SSL_ERROR_WANT_READ) {
             /* Timeout - return empty */
-            return rt_array_create_byte_h(arena, 0, NULL);
+            return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
         } else {
             fprintf(stderr, "DtlsConnection.receive: SSL_read failed (error %d)\n", ssl_err);
             exit(1);
@@ -530,7 +527,7 @@ RtHandle sn_dtls_connection_receive(RtManagedArena *arena, RtDtlsConnection *con
     }
 
     /* Create runtime byte array with received data */
-    RtHandle result = rt_array_create_byte_h(arena, (size_t)n, temp);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)n, sizeof(unsigned char), temp);
     free(temp);
 
     return result;
@@ -540,11 +537,11 @@ RtHandle sn_dtls_connection_receive(RtManagedArena *arena, RtDtlsConnection *con
  * DtlsConnection Getters
  * ============================================================================ */
 
-RtHandle sn_dtls_connection_get_remote_address(RtManagedArena *arena, RtDtlsConnection *conn) {
+RtHandleV2 *sn_dtls_connection_get_remote_address(RtArenaV2 *arena, RtDtlsConnection *conn) {
     if (conn == NULL || conn->remote_addr == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena, "");
     }
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, conn->remote_addr);
+    return rt_arena_v2_strdup(arena, conn->remote_addr);
 }
 
 /* ============================================================================
@@ -632,7 +629,7 @@ typedef struct RtDtlsListener {
     dtls_thread_t listen_thread;
 
     /* Arena for allocations */
-    RtArena *arena;
+    RtArenaV2 *arena;
 } RtDtlsListener;
 
 
@@ -781,7 +778,7 @@ static void *dtls_listener_thread_entry(void *arg) {
  * DtlsListener Bind
  * ============================================================================ */
 
-RtDtlsListener *sn_dtls_listener_bind(RtArena *arena, const char *address,
+RtDtlsListener *sn_dtls_listener_bind(RtArenaV2 *arena, const char *address,
                                         const char *cert_file, const char *key_file) {
     ensure_winsock_initialized();
     ensure_openssl_initialized();
@@ -930,7 +927,7 @@ RtDtlsListener *sn_dtls_listener_bind(RtArena *arena, const char *address,
  * DtlsListener Accept (blocks until a connection is available)
  * ============================================================================ */
 
-RtDtlsConnection *sn_dtls_listener_accept(RtArena *arena, RtDtlsListener *listener) {
+RtDtlsConnection *sn_dtls_listener_accept(RtArenaV2 *arena, RtDtlsListener *listener) {
     if (listener == NULL || !listener->running) {
         fprintf(stderr, "DtlsListener.accept: listener is NULL or closed\n");
         exit(1);

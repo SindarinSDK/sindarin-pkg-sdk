@@ -11,10 +11,8 @@
 #include <stdint.h>
 
 /* Include runtime arena for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/string/runtime_string_h.h"
+#include "runtime/array/runtime_array_v2.h"
+#include "runtime/string/runtime_string_v2.h"
 
 /* Windows detection: _WIN32 for MSVC, __MINGW32__/__MINGW64__ for MinGW/MSYS2 */
 #if defined(_WIN32) || defined(__MINGW32__) || defined(__MINGW64__)
@@ -31,8 +29,8 @@
 
 typedef struct RtProcess {
     int32_t exit_code;      /* Process exit code (0 typically means success) */
-    RtHandle stdout_h;      /* Handle to captured standard output */
-    RtHandle stderr_h;      /* Handle to captured standard error */
+    RtHandleV2 *stdout_h;      /* Handle to captured standard output */
+    RtHandleV2 *stderr_h;      /* Handle to captured standard error */
 } RtProcess;
 
 /* ============================================================================
@@ -43,7 +41,7 @@ typedef struct RtProcess {
 #define READ_BUFFER_INITIAL_SIZE 4096
 
 /* Helper function to duplicate a string in the arena */
-static char *sdk_arena_strdup(RtArena *arena, const char *str)
+static char *sdk_arena_strdup(RtArenaV2 *arena, const char *str)
 {
     if (str == NULL) {
         char *empty = (char *)rt_arena_alloc(arena, 1);
@@ -58,7 +56,7 @@ static char *sdk_arena_strdup(RtArena *arena, const char *str)
 }
 
 /* Helper function to create RtProcess with given values */
-static RtProcess *sn_process_create(RtManagedArena *arena, int exit_code,
+static RtProcess *sn_process_create(RtArenaV2 *arena, int exit_code,
                                      const char *stdout_str, const char *stderr_str)
 {
     if (arena == NULL) {
@@ -66,15 +64,15 @@ static RtProcess *sn_process_create(RtManagedArena *arena, int exit_code,
         return NULL;
     }
 
-    RtProcess *proc = (RtProcess *)rt_arena_alloc((RtArena *)arena, sizeof(RtProcess));
+    RtProcess *proc = (RtProcess *)rt_arena_alloc(arena, sizeof(RtProcess));
     if (proc == NULL) {
         fprintf(stderr, "sn_process_create: allocation failed\n");
         exit(1);
     }
 
     proc->exit_code = exit_code;
-    proc->stdout_h = rt_managed_strdup(arena, RT_HANDLE_NULL, stdout_str ? stdout_str : "");
-    proc->stderr_h = rt_managed_strdup(arena, RT_HANDLE_NULL, stderr_str ? stderr_str : "");
+    proc->stdout_h = rt_arena_v2_strdup(arena,stdout_str ? stdout_str : "");
+    proc->stderr_h = rt_arena_v2_strdup(arena,stderr_str ? stderr_str : "");
 
     return proc;
 }
@@ -88,28 +86,27 @@ static RtProcess *sn_process_create(RtManagedArena *arena, int exit_code,
  * Returns a null-terminated string allocated in the arena.
  * Closes the handle after reading.
  */
-static char *read_handle_to_string(RtManagedArena *arena, HANDLE handle)
+static char *read_handle_to_string(RtArenaV2 *arena, HANDLE handle)
 {
-    RtArena *raw_arena = (RtArena *)arena;
     if (arena == NULL || handle == NULL || handle == INVALID_HANDLE_VALUE) {
         if (handle != NULL && handle != INVALID_HANDLE_VALUE) {
             CloseHandle(handle);
         }
-        return sdk_arena_strdup(raw_arena, "");
+        return sdk_arena_strdup(arena, "");
     }
 
     size_t capacity = READ_BUFFER_INITIAL_SIZE;
     size_t length = 0;
-    char *buffer = (char *)rt_arena_alloc(raw_arena, capacity);
+    char *buffer = (char *)rt_arena_alloc(arena, capacity);
     if (buffer == NULL) {
         CloseHandle(handle);
-        return sdk_arena_strdup(raw_arena, "");
+        return sdk_arena_strdup(arena, "");
     }
 
     while (1) {
         if (length + 1 >= capacity) {
             size_t new_capacity = capacity * 2;
-            char *new_buffer = (char *)rt_arena_alloc(raw_arena, new_capacity);
+            char *new_buffer = (char *)rt_arena_alloc(arena, new_capacity);
             if (new_buffer == NULL) {
                 buffer[length] = '\0';
                 CloseHandle(handle);
@@ -182,7 +179,7 @@ static char *build_command_line(const char *cmd, char **args, size_t args_len)
 }
 
 /* Windows implementation of process execution with args */
-static RtProcess *sn_process_run_internal(RtManagedArena *arena, const char *cmd, char **args, size_t args_len)
+static RtProcess *sn_process_run_internal(RtArenaV2 *arena, const char *cmd, char **args, size_t args_len)
 {
     if (arena == NULL) {
         fprintf(stderr, "sn_process_run_internal: NULL arena\n");
@@ -304,23 +301,22 @@ static RtProcess *sn_process_run_internal(RtManagedArena *arena, const char *cmd
  * Closes the file descriptor after reading.
  * On error, returns an empty string.
  */
-static char *read_fd_to_string(RtManagedArena *arena, int fd)
+static char *read_fd_to_string(RtArenaV2 *arena, int fd)
 {
-    RtArena *raw_arena = (RtArena *)arena;
     if (arena == NULL || fd < 0) {
         if (fd >= 0) {
             close(fd);
         }
-        return sdk_arena_strdup(raw_arena, "");
+        return sdk_arena_strdup(arena, "");
     }
 
     /* Start with initial buffer size */
     size_t capacity = READ_BUFFER_INITIAL_SIZE;
     size_t length = 0;
-    char *buffer = (char *)rt_arena_alloc(raw_arena, capacity);
+    char *buffer = (char *)rt_arena_alloc(arena, capacity);
     if (buffer == NULL) {
         close(fd);
-        return sdk_arena_strdup(raw_arena, "");
+        return sdk_arena_strdup(arena, "");
     }
 
     /* Read in a loop until EOF or error */
@@ -329,7 +325,7 @@ static char *read_fd_to_string(RtManagedArena *arena, int fd)
         if (length + 1 >= capacity) {
             /* Need to grow the buffer - allocate new larger buffer */
             size_t new_capacity = capacity * 2;
-            char *new_buffer = (char *)rt_arena_alloc(raw_arena, new_capacity);
+            char *new_buffer = (char *)rt_arena_alloc(arena, new_capacity);
             if (new_buffer == NULL) {
                 /* Allocation failed, return what we have */
                 buffer[length] = '\0';
@@ -406,7 +402,7 @@ static char **build_argv(const char *cmd, char **args, size_t args_len)
 }
 
 /* POSIX implementation of process execution with args */
-static RtProcess *sn_process_run_internal(RtManagedArena *arena, const char *cmd, char **args, size_t args_len)
+static RtProcess *sn_process_run_internal(RtArenaV2 *arena, const char *cmd, char **args, size_t args_len)
 {
     if (arena == NULL) {
         fprintf(stderr, "sn_process_run_internal: NULL arena\n");
@@ -529,15 +525,15 @@ static RtProcess *sn_process_run_internal(RtManagedArena *arena, const char *cmd
  * ============================================================================ */
 
 /* Run a command with no arguments */
-RtProcess *sn_process_run(RtManagedArena *arena, const char *cmd)
+RtProcess *sn_process_run(RtArenaV2 *arena, const char *cmd)
 {
     return sn_process_run_internal(arena, cmd, NULL, 0);
 }
 
 /* Run a command with arguments (args is a Sindarin array) */
-RtProcess *sn_process_run_args(RtManagedArena *arena, const char *cmd, char **args)
+RtProcess *sn_process_run_args(RtArenaV2 *arena, const char *cmd, char **args)
 {
-    size_t args_len = rt_array_length(args);
+    size_t args_len = rt_v2_data_array_length(args);
     return sn_process_run_internal(arena, cmd, args, args_len);
 }
 
@@ -552,13 +548,13 @@ long sn_process_get_exit_code(RtProcess *proc)
 }
 
 /* Get captured stdout */
-RtHandle sn_process_get_stdout(RtProcess *proc)
+RtHandleV2 *sn_process_get_stdout(RtProcess *proc)
 {
-    return proc ? proc->stdout_h : RT_HANDLE_NULL;
+    return proc ? proc->stdout_h : NULL;
 }
 
 /* Get captured stderr */
-RtHandle sn_process_get_stderr(RtProcess *proc)
+RtHandleV2 *sn_process_get_stderr(RtProcess *proc)
 {
-    return proc ? proc->stderr_h : RT_HANDLE_NULL;
+    return proc ? proc->stderr_h : NULL;
 }

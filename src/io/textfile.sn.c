@@ -26,10 +26,7 @@
 #endif
 
 /* Include runtime arena for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/array/runtime_array_h.h"
+#include "runtime/array/runtime_array_v2.h"
 
 /* ============================================================================
  * TextFile Type Definition
@@ -46,7 +43,7 @@ typedef struct RtSnTextFile {
  * ============================================================================ */
 
 /* Open file for reading and writing */
-RtSnTextFile *sn_text_file_open(RtArena *arena, const char *path)
+RtSnTextFile *sn_text_file_open(RtArenaV2 *arena, const char *path)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.open: arena is NULL\n");
@@ -97,7 +94,7 @@ int sn_text_file_exists(const char *path)
 }
 
 /* Read entire file contents as string (static method) */
-RtHandle sn_text_file_read_all_static(RtManagedArena *arena, const char *path)
+RtHandleV2 *sn_text_file_read_all_static(RtArenaV2 *arena, const char *path)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.readAll: arena is NULL\n");
@@ -154,7 +151,7 @@ RtHandle sn_text_file_read_all_static(RtManagedArena *arena, const char *path)
     content[bytes_read] = '\0';
     fclose(fp);
 
-    RtHandle h = rt_managed_strdup(arena, RT_HANDLE_NULL, content);
+    RtHandleV2 *h = rt_arena_v2_strdup(arena,content);
     free(content);
     return h;
 }
@@ -307,7 +304,7 @@ long sn_text_file_read_char(RtSnTextFile *file)
 }
 
 /* Read single line (strips trailing newline) */
-RtHandle sn_text_file_read_line(RtManagedArena *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_read_line(RtArenaV2 *arena, RtSnTextFile *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.readLine: arena is NULL\n");
@@ -333,7 +330,7 @@ RtHandle sn_text_file_read_line(RtManagedArena *arena, RtSnTextFile *file)
             exit(1);
         }
         /* Return empty string on EOF */
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
     ungetc(c, fp);
 
@@ -367,13 +364,13 @@ RtHandle sn_text_file_read_line(RtManagedArena *arena, RtSnTextFile *file)
     }
 
     buffer[length] = '\0';
-    RtHandle h = rt_managed_strdup(arena, RT_HANDLE_NULL, buffer);
+    RtHandleV2 *h = rt_arena_v2_strdup(arena,buffer);
     free(buffer);
     return h;
 }
 
 /* Read all remaining content from open file */
-RtHandle sn_text_file_read_remaining(RtManagedArena *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_read_remaining(RtArenaV2 *arena, RtSnTextFile *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.readAll: arena is NULL\n");
@@ -438,13 +435,13 @@ RtHandle sn_text_file_read_remaining(RtManagedArena *arena, RtSnTextFile *file)
     }
 
     content[bytes_read] = '\0';
-    RtHandle h = rt_managed_strdup(arena, RT_HANDLE_NULL, content);
+    RtHandleV2 *h = rt_arena_v2_strdup(arena,content);
     free(content);
     return h;
 }
 
 /* Read all remaining lines as array of strings */
-RtHandle sn_text_file_read_lines(RtManagedArena *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_read_lines(RtArenaV2 *arena, RtSnTextFile *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.readLines: arena is NULL\n");
@@ -460,16 +457,17 @@ RtHandle sn_text_file_read_lines(RtManagedArena *arena, RtSnTextFile *file)
     }
 
     /* Start with empty array */
-    RtHandle lines = rt_array_create_string_h(arena, 0, NULL);
+    RtHandleV2 *lines = rt_array_create_string_v2(arena, 0, NULL);
 
     /* Read lines until EOF */
     FILE *fp = (FILE *)file->fp;
     int c = fgetc(fp);
     while (c != EOF) {
         ungetc(c, fp);
-        RtHandle line = sn_text_file_read_line(arena, file);
-        const char *line_str = (const char *)rt_managed_pin((RtArena *)arena, line);
-        lines = rt_array_push_string_h(arena, lines, line_str);
+        RtHandleV2 *line = sn_text_file_read_line(arena, file);
+        const char *line_str = (const char *)rt_handle_v2_pin(line);
+        lines = rt_array_push_string_v2(arena, lines, line_str);
+        rt_handle_v2_unpin(line);
         c = fgetc(fp);
     }
 
@@ -477,7 +475,7 @@ RtHandle sn_text_file_read_lines(RtManagedArena *arena, RtSnTextFile *file)
 }
 
 /* Read whitespace-delimited word */
-RtHandle sn_text_file_read_word(RtManagedArena *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_read_word(RtArenaV2 *arena, RtSnTextFile *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.readWord: arena is NULL\n");
@@ -502,7 +500,7 @@ RtHandle sn_text_file_read_word(RtManagedArena *arena, RtSnTextFile *file)
 
     if (c == EOF) {
         /* Return empty string on EOF */
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
     /* Read word into buffer */
@@ -537,7 +535,7 @@ RtHandle sn_text_file_read_word(RtManagedArena *arena, RtSnTextFile *file)
     }
 
     buffer[length] = '\0';
-    RtHandle h = rt_managed_strdup(arena, RT_HANDLE_NULL, buffer);
+    RtHandleV2 *h = rt_arena_v2_strdup(arena,buffer);
     free(buffer);
     return h;
 }
@@ -836,7 +834,7 @@ void sn_text_file_close(RtSnTextFile *file)
  * ============================================================================ */
 
 /* Get full file path */
-RtHandle sn_text_file_get_path(RtManagedArena *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_get_path(RtArenaV2 *arena, RtSnTextFile *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.path: arena is NULL\n");
@@ -848,14 +846,14 @@ RtHandle sn_text_file_get_path(RtManagedArena *arena, RtSnTextFile *file)
     }
 
     if (file->path == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, file->path);
+    return rt_arena_v2_strdup(arena,file->path);
 }
 
 /* Get filename only (without directory) */
-RtHandle sn_text_file_get_name(RtManagedArena *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_get_name(RtArenaV2 *arena, RtSnTextFile *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.name: arena is NULL\n");
@@ -867,7 +865,7 @@ RtHandle sn_text_file_get_name(RtManagedArena *arena, RtSnTextFile *file)
     }
 
     if (file->path == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
     /* Find last path separator */
@@ -881,7 +879,7 @@ RtHandle sn_text_file_get_name(RtManagedArena *arena, RtSnTextFile *file)
 #endif
 
     const char *name = (last_sep != NULL) ? last_sep + 1 : path;
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, name);
+    return rt_arena_v2_strdup(arena,name);
 }
 
 /* Get file size in bytes */

@@ -26,10 +26,7 @@
 #endif
 
 /* Include runtime arena for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/array/runtime_array_h.h"
+#include "runtime/array/runtime_array_v2.h"
 
 /* ============================================================================
  * BinaryFile Type Definition
@@ -46,7 +43,7 @@ typedef struct RtSnBinaryFile {
  * ============================================================================ */
 
 /* Open binary file for reading and writing */
-RtSnBinaryFile *sn_binary_file_open(RtArena *arena, const char *path)
+RtSnBinaryFile *sn_binary_file_open(RtArenaV2 *arena, const char *path)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.open: arena is NULL\n");
@@ -99,7 +96,7 @@ int sn_binary_file_exists(const char *path)
 }
 
 /* Read entire binary file contents as byte array (static method) */
-RtHandle sn_binary_file_read_all_static(RtManagedArena *arena, const char *path)
+RtHandleV2 *sn_binary_file_read_all_static(RtArenaV2 *arena, const char *path)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.readAll: arena is NULL\n");
@@ -143,7 +140,7 @@ RtHandle sn_binary_file_read_all_static(RtManagedArena *arena, const char *path)
     /* Handle empty file case */
     if (size == 0) {
         fclose(fp);
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     /* Allocate temp buffer */
@@ -167,7 +164,7 @@ RtHandle sn_binary_file_read_all_static(RtManagedArena *arena, const char *path)
     fclose(fp);
 
     /* Create handle-based array */
-    RtHandle result = rt_array_create_byte_h(arena, (size_t)size, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)size, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
@@ -188,7 +185,7 @@ void sn_binary_file_write_all_static(const char *path, unsigned char *data)
     }
 
     if (data != NULL) {
-        size_t len = rt_array_length(data);
+        size_t len = rt_v2_data_array_length(data);
         if (len > 0) {
             size_t written = fwrite(data, 1, len, fp);
             if (written != len) {
@@ -326,7 +323,7 @@ long sn_binary_file_read_byte(RtSnBinaryFile *file)
 }
 
 /* Read N bytes into new array */
-RtHandle sn_binary_file_read_bytes(RtManagedArena *arena, RtSnBinaryFile *file, long count)
+RtHandleV2 *sn_binary_file_read_bytes(RtArenaV2 *arena, RtSnBinaryFile *file, long count)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.readBytes: arena is NULL\n");
@@ -347,7 +344,7 @@ RtHandle sn_binary_file_read_bytes(RtManagedArena *arena, RtSnBinaryFile *file, 
 
     /* Handle zero count case */
     if (count == 0) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     /* Allocate temp buffer */
@@ -361,13 +358,13 @@ RtHandle sn_binary_file_read_bytes(RtManagedArena *arena, RtSnBinaryFile *file, 
     size_t bytes_read = fread(buf, 1, (size_t)count, (FILE *)file->fp);
 
     /* Create handle-based array with actual bytes read */
-    RtHandle result = rt_array_create_byte_h(arena, bytes_read, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, bytes_read, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
 /* Read all remaining bytes from open file */
-RtHandle sn_binary_file_read_remaining(RtManagedArena *arena, RtSnBinaryFile *file)
+RtHandleV2 *sn_binary_file_read_remaining(RtArenaV2 *arena, RtSnBinaryFile *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.readAll: arena is NULL\n");
@@ -417,7 +414,7 @@ RtHandle sn_binary_file_read_remaining(RtManagedArena *arena, RtSnBinaryFile *fi
 
     /* Handle empty remaining case */
     if (remaining == 0) {
-        return rt_array_create_byte_h(arena, 0, NULL);
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     /* Allocate temp buffer */
@@ -437,7 +434,7 @@ RtHandle sn_binary_file_read_remaining(RtManagedArena *arena, RtSnBinaryFile *fi
     }
 
     /* Create handle-based array with actual bytes read */
-    RtHandle result = rt_array_create_byte_h(arena, bytes_read, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, bytes_read, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
@@ -459,7 +456,7 @@ long sn_binary_file_read_into(RtSnBinaryFile *file, unsigned char *buffer)
     }
 
     /* Get the buffer's length from its metadata */
-    size_t buf_len = rt_array_length(buffer);
+    size_t buf_len = rt_v2_data_array_length(buffer);
     if (buf_len == 0) {
         return 0;  /* Empty buffer, nothing to read */
     }
@@ -517,7 +514,7 @@ void sn_binary_file_write_bytes(RtSnBinaryFile *file, unsigned char *data)
     }
 
     FILE *fp = (FILE *)file->fp;
-    size_t len = rt_array_length(data);
+    size_t len = rt_v2_data_array_length(data);
     if (len > 0) {
         size_t written = fwrite(data, 1, len, fp);
         if (written != len) {
@@ -674,7 +671,7 @@ void sn_binary_file_close(RtSnBinaryFile *file)
  * ============================================================================ */
 
 /* Get full file path */
-RtHandle sn_binary_file_get_path(RtManagedArena *arena, RtSnBinaryFile *file)
+RtHandleV2 *sn_binary_file_get_path(RtArenaV2 *arena, RtSnBinaryFile *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.path: arena is NULL\n");
@@ -686,14 +683,14 @@ RtHandle sn_binary_file_get_path(RtManagedArena *arena, RtSnBinaryFile *file)
     }
 
     if (file->path == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, file->path);
+    return rt_arena_v2_strdup(arena,file->path);
 }
 
 /* Get filename only (without directory) */
-RtHandle sn_binary_file_get_name(RtManagedArena *arena, RtSnBinaryFile *file)
+RtHandleV2 *sn_binary_file_get_name(RtArenaV2 *arena, RtSnBinaryFile *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.name: arena is NULL\n");
@@ -705,7 +702,7 @@ RtHandle sn_binary_file_get_name(RtManagedArena *arena, RtSnBinaryFile *file)
     }
 
     if (file->path == NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
     /* Find last path separator */
@@ -719,7 +716,7 @@ RtHandle sn_binary_file_get_name(RtManagedArena *arena, RtSnBinaryFile *file)
 #endif
 
     const char *name = (last_sep != NULL) ? last_sep + 1 : path;
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, name);
+    return rt_arena_v2_strdup(arena,name);
 }
 
 /* Get file size in bytes */

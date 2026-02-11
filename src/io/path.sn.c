@@ -30,9 +30,7 @@
 #endif
 
 /* Include runtime arena for proper memory management */
-#include "runtime/runtime_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/arena/managed_arena.h"
+#include "runtime/array/runtime_array_v2.h"
 
 /* ============================================================================
  * Path Type Definition (unused, just for namespace)
@@ -41,6 +39,15 @@
 typedef struct RtSnPath {
     int32_t _unused;
 } RtSnPath;
+
+/* Helper: strndup into arena (V2 API doesn't have strndup) */
+static RtHandleV2 *sn_arena_strndup(RtArenaV2 *arena, const char *str, size_t n) {
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, n + 1);
+    char *ptr = (char *)h->ptr;
+    memcpy(ptr, str, n);
+    ptr[n] = '\0';
+    return h;
+}
 
 /* ============================================================================
  * Helper Functions
@@ -91,21 +98,21 @@ static int is_absolute_path(const char *path)
  * ============================================================================ */
 
 /* Extract directory portion of a path */
-RtHandle sn_path_directory(RtManagedArena *arena, const char *path)
+RtHandleV2 *sn_path_directory(RtArenaV2 *arena, const char *path)
 {
     if (path == NULL || *path == '\0') {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, ".");
+        return rt_arena_v2_strdup(arena,".");
     }
 
     const char *last_sep = find_last_separator(path);
     if (last_sep == NULL) {
         /* No separator found - return current directory */
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, ".");
+        return rt_arena_v2_strdup(arena,".");
     }
 
     /* Handle root path (/ or C:\) */
     if (last_sep == path) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "/");
+        return rt_arena_v2_strdup(arena,"/");
     }
 
 #ifdef _WIN32
@@ -116,37 +123,37 @@ RtHandle sn_path_directory(RtManagedArena *arena, const char *path)
         buf[1] = ':';
         buf[2] = '/';
         buf[3] = '\0';
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, buf);
+        return rt_arena_v2_strdup(arena,buf);
     }
 #endif
 
     /* Return everything up to (not including) the last separator */
     size_t dir_len = last_sep - path;
-    return rt_managed_strndup(arena, RT_HANDLE_NULL, path, dir_len);
+    return sn_arena_strndup(arena, path, dir_len);
 }
 
 /* Extract filename (with extension) from a path */
-RtHandle sn_path_filename(RtManagedArena *arena, const char *path)
+RtHandleV2 *sn_path_filename(RtArenaV2 *arena, const char *path)
 {
     if (path == NULL || *path == '\0') {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
     const char *last_sep = find_last_separator(path);
     if (last_sep == NULL) {
         /* No separator - the whole thing is the filename */
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, path);
+        return rt_arena_v2_strdup(arena,path);
     }
 
     /* Return everything after the last separator */
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, last_sep + 1);
+    return rt_arena_v2_strdup(arena,last_sep + 1);
 }
 
 /* Extract file extension (without dot) from a path */
-RtHandle sn_path_extension(RtManagedArena *arena, const char *path)
+RtHandleV2 *sn_path_extension(RtArenaV2 *arena, const char *path)
 {
     if (path == NULL || *path == '\0') {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
     /* Get just the filename part first */
@@ -163,15 +170,15 @@ RtHandle sn_path_extension(RtManagedArena *arena, const char *path)
 
     /* No dot, or dot is at start (hidden file like .bashrc) */
     if (last_dot == NULL || last_dot == filename) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
     /* Return extension without the dot */
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, last_dot + 1);
+    return rt_arena_v2_strdup(arena,last_dot + 1);
 }
 
 /* Join two path components */
-RtHandle sn_path_join2(RtManagedArena *arena, const char *path1, const char *path2)
+RtHandleV2 *sn_path_join2(RtArenaV2 *arena, const char *path1, const char *path2)
 {
     if (path1 == NULL) path1 = "";
     if (path2 == NULL) path2 = "";
@@ -181,18 +188,18 @@ RtHandle sn_path_join2(RtManagedArena *arena, const char *path1, const char *pat
 
     /* If path2 is absolute, return it directly */
     if (len2 > 0 && is_path_separator(path2[0])) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, path2);
+        return rt_arena_v2_strdup(arena,path2);
     }
 #ifdef _WIN32
     /* Check for Windows absolute path like C:\ */
     if (len2 > 2 && path2[1] == ':' && is_path_separator(path2[2])) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, path2);
+        return rt_arena_v2_strdup(arena,path2);
     }
 #endif
 
     /* If path1 is empty, return path2 */
     if (len1 == 0) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, path2);
+        return rt_arena_v2_strdup(arena,path2);
     }
 
     /* Check if path1 already ends with separator */
@@ -214,56 +221,56 @@ RtHandle sn_path_join2(RtManagedArena *arena, const char *path1, const char *pat
     memcpy(buf + pos, path2, len2);
     buf[pos + len2] = '\0';
 
-    RtHandle h = rt_managed_strdup(arena, RT_HANDLE_NULL, buf);
+    RtHandleV2 *h = rt_arena_v2_strdup(arena,buf);
     free(buf);
     return h;
 }
 
 /* Join three path components */
-RtHandle sn_path_join3(RtManagedArena *arena, const char *path1, const char *path2, const char *path3)
+RtHandleV2 *sn_path_join3(RtArenaV2 *arena, const char *path1, const char *path2, const char *path3)
 {
     /* First join path1 and path2 */
-    RtHandle temp_h = sn_path_join2(arena, path1, path2);
+    RtHandleV2 *temp_h = sn_path_join2(arena, path1, path2);
 
     /* Pin to get pointer for second join */
-    char *temp = rt_managed_pin_str(arena, temp_h);
+    char *temp = (char *)rt_handle_v2_pin(temp_h);
 
     /* Join temp with path3 */
-    RtHandle result = sn_path_join2(arena, temp, path3);
+    RtHandleV2 *result = sn_path_join2(arena, temp, path3);
 
-    rt_managed_unpin(arena, temp_h);
+    rt_handle_v2_unpin(temp_h);
 
     /* Mark temp as dead since we don't need it anymore */
-    rt_managed_mark_dead(arena, temp_h);
+    rt_arena_v2_free(temp_h);
 
     return result;
 }
 
 /* Join an array of path components (parts is a Sindarin str[] array) */
-RtHandle sn_path_join_all(RtManagedArena *arena, char **parts)
+RtHandleV2 *sn_path_join_all(RtArenaV2 *arena, char **parts)
 {
     /* Get array length */
-    size_t count = rt_array_length(parts);
+    size_t count = rt_v2_data_array_length(parts);
 
     if (count == 0) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, "");
+        return rt_arena_v2_strdup(arena,"");
     }
 
     if (count == 1) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, parts[0]);
+        return rt_arena_v2_strdup(arena,parts[0]);
     }
 
     /* Start with the first element */
-    RtHandle result = rt_managed_strdup(arena, RT_HANDLE_NULL, parts[0]);
+    RtHandleV2 *result = rt_arena_v2_strdup(arena,parts[0]);
 
     /* Join each subsequent part */
     for (size_t i = 1; i < count; i++) {
-        char *current = rt_managed_pin_str(arena, result);
+        char *current = (char *)rt_handle_v2_pin(result);
 
-        RtHandle new_result = sn_path_join2(arena, current, parts[i]);
+        RtHandleV2 *new_result = sn_path_join2(arena, current, parts[i]);
 
-        rt_managed_unpin(arena, result);
-        rt_managed_mark_dead(arena, result);
+        rt_handle_v2_unpin(result);
+        rt_arena_v2_free(result);
 
         result = new_result;
     }
@@ -272,34 +279,34 @@ RtHandle sn_path_join_all(RtManagedArena *arena, char **parts)
 }
 
 /* Resolve a path to its absolute form */
-RtHandle sn_path_absolute(RtManagedArena *arena, const char *path)
+RtHandleV2 *sn_path_absolute(RtArenaV2 *arena, const char *path)
 {
     if (path == NULL || *path == '\0') {
         /* Empty path - return current working directory */
         char cwd[4096];
         if (getcwd(cwd, sizeof(cwd)) != NULL) {
-            return rt_managed_strdup(arena, RT_HANDLE_NULL, cwd);
+            return rt_arena_v2_strdup(arena,cwd);
         }
         /* Fallback if getcwd fails */
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, ".");
+        return rt_arena_v2_strdup(arena,".");
     }
 
 #ifdef _WIN32
     char resolved[PATH_MAX];
     if (_fullpath(resolved, path, PATH_MAX) != NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, resolved);
+        return rt_arena_v2_strdup(arena,resolved);
     }
 #else
     char resolved[PATH_MAX];
     if (realpath(path, resolved) != NULL) {
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, resolved);
+        return rt_arena_v2_strdup(arena,resolved);
     }
 #endif
 
     /* realpath/_fullpath fails if path doesn't exist - try to resolve manually */
     if (is_absolute_path(path)) {
         /* Already absolute */
-        return rt_managed_strdup(arena, RT_HANDLE_NULL, path);
+        return rt_arena_v2_strdup(arena,path);
     }
 
     /* Prepend current working directory */
@@ -309,7 +316,7 @@ RtHandle sn_path_absolute(RtManagedArena *arena, const char *path)
     }
 
     /* Fallback - return as-is */
-    return rt_managed_strdup(arena, RT_HANDLE_NULL, path);
+    return rt_arena_v2_strdup(arena,path);
 }
 
 /* ============================================================================

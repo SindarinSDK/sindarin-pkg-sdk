@@ -14,10 +14,7 @@
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 
-#include "runtime/runtime_arena.h"
-#include "runtime/array/runtime_array.h"
-#include "runtime/arena/managed_arena.h"
-#include "runtime/array/runtime_array_h.h"
+#include "runtime/array/runtime_array_v2.h"
 
 /* ============================================================================
  * RtCrypto Type Definition (Static-only, never instantiated)
@@ -71,82 +68,82 @@ static unsigned char *sn_crypto_digest_internal(const unsigned char *data,
  * Hashing (byte[] input)
  * ============================================================================ */
 
-RtHandle sn_crypto_sha256(RtManagedArena *arena, unsigned char *data)
+RtHandleV2 *sn_crypto_sha256(RtArenaV2 *arena, unsigned char *data)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    size_t len = data ? rt_array_length(data) : 0;
+    size_t len = data ? rt_v2_data_array_length(data) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal(data, len, EVP_sha256(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
-RtHandle sn_crypto_sha384(RtManagedArena *arena, unsigned char *data)
+RtHandleV2 *sn_crypto_sha384(RtArenaV2 *arena, unsigned char *data)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    size_t len = data ? rt_array_length(data) : 0;
+    size_t len = data ? rt_v2_data_array_length(data) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal(data, len, EVP_sha384(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
-RtHandle sn_crypto_sha512(RtManagedArena *arena, unsigned char *data)
+RtHandleV2 *sn_crypto_sha512(RtArenaV2 *arena, unsigned char *data)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    size_t len = data ? rt_array_length(data) : 0;
+    size_t len = data ? rt_v2_data_array_length(data) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal(data, len, EVP_sha512(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
-RtHandle sn_crypto_sha1(RtManagedArena *arena, unsigned char *data)
+RtHandleV2 *sn_crypto_sha1(RtArenaV2 *arena, unsigned char *data)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    size_t len = data ? rt_array_length(data) : 0;
+    size_t len = data ? rt_v2_data_array_length(data) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal(data, len, EVP_sha1(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
-RtHandle sn_crypto_md5(RtManagedArena *arena, unsigned char *data)
+RtHandleV2 *sn_crypto_md5(RtArenaV2 *arena, unsigned char *data)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    size_t len = data ? rt_array_length(data) : 0;
+    size_t len = data ? rt_v2_data_array_length(data) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal(data, len, EVP_md5(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
@@ -155,82 +152,82 @@ RtHandle sn_crypto_md5(RtManagedArena *arena, unsigned char *data)
  * Hashing (str input)
  * ============================================================================ */
 
-RtHandle sn_crypto_sha256_str(RtManagedArena *arena, const char *text)
+RtHandleV2 *sn_crypto_sha256_str(RtArenaV2 *arena, const char *text)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
     size_t len = text ? strlen(text) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal((const unsigned char *)text, len, EVP_sha256(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
-RtHandle sn_crypto_sha384_str(RtManagedArena *arena, const char *text)
+RtHandleV2 *sn_crypto_sha384_str(RtArenaV2 *arena, const char *text)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
     size_t len = text ? strlen(text) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal((const unsigned char *)text, len, EVP_sha384(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
-RtHandle sn_crypto_sha512_str(RtManagedArena *arena, const char *text)
+RtHandleV2 *sn_crypto_sha512_str(RtArenaV2 *arena, const char *text)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
     size_t len = text ? strlen(text) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal((const unsigned char *)text, len, EVP_sha512(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
-RtHandle sn_crypto_sha1_str(RtManagedArena *arena, const char *text)
+RtHandleV2 *sn_crypto_sha1_str(RtArenaV2 *arena, const char *text)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
     size_t len = text ? strlen(text) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal((const unsigned char *)text, len, EVP_sha1(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
-RtHandle sn_crypto_md5_str(RtManagedArena *arena, const char *text)
+RtHandleV2 *sn_crypto_md5_str(RtArenaV2 *arena, const char *text)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
     size_t len = text ? strlen(text) : 0;
     unsigned int digest_len = 0;
     unsigned char *buf = sn_crypto_digest_internal((const unsigned char *)text, len, EVP_md5(), &digest_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
-    RtHandle result = rt_array_create_byte_h(arena, digest_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, digest_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
@@ -239,20 +236,20 @@ RtHandle sn_crypto_md5_str(RtManagedArena *arena, const char *text)
  * HMAC
  * ============================================================================ */
 
-RtHandle sn_crypto_hmac_sha256(RtManagedArena *arena, unsigned char *key,
+RtHandleV2 *sn_crypto_hmac_sha256(RtArenaV2 *arena, unsigned char *key,
                                 unsigned char *data)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t key_len = key ? rt_array_length(key) : 0;
-    size_t data_len = data ? rt_array_length(data) : 0;
+    size_t key_len = key ? rt_v2_data_array_length(key) : 0;
+    size_t data_len = data ? rt_v2_data_array_length(data) : 0;
 
     unsigned int result_len = (unsigned int)EVP_MD_size(EVP_sha256());
     unsigned char *buf = (unsigned char *)malloc(result_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     unsigned char *ret = HMAC(EVP_sha256(),
@@ -262,28 +259,28 @@ RtHandle sn_crypto_hmac_sha256(RtManagedArena *arena, unsigned char *key,
 
     if (ret == NULL) {
         free(buf);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    RtHandle result = rt_array_create_byte_h(arena, result_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, result_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
 
-RtHandle sn_crypto_hmac_sha512(RtManagedArena *arena, unsigned char *key,
+RtHandleV2 *sn_crypto_hmac_sha512(RtArenaV2 *arena, unsigned char *key,
                                 unsigned char *data)
 {
     if (arena == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t key_len = key ? rt_array_length(key) : 0;
-    size_t data_len = data ? rt_array_length(data) : 0;
+    size_t key_len = key ? rt_v2_data_array_length(key) : 0;
+    size_t data_len = data ? rt_v2_data_array_length(data) : 0;
 
     unsigned int result_len = (unsigned int)EVP_MD_size(EVP_sha512());
     unsigned char *buf = (unsigned char *)malloc(result_len);
     if (buf == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     unsigned char *ret = HMAC(EVP_sha512(),
@@ -293,10 +290,10 @@ RtHandle sn_crypto_hmac_sha512(RtManagedArena *arena, unsigned char *key,
 
     if (ret == NULL) {
         free(buf);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    RtHandle result = rt_array_create_byte_h(arena, result_len, buf);
+    RtHandleV2 *result = rt_array_create_generic_v2(arena, result_len, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
@@ -309,37 +306,37 @@ RtHandle sn_crypto_hmac_sha512(RtManagedArena *arena, unsigned char *key,
 #define AES_GCM_TAG_LEN 16
 #define AES_256_KEY_LEN 32
 
-RtHandle sn_crypto_encrypt(RtManagedArena *arena, unsigned char *key,
+RtHandleV2 *sn_crypto_encrypt(RtArenaV2 *arena, unsigned char *key,
                             unsigned char *plaintext)
 {
     if (arena == NULL || key == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t key_len = rt_array_length(key);
+    size_t key_len = rt_v2_data_array_length(key);
     if (key_len != AES_256_KEY_LEN) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t pt_len = plaintext ? rt_array_length(plaintext) : 0;
+    size_t pt_len = plaintext ? rt_v2_data_array_length(plaintext) : 0;
 
     /* Output: [IV(12)][ciphertext][tag(16)] */
     size_t out_len = AES_GCM_IV_LEN + pt_len + AES_GCM_TAG_LEN;
     unsigned char *output = (unsigned char *)malloc(out_len);
     if (output == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     /* Generate random IV */
     if (RAND_bytes(output, AES_GCM_IV_LEN) != 1) {
         free(output);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (ctx == NULL) {
         free(output);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     int len = 0;
@@ -377,7 +374,7 @@ RtHandle sn_crypto_encrypt(RtManagedArena *arena, unsigned char *key,
 
     EVP_CIPHER_CTX_free(ctx);
     {
-        RtHandle result = rt_array_create_byte_h(arena, out_len, output);
+        RtHandleV2 *result = rt_array_create_generic_v2(arena, out_len, sizeof(unsigned char), output);
         free(output);
         return result;
     }
@@ -385,24 +382,24 @@ RtHandle sn_crypto_encrypt(RtManagedArena *arena, unsigned char *key,
 encrypt_fail:
     EVP_CIPHER_CTX_free(ctx);
     free(output);
-    return RT_HANDLE_NULL;
+    return NULL;
 }
 
-RtHandle sn_crypto_decrypt(RtManagedArena *arena, unsigned char *key,
+RtHandleV2 *sn_crypto_decrypt(RtArenaV2 *arena, unsigned char *key,
                             unsigned char *ciphertext)
 {
     if (arena == NULL || key == NULL || ciphertext == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t key_len = rt_array_length(key);
+    size_t key_len = rt_v2_data_array_length(key);
     if (key_len != AES_256_KEY_LEN) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t ct_total_len = rt_array_length(ciphertext);
+    size_t ct_total_len = rt_v2_data_array_length(ciphertext);
     if (ct_total_len < AES_GCM_IV_LEN + AES_GCM_TAG_LEN) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     /* Input layout: [IV(12)][ciphertext][tag(16)] */
@@ -413,13 +410,13 @@ RtHandle sn_crypto_decrypt(RtManagedArena *arena, unsigned char *key,
 
     unsigned char *plaintext = (unsigned char *)malloc(ct_len > 0 ? ct_len : 1);
     if (plaintext == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (ctx == NULL) {
         free(plaintext);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     int len = 0;
@@ -455,7 +452,7 @@ RtHandle sn_crypto_decrypt(RtManagedArena *arena, unsigned char *key,
 
     EVP_CIPHER_CTX_free(ctx);
     {
-        RtHandle result = rt_array_create_byte_h(arena, ct_len, plaintext);
+        RtHandleV2 *result = rt_array_create_generic_v2(arena, ct_len, sizeof(unsigned char), plaintext);
         free(plaintext);
         return result;
     }
@@ -463,39 +460,39 @@ RtHandle sn_crypto_decrypt(RtManagedArena *arena, unsigned char *key,
 decrypt_fail:
     EVP_CIPHER_CTX_free(ctx);
     free(plaintext);
-    return RT_HANDLE_NULL;
+    return NULL;
 }
 
-RtHandle sn_crypto_encrypt_with_iv(RtManagedArena *arena, unsigned char *key,
+RtHandleV2 *sn_crypto_encrypt_with_iv(RtArenaV2 *arena, unsigned char *key,
                                     unsigned char *iv, unsigned char *plaintext)
 {
     if (arena == NULL || key == NULL || iv == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t key_len = rt_array_length(key);
+    size_t key_len = rt_v2_data_array_length(key);
     if (key_len != AES_256_KEY_LEN) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t iv_len = rt_array_length(iv);
+    size_t iv_len = rt_v2_data_array_length(iv);
     if (iv_len != AES_GCM_IV_LEN) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t pt_len = plaintext ? rt_array_length(plaintext) : 0;
+    size_t pt_len = plaintext ? rt_v2_data_array_length(plaintext) : 0;
 
     /* Output: [ciphertext][tag(16)] */
     size_t out_len = pt_len + AES_GCM_TAG_LEN;
     unsigned char *output = (unsigned char *)malloc(out_len > 0 ? out_len : 1);
     if (output == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (ctx == NULL) {
         free(output);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     int len = 0;
@@ -533,7 +530,7 @@ RtHandle sn_crypto_encrypt_with_iv(RtManagedArena *arena, unsigned char *key,
 
     EVP_CIPHER_CTX_free(ctx);
     {
-        RtHandle result = rt_array_create_byte_h(arena, out_len, output);
+        RtHandleV2 *result = rt_array_create_generic_v2(arena, out_len, sizeof(unsigned char), output);
         free(output);
         return result;
     }
@@ -541,29 +538,29 @@ RtHandle sn_crypto_encrypt_with_iv(RtManagedArena *arena, unsigned char *key,
 encrypt_iv_fail:
     EVP_CIPHER_CTX_free(ctx);
     free(output);
-    return RT_HANDLE_NULL;
+    return NULL;
 }
 
-RtHandle sn_crypto_decrypt_with_iv(RtManagedArena *arena, unsigned char *key,
+RtHandleV2 *sn_crypto_decrypt_with_iv(RtArenaV2 *arena, unsigned char *key,
                                     unsigned char *iv, unsigned char *ciphertext)
 {
     if (arena == NULL || key == NULL || iv == NULL || ciphertext == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t key_len = rt_array_length(key);
+    size_t key_len = rt_v2_data_array_length(key);
     if (key_len != AES_256_KEY_LEN) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t iv_len = rt_array_length(iv);
+    size_t iv_len = rt_v2_data_array_length(iv);
     if (iv_len != AES_GCM_IV_LEN) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t ct_total_len = rt_array_length(ciphertext);
+    size_t ct_total_len = rt_v2_data_array_length(ciphertext);
     if (ct_total_len < AES_GCM_TAG_LEN) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     /* Input layout: [ciphertext][tag(16)] */
@@ -572,13 +569,13 @@ RtHandle sn_crypto_decrypt_with_iv(RtManagedArena *arena, unsigned char *key,
 
     unsigned char *plaintext = (unsigned char *)malloc(ct_len > 0 ? ct_len : 1);
     if (plaintext == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (ctx == NULL) {
         free(plaintext);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     int len = 0;
@@ -614,7 +611,7 @@ RtHandle sn_crypto_decrypt_with_iv(RtManagedArena *arena, unsigned char *key,
 
     EVP_CIPHER_CTX_free(ctx);
     {
-        RtHandle result = rt_array_create_byte_h(arena, ct_len, plaintext);
+        RtHandleV2 *result = rt_array_create_generic_v2(arena, ct_len, sizeof(unsigned char), plaintext);
         free(plaintext);
         return result;
     }
@@ -622,24 +619,24 @@ RtHandle sn_crypto_decrypt_with_iv(RtManagedArena *arena, unsigned char *key,
 decrypt_iv_fail:
     EVP_CIPHER_CTX_free(ctx);
     free(plaintext);
-    return RT_HANDLE_NULL;
+    return NULL;
 }
 
 /* ============================================================================
  * Key Derivation (PBKDF2)
  * ============================================================================ */
 
-RtHandle sn_crypto_pbkdf2(RtManagedArena *arena, const char *password,
+RtHandleV2 *sn_crypto_pbkdf2(RtArenaV2 *arena, const char *password,
                            unsigned char *salt, long iterations, long key_len)
 {
     if (arena == NULL || password == NULL || key_len <= 0 || iterations <= 0) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t salt_len = salt ? rt_array_length(salt) : 0;
+    size_t salt_len = salt ? rt_v2_data_array_length(salt) : 0;
     unsigned char *result = (unsigned char *)malloc((size_t)key_len);
     if (result == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     if (PKCS5_PBKDF2_HMAC(password, (int)strlen(password),
@@ -648,25 +645,25 @@ RtHandle sn_crypto_pbkdf2(RtManagedArena *arena, const char *password,
                             EVP_sha256(),
                             (int)key_len, result) != 1) {
         free(result);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    RtHandle h = rt_array_create_byte_h(arena, (size_t)key_len, result);
+    RtHandleV2 *h = rt_array_create_generic_v2(arena, (size_t)key_len, sizeof(unsigned char), result);
     free(result);
     return h;
 }
 
-RtHandle sn_crypto_pbkdf2_sha512(RtManagedArena *arena, const char *password,
+RtHandleV2 *sn_crypto_pbkdf2_sha512(RtArenaV2 *arena, const char *password,
                                   unsigned char *salt, long iterations, long key_len)
 {
     if (arena == NULL || password == NULL || key_len <= 0 || iterations <= 0) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    size_t salt_len = salt ? rt_array_length(salt) : 0;
+    size_t salt_len = salt ? rt_v2_data_array_length(salt) : 0;
     unsigned char *result = (unsigned char *)malloc((size_t)key_len);
     if (result == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     if (PKCS5_PBKDF2_HMAC(password, (int)strlen(password),
@@ -675,10 +672,10 @@ RtHandle sn_crypto_pbkdf2_sha512(RtManagedArena *arena, const char *password,
                             EVP_sha512(),
                             (int)key_len, result) != 1) {
         free(result);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    RtHandle h = rt_array_create_byte_h(arena, (size_t)key_len, result);
+    RtHandleV2 *h = rt_array_create_generic_v2(arena, (size_t)key_len, sizeof(unsigned char), result);
     free(result);
     return h;
 }
@@ -687,23 +684,23 @@ RtHandle sn_crypto_pbkdf2_sha512(RtManagedArena *arena, const char *password,
  * Secure Random
  * ============================================================================ */
 
-RtHandle sn_crypto_random_bytes(RtManagedArena *arena, long count)
+RtHandleV2 *sn_crypto_random_bytes(RtArenaV2 *arena, long count)
 {
     if (arena == NULL || count <= 0) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     unsigned char *result = (unsigned char *)malloc((size_t)count);
     if (result == NULL) {
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
     if (RAND_bytes(result, (int)count) != 1) {
         free(result);
-        return RT_HANDLE_NULL;
+        return NULL;
     }
 
-    RtHandle h = rt_array_create_byte_h(arena, (size_t)count, result);
+    RtHandleV2 *h = rt_array_create_generic_v2(arena, (size_t)count, sizeof(unsigned char), result);
     free(result);
     return h;
 }
@@ -718,8 +715,8 @@ long sn_crypto_constant_time_equal(unsigned char *a, unsigned char *b)
         return 0;
     }
 
-    size_t a_len = rt_array_length(a);
-    size_t b_len = rt_array_length(b);
+    size_t a_len = rt_v2_data_array_length(a);
+    size_t b_len = rt_v2_data_array_length(b);
 
     if (a_len != b_len) {
         return 0;
