@@ -79,6 +79,8 @@ typedef struct RtTcpStream {
 typedef struct RtTcpListener {
     socket_t socket_fd;     /* Listening socket file descriptor */
     int bound_port;         /* Port number we're bound to */
+    RtArenaV2 *arena;       /* Arena used for allocation (for GC on close) */
+    RtHandleV2 *self_handle; /* Handle to self (for GC on close) */
 } RtTcpListener;
 
 /* ============================================================================
@@ -924,6 +926,8 @@ static RtTcpListener *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, in
     }
     listener->socket_fd = sock;
     listener->bound_port = port;
+    listener->arena = arena;
+    listener->self_handle = _listener_h;
     return listener;
 }
 
@@ -1060,5 +1064,14 @@ void sn_tcp_listener_close(RtTcpListener *listener) {
     if (listener->socket_fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(listener->socket_fd);
         listener->socket_fd = INVALID_SOCKET_VAL;
+    }
+
+    /* Unpin and mark handle dead for GC reclamation */
+    if (listener->self_handle != NULL) {
+        RtHandleV2 *self = listener->self_handle;
+        listener->self_handle = NULL;
+        listener->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
     }
 }
