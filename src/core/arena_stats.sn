@@ -2,25 +2,32 @@
 # sdk/core/arena_stats.sn - Arena Memory Statistics for Sindarin
 # ==============================================================================
 # Opt-in observability for the runtime memory system.
-# Import this module and call the functions to inspect arena state.
+# Import this module and call Arena static methods to inspect arena state.
 #
 # Usage:
 #   import "sdk/core/arena_stats"
 #
-#   arena_stats_print()           # Print summary to stderr
-#   arena_stats_snapshot()        # Print per-block breakdown to stderr
-#   arena_stats_enable_gc_log()   # Enable one-line GC logging per pass
-#   arena_stats_disable_gc_log()  # Disable GC logging
-#
-#   var s: ArenaStats = arena_stats_get()
+#   var s: ArenaStats = Arena.stats()
 #   print($"Live handles: {s.handle_count}\n")
 #   print($"Fragmentation: {s.fragmentation}%\n")
+#
+#   Arena.print()             # Print summary to stderr
+#   Arena.snapshot()          # Print per-block breakdown to stderr
+#   Arena.enableGCLog()       # Enable one-line GC logging per pass
+#   Arena.disableGCLog()      # Disable GC logging
+#
+#   var gc: ArenaGCReport = Arena.lastGC()
+#   print($"Collected: {gc.handles_collected}\n")
+#
 # ==============================================================================
 
 # Self-contained implementation - compile and link our own C source
 @source "arena_stats.sn.c"
 
-# Arena statistics snapshot
+# ==============================================================================
+# ArenaStats - Arena statistics snapshot
+# ==============================================================================
+
 struct ArenaStats =>
     handle_count: int = 0
     dead_handle_count: int = 0
@@ -38,7 +45,10 @@ struct ArenaStats =>
     gc_runs: int = 0
     fragmentation: double = 0.0
 
-# Last GC run report
+# ==============================================================================
+# ArenaGCReport - Last GC run report
+# ==============================================================================
+
 struct ArenaGCReport =>
     handles_swept: int = 0
     handles_collected: int = 0
@@ -46,34 +56,63 @@ struct ArenaGCReport =>
     blocks_freed: int = 0
     bytes_collected: int = 0
 
-# Get cumulative stats for the root arena
-fn arena_stats_get(): ArenaStats =>
-    return sn_arena_stats_get()
+# ==============================================================================
+# Arena Static-Only Type Definition
+# ==============================================================================
+# Arena is a static-only type with no instances - all methods are static.
+# Provides observability into the runtime memory arena.
 
-# Print human-readable summary to stderr
-fn arena_stats_print(): void =>
-    sn_arena_stats_print()
+@alias "SnArenaHelper"
+native struct Arena =>
 
-# Get the last GC run report
-fn arena_stats_last_gc(): ArenaGCReport =>
-    return sn_arena_stats_last_gc()
+    # ==========================================================================
+    # Statistics Methods
+    # ==========================================================================
 
-# Print detailed per-block breakdown to stderr
-fn arena_stats_snapshot(): void =>
-    sn_arena_stats_snapshot()
+    # Get cumulative stats for the root arena
+    static fn stats(): ArenaStats =>
+        return sn_arena_stats_get()
 
-# Enable one-line GC logging per pass to stderr
-fn arena_stats_enable_gc_log(): void =>
-    sn_arena_stats_enable_gc_log()
+    # Get the last GC run report
+    static fn lastGC(): ArenaGCReport =>
+        return sn_arena_stats_last_gc()
 
-# Disable GC logging
-fn arena_stats_disable_gc_log(): void =>
-    sn_arena_stats_disable_gc_log()
+    # ==========================================================================
+    # Debug Output Methods
+    # ==========================================================================
 
-# Native function declarations
+    # Print human-readable summary to stderr
+    static fn print(): void =>
+        sn_arena_stats_print()
+
+    # Print detailed per-block breakdown to stderr
+    static fn snapshot(): void =>
+        sn_arena_stats_snapshot()
+
+    # ==========================================================================
+    # GC Logging Methods
+    # ==========================================================================
+
+    # Enable one-line GC logging per pass to stderr
+    static fn enableGCLog(): void =>
+        sn_arena_stats_enable_gc_log()
+
+    # Disable GC logging
+    static fn disableGCLog(): void =>
+        sn_arena_stats_disable_gc_log()
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+# Statistics functions
 native fn sn_arena_stats_get(arena): ArenaStats
-native fn sn_arena_stats_print(arena): void
 native fn sn_arena_stats_last_gc(arena): ArenaGCReport
+
+# Debug output functions
+native fn sn_arena_stats_print(arena): void
 native fn sn_arena_stats_snapshot(arena): void
+
+# GC logging functions
 native fn sn_arena_stats_enable_gc_log(arena): void
 native fn sn_arena_stats_disable_gc_log(arena): void
