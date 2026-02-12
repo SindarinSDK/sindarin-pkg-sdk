@@ -71,6 +71,9 @@ typedef struct RtTcpStream {
 
     /* Arena tracking for memory release on close */
     RtArenaV2 *arena;             /* Arena this stream was allocated from */
+    RtHandleV2 *self_handle;      /* Handle to this struct (for GC on close) */
+    RtHandleV2 *buf_handle;       /* Handle to read_buf (for GC on close) */
+    RtHandleV2 *addr_handle;      /* Handle to remote_addr (for GC on close) */
 } RtTcpStream;
 
 typedef struct RtTcpListener {
@@ -258,8 +261,10 @@ static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const 
     stream->read_timeout_ms = -1;  /* Blocking by default */
     stream->eof_reached = false;
 
-    /* Store arena for memory release on close */
+    /* Store arena and handles for memory release on close */
     stream->arena = arena;
+    stream->self_handle = _stream_h;
+    stream->buf_handle = _buf_h;
 
     /* Copy remote address string */
     if (remote_addr) {
@@ -267,11 +272,13 @@ static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const 
         RtHandleV2 *_addr_h = rt_arena_v2_alloc(arena, len);
         rt_handle_v2_pin(_addr_h);
         stream->remote_addr = (char *)_addr_h->ptr;
+        stream->addr_handle = _addr_h;
         if (stream->remote_addr) {
             memcpy(stream->remote_addr, remote_addr, len);
         }
     } else {
         stream->remote_addr = NULL;
+        stream->addr_handle = NULL;
     }
 
     return stream;
@@ -881,9 +888,26 @@ void sn_tcp_stream_close(RtTcpStream *stream) {
         stream->socket_fd = INVALID_SOCKET_VAL;
     }
 
-    stream->read_buf = NULL;
-    stream->remote_addr = NULL;
-    stream->arena = NULL;
+    /* Unpin and mark handles dead for GC reclamation */
+    if (stream->addr_handle != NULL) {
+        rt_handle_v2_unpin(stream->addr_handle);
+        rt_arena_v2_free(stream->addr_handle);
+        stream->addr_handle = NULL;
+    }
+    if (stream->buf_handle != NULL) {
+        rt_handle_v2_unpin(stream->buf_handle);
+        rt_arena_v2_free(stream->buf_handle);
+        stream->buf_handle = NULL;
+    }
+    if (stream->self_handle != NULL) {
+        RtHandleV2 *self = stream->self_handle;
+        stream->self_handle = NULL;
+        stream->read_buf = NULL;
+        stream->remote_addr = NULL;
+        stream->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
+    }
 }
 
 /* ============================================================================
