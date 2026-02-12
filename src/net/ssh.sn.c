@@ -60,6 +60,11 @@ typedef struct RtSshExecResult {
 typedef struct RtSshConnection {
     void *session_ptr;          /* ssh_session handle */
     char *remote_addr;          /* Remote address string (host:port) */
+
+    /* Arena tracking for memory release on close */
+    RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
+    RtHandleV2 *addr_handle;
 } RtSshConnection;
 
 /* Server types */
@@ -80,18 +85,32 @@ typedef struct RtSshListener {
     void *bind_ptr;             /* ssh_bind handle */
     long bound_port;
     RtSshServerConfig *config_ptr;
+
+    /* Arena tracking for memory release on close */
+    RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
 } RtSshListener;
 
 typedef struct RtSshSession {
     void *session_ptr;          /* ssh_session handle */
     char *username;
     char *remote_addr;
+
+    /* Arena tracking for memory release on close */
+    RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
+    RtHandleV2 *username_handle;
+    RtHandleV2 *addr_handle;
 } RtSshSession;
 
 typedef struct RtSshChannel {
     void *channel_ptr;          /* ssh_channel handle */
     char *command_str;
     long is_shell;
+
+    /* Arena tracking for memory release on close */
+    RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
 } RtSshChannel;
 
 /* ============================================================================
@@ -283,11 +302,16 @@ static RtSshConnection *ssh_connect_and_handshake(RtArenaV2 *arena, const char *
 
     conn->session_ptr = session;
 
+    /* Store arena and handles for memory release on close */
+    conn->arena = arena;
+    conn->self_handle = _conn_h;
+
     /* Copy address string into arena */
     size_t addr_len = strlen(address) + 1;
     RtHandleV2 *_addr_h = rt_arena_v2_alloc(arena, addr_len);
     rt_handle_v2_pin(_addr_h);
     conn->remote_addr = (char *)_addr_h->ptr;
+    conn->addr_handle = _addr_h;
     if (conn->remote_addr) {
         memcpy(conn->remote_addr, address, addr_len);
     }
@@ -623,6 +647,21 @@ void sn_ssh_close(RtSshConnection *conn) {
         ssh_free(session);
         conn->session_ptr = NULL;
     }
+
+    /* Unpin and mark handles dead for GC reclamation */
+    if (conn->addr_handle != NULL) {
+        rt_handle_v2_unpin(conn->addr_handle);
+        rt_arena_v2_free(conn->addr_handle);
+        conn->addr_handle = NULL;
+    }
+    if (conn->self_handle != NULL) {
+        RtHandleV2 *self = conn->self_handle;
+        conn->self_handle = NULL;
+        conn->remote_addr = NULL;
+        conn->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
+    }
 }
 
 /* ============================================================================
@@ -780,6 +819,8 @@ static RtSshListener *ssh_listener_bind_internal(RtArenaV2 *arena, const char *a
     listener->bind_ptr = sshbind;
     listener->bound_port = actual_port;
     listener->config_ptr = config;
+    listener->arena = arena;
+    listener->self_handle = _listener_h;
 
     return listener;
 }
@@ -806,6 +847,15 @@ void sn_ssh_listener_close(RtSshListener *listener) {
     if (listener->bind_ptr) {
         ssh_bind_free((ssh_bind)listener->bind_ptr);
         listener->bind_ptr = NULL;
+    }
+
+    /* Unpin and mark handle dead for GC reclamation */
+    if (listener->self_handle != NULL) {
+        RtHandleV2 *self = listener->self_handle;
+        listener->self_handle = NULL;
+        listener->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
     }
 }
 
@@ -850,6 +900,7 @@ RtSshSession *sn_ssh_listener_accept(RtArenaV2 *arena, RtSshListener *listener) 
 
     /* Authentication message loop */
     char *auth_username = NULL;
+    RtHandleV2 *uname_handle = NULL;
     int authenticated = 0;
     int max_attempts = 20;
 
@@ -878,6 +929,7 @@ RtSshSession *sn_ssh_listener_accept(RtArenaV2 *arena, RtSshListener *listener) 
                             RtHandleV2 *_uname_h = rt_arena_v2_alloc(arena, ulen);
                             rt_handle_v2_pin(_uname_h);
                             auth_username = (char *)_uname_h->ptr;
+                            uname_handle = _uname_h;
                             if (auth_username) memcpy(auth_username, user, ulen);
                             break;
                         }
@@ -948,10 +1000,16 @@ RtSshSession *sn_ssh_listener_accept(RtArenaV2 *arena, RtSshListener *listener) 
     sess->session_ptr = session;
     sess->username = auth_username;
 
+    /* Store arena and handles for memory release on close */
+    sess->arena = arena;
+    sess->self_handle = _sess_h;
+    sess->username_handle = uname_handle;
+
     size_t rlen = strlen(remote_addr_buf) + 1;
     RtHandleV2 *_raddr_h = rt_arena_v2_alloc(arena, rlen);
     rt_handle_v2_pin(_raddr_h);
     sess->remote_addr = (char *)_raddr_h->ptr;
+    sess->addr_handle = _raddr_h;
     if (sess->remote_addr) {
         memcpy(sess->remote_addr, remote_addr_buf, rlen);
     }
@@ -983,6 +1041,27 @@ void sn_ssh_session_close(RtSshSession *session) {
         ssh_disconnect((ssh_session)session->session_ptr);
         ssh_free((ssh_session)session->session_ptr);
         session->session_ptr = NULL;
+    }
+
+    /* Unpin and mark handles dead for GC reclamation */
+    if (session->addr_handle != NULL) {
+        rt_handle_v2_unpin(session->addr_handle);
+        rt_arena_v2_free(session->addr_handle);
+        session->addr_handle = NULL;
+    }
+    if (session->username_handle != NULL) {
+        rt_handle_v2_unpin(session->username_handle);
+        rt_arena_v2_free(session->username_handle);
+        session->username_handle = NULL;
+    }
+    if (session->self_handle != NULL) {
+        RtHandleV2 *self = session->self_handle;
+        session->self_handle = NULL;
+        session->username = NULL;
+        session->remote_addr = NULL;
+        session->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
     }
 }
 
@@ -1070,6 +1149,8 @@ RtSshChannel *sn_ssh_session_accept_channel(RtArenaV2 *arena, RtSshSession *sess
     ch->channel_ptr = channel;
     ch->command_str = command;
     ch->is_shell = is_shell;
+    ch->arena = arena;
+    ch->self_handle = _ch_h;
 
     return ch;
 }
@@ -1205,5 +1286,14 @@ void sn_ssh_channel_close(RtSshChannel *channel) {
         ssh_channel_close(ch);
         ssh_channel_free(ch);
         channel->channel_ptr = NULL;
+    }
+
+    /* Unpin and mark handle dead for GC reclamation */
+    if (channel->self_handle != NULL) {
+        RtHandleV2 *self = channel->self_handle;
+        channel->self_handle = NULL;
+        channel->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
     }
 }

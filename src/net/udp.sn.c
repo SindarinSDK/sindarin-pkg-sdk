@@ -52,6 +52,10 @@ typedef struct RtUdpSocket {
     socket_t socket_fd;     /* Socket file descriptor */
     int bound_port;         /* Port number we're bound to */
     int recv_timeout_ms;    /* Receive timeout: -1=blocking, 0=non-blocking, >0=timeout ms */
+
+    /* Arena tracking for memory release on close */
+    RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
 } RtUdpSocket;
 
 /* Result struct for receiveFrom */
@@ -126,6 +130,8 @@ static RtUdpSocket *sn_udp_socket_create(RtArenaV2 *arena, socket_t sock, int po
     socket_obj->socket_fd = sock;
     socket_obj->bound_port = port;
     socket_obj->recv_timeout_ms = -1;  /* Blocking by default */
+    socket_obj->arena = arena;
+    socket_obj->self_handle = _socket_h;
     return socket_obj;
 }
 
@@ -443,6 +449,15 @@ void sn_udp_socket_close(RtUdpSocket *socket_obj) {
     if (socket_obj->socket_fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(socket_obj->socket_fd);
         socket_obj->socket_fd = INVALID_SOCKET_VAL;
+    }
+
+    /* Unpin and mark handle dead for GC reclamation */
+    if (socket_obj->self_handle != NULL) {
+        RtHandleV2 *self = socket_obj->self_handle;
+        socket_obj->self_handle = NULL;
+        socket_obj->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
     }
 }
 

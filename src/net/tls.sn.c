@@ -101,6 +101,12 @@ typedef struct RtTlsStream {
     size_t read_buf_end;        /* End of valid data */
 
     bool eof_reached;           /* True if SSL connection closed */
+
+    /* Arena tracking for memory release on close */
+    RtArenaV2 *arena;             /* Arena this stream was allocated from */
+    RtHandleV2 *self_handle;      /* Handle to this struct (for GC on close) */
+    RtHandleV2 *buf_handle;       /* Handle to read_buf (for GC on close) */
+    RtHandleV2 *addr_handle;      /* Handle to remote_addr (for GC on close) */
 } RtTlsStream;
 
 /* ============================================================================
@@ -421,17 +427,24 @@ static RtTlsStream *sn_tls_stream_create(RtArenaV2 *arena, socket_t sock,
     stream->read_buf_end = 0;
     stream->eof_reached = false;
 
+    /* Store arena and handles for memory release on close */
+    stream->arena = arena;
+    stream->self_handle = _stream_h;
+    stream->buf_handle = _buf_h;
+
     /* Copy remote address string */
     if (remote_addr) {
         size_t len = strlen(remote_addr) + 1;
         RtHandleV2 *_addr_h = rt_arena_v2_alloc(arena, len);
         rt_handle_v2_pin(_addr_h);
         stream->remote_addr = (char *)_addr_h->ptr;
+        stream->addr_handle = _addr_h;
         if (stream->remote_addr) {
             memcpy(stream->remote_addr, remote_addr, len);
         }
     } else {
         stream->remote_addr = NULL;
+        stream->addr_handle = NULL;
     }
 
     return stream;
@@ -867,6 +880,27 @@ void sn_tls_stream_close(RtTlsStream *stream) {
         CLOSE_SOCKET(stream->socket_fd);
         stream->socket_fd = INVALID_SOCKET_VAL;
     }
+
+    /* Unpin and mark handles dead for GC reclamation */
+    if (stream->addr_handle != NULL) {
+        rt_handle_v2_unpin(stream->addr_handle);
+        rt_arena_v2_free(stream->addr_handle);
+        stream->addr_handle = NULL;
+    }
+    if (stream->buf_handle != NULL) {
+        rt_handle_v2_unpin(stream->buf_handle);
+        rt_arena_v2_free(stream->buf_handle);
+        stream->buf_handle = NULL;
+    }
+    if (stream->self_handle != NULL) {
+        RtHandleV2 *self = stream->self_handle;
+        stream->self_handle = NULL;
+        stream->read_buf = NULL;
+        stream->remote_addr = NULL;
+        stream->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
+    }
 }
 
 /* ============================================================================
@@ -877,6 +911,10 @@ typedef struct RtTlsListener {
     socket_t socket_fd;         /* Listening TCP socket */
     int bound_port;             /* Bound port number */
     SSL_CTX *ssl_ctx;           /* Server SSL context (shared across accepts) */
+
+    /* Arena tracking for memory release on close */
+    RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
 } RtTlsListener;
 
 /* ============================================================================
@@ -1009,6 +1047,8 @@ RtTlsListener *sn_tls_listener_bind(RtArenaV2 *arena, const char *address,
     listener->socket_fd = sock;
     listener->bound_port = bound_port;
     listener->ssl_ctx = ctx;
+    listener->arena = arena;
+    listener->self_handle = _listener_h;
 
     return listener;
 }
@@ -1112,5 +1152,14 @@ void sn_tls_listener_close(RtTlsListener *listener) {
     if (listener->ssl_ctx != NULL) {
         SSL_CTX_free(listener->ssl_ctx);
         listener->ssl_ctx = NULL;
+    }
+
+    /* Unpin and mark handle dead for GC reclamation */
+    if (listener->self_handle != NULL) {
+        RtHandleV2 *self = listener->self_handle;
+        listener->self_handle = NULL;
+        listener->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
     }
 }

@@ -254,6 +254,8 @@ typedef struct RtQuicConnection {
 
     /* Arena for allocations */
     RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
+    RtHandleV2 *addr_handle;
 } RtQuicConnection;
 
 typedef struct RtQuicListener {
@@ -288,6 +290,7 @@ typedef struct RtQuicListener {
 
     /* Arena */
     RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
 } RtQuicListener;
 
 /* ============================================================================
@@ -419,12 +422,13 @@ static int parse_address(const char *address, char *host, size_t hostlen, char *
     return 0;
 }
 
-static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, RtArenaV2 *arena) {
+static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, RtArenaV2 *arena, RtHandleV2 **out_handle) {
     char host[NI_MAXHOST];
     char port[NI_MAXSERV];
     (void)addrlen;
     if (getnameinfo((struct sockaddr *)addr, addrlen, host, sizeof(host),
                     port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV) != 0) {
+        if (out_handle) *out_handle = NULL;
         return NULL;
     }
     size_t len = strlen(host) + strlen(port) + 2;
@@ -432,6 +436,7 @@ static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, Rt
     rt_handle_v2_pin(_h);
     char *result = (char *)_h->ptr;
     snprintf(result, len, "%s:%s", host, port);
+    if (out_handle) *out_handle = _h;
     return result;
 }
 
@@ -1000,6 +1005,7 @@ static RtQuicConnection *quic_connection_create(RtArenaV2 *arena, const char *ad
     RtQuicConnection *conn = (RtQuicConnection *)_conn_h->ptr;
     memset(conn, 0, sizeof(RtQuicConnection));
     conn->arena = arena;
+    conn->self_handle = _conn_h;
     conn->socket_fd = sock;
     conn->is_server = false;
 
@@ -1007,7 +1013,7 @@ static RtQuicConnection *quic_connection_create(RtArenaV2 *arena, const char *ad
     conn->remote_addrlen = (socklen_t)res->ai_addrlen;
     memcpy(&conn->local_addr, &local_addr, local_len);
     conn->local_addrlen = local_len;
-    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, arena);
+    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, arena, &conn->addr_handle);
 
     freeaddrinfo(res);
 
@@ -1194,6 +1200,7 @@ static RtQuicConnection *quic_server_connection_create(RtArenaV2 *arena, socket_
     RtQuicConnection *conn = (RtQuicConnection *)_conn_h->ptr;
     memset(conn, 0, sizeof(RtQuicConnection));
     conn->arena = arena;
+    conn->self_handle = _conn_h;
     conn->is_server = true;
 
     /* Server connections share the listener's socket */
@@ -1202,7 +1209,7 @@ static RtQuicConnection *quic_server_connection_create(RtArenaV2 *arena, socket_
     conn->remote_addrlen = remote_len;
     memcpy(&conn->local_addr, local, local_len);
     conn->local_addrlen = local_len;
-    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, arena);
+    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, arena, &conn->addr_handle);
 
     MUTEX_INIT(&conn->conn_mutex);
     COND_INIT(&conn->handshake_cond);
@@ -2099,7 +2106,21 @@ void sn_quic_connection_close(RtQuicConnection *conn) {
     MUTEX_DESTROY(&conn->conn_mutex);
     COND_DESTROY(&conn->handshake_cond);
     COND_DESTROY(&conn->accept_stream_cond);
-    /* Memory is arena-allocated, no need to free */
+
+    /* Unpin and mark handles dead for GC reclamation */
+    if (conn->addr_handle != NULL) {
+        rt_handle_v2_unpin(conn->addr_handle);
+        rt_arena_v2_free(conn->addr_handle);
+        conn->addr_handle = NULL;
+    }
+    if (conn->self_handle != NULL) {
+        RtHandleV2 *self = conn->self_handle;
+        conn->self_handle = NULL;
+        conn->remote_addr_str = NULL;
+        conn->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
+    }
 }
 
 /* ============================================================================
@@ -2178,6 +2199,7 @@ static RtQuicListener *quic_listener_create(RtArenaV2 *arena, const char *addres
     RtQuicListener *listener = (RtQuicListener *)_listener_h->ptr;
     memset(listener, 0, sizeof(RtQuicListener));
     listener->arena = arena;
+    listener->self_handle = _listener_h;
     listener->socket_fd = sock;
     listener->bound_port = bound_port;
     listener->ssl_ctx = ssl_ctx;
@@ -2318,7 +2340,21 @@ void sn_quic_listener_close(RtQuicListener *listener) {
         MUTEX_DESTROY(&conn->conn_mutex);
         COND_DESTROY(&conn->handshake_cond);
         COND_DESTROY(&conn->accept_stream_cond);
-        /* Memory is arena-allocated, no need to free */
+
+        /* Unpin and mark handles dead for GC reclamation */
+        if (conn->addr_handle != NULL) {
+            rt_handle_v2_unpin(conn->addr_handle);
+            rt_arena_v2_free(conn->addr_handle);
+            conn->addr_handle = NULL;
+        }
+        if (conn->self_handle != NULL) {
+            RtHandleV2 *self = conn->self_handle;
+            conn->self_handle = NULL;
+            conn->remote_addr_str = NULL;
+            conn->arena = NULL;
+            rt_handle_v2_unpin(self);
+            rt_arena_v2_free(self);
+        }
     }
 
     /* Cleanup */
@@ -2334,5 +2370,13 @@ void sn_quic_listener_close(RtQuicListener *listener) {
     MUTEX_DESTROY(&listener->accept_mutex);
     COND_DESTROY(&listener->accept_cond);
     MUTEX_DESTROY(&listener->conn_list_mutex);
-    /* Memory is arena-allocated, no need to free */
+
+    /* Unpin and mark handle dead for GC reclamation */
+    if (listener->self_handle != NULL) {
+        RtHandleV2 *self = listener->self_handle;
+        listener->self_handle = NULL;
+        listener->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
+    }
 }

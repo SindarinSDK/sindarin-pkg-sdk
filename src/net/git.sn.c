@@ -81,6 +81,11 @@ typedef struct RtGitTag {
 typedef struct RtGitRepo {
     void *repo_ptr;      /* git_repository* */
     char *path_str;
+
+    /* Arena tracking for memory release on close */
+    RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
+    RtHandleV2 *path_handle;
 } RtGitRepo;
 
 /* ============================================================================
@@ -225,8 +230,17 @@ RtGitRepo *sn_git_repo_open(RtArenaV2 *arena, const char *path) {
     }
 
     result->repo_ptr = repo;
+    result->arena = arena;
+    result->self_handle = _h;
+
     const char *workdir = git_repository_workdir(repo);
-    result->path_str = arena_strdup(arena, workdir ? workdir : path);
+    const char *path_src = workdir ? workdir : path;
+    size_t path_len = strlen(path_src) + 1;
+    RtHandleV2 *_path_h = rt_arena_v2_alloc(arena, path_len);
+    rt_handle_v2_pin(_path_h);
+    result->path_str = (char *)_path_h->ptr;
+    result->path_handle = _path_h;
+    if (result->path_str) memcpy(result->path_str, path_src, path_len);
 
     return result;
 }
@@ -252,8 +266,17 @@ RtGitRepo *sn_git_repo_clone(RtArenaV2 *arena, const char *url, const char *path
     }
 
     result->repo_ptr = repo;
+    result->arena = arena;
+    result->self_handle = _h;
+
     const char *workdir = git_repository_workdir(repo);
-    result->path_str = arena_strdup(arena, workdir ? workdir : path);
+    const char *path_src = workdir ? workdir : path;
+    size_t path_len = strlen(path_src) + 1;
+    RtHandleV2 *_path_h = rt_arena_v2_alloc(arena, path_len);
+    rt_handle_v2_pin(_path_h);
+    result->path_str = (char *)_path_h->ptr;
+    result->path_handle = _path_h;
+    if (result->path_str) memcpy(result->path_str, path_src, path_len);
 
     return result;
 }
@@ -275,8 +298,17 @@ RtGitRepo *sn_git_repo_init(RtArenaV2 *arena, const char *path) {
     }
 
     result->repo_ptr = repo;
+    result->arena = arena;
+    result->self_handle = _h;
+
     const char *workdir = git_repository_workdir(repo);
-    result->path_str = arena_strdup(arena, workdir ? workdir : path);
+    const char *path_src = workdir ? workdir : path;
+    size_t path_len = strlen(path_src) + 1;
+    RtHandleV2 *_path_h = rt_arena_v2_alloc(arena, path_len);
+    rt_handle_v2_pin(_path_h);
+    result->path_str = (char *)_path_h->ptr;
+    result->path_handle = _path_h;
+    if (result->path_str) memcpy(result->path_str, path_src, path_len);
 
     return result;
 }
@@ -298,7 +330,15 @@ RtGitRepo *sn_git_repo_init_bare(RtArenaV2 *arena, const char *path) {
     }
 
     result->repo_ptr = repo;
-    result->path_str = arena_strdup(arena, path);
+    result->arena = arena;
+    result->self_handle = _h;
+
+    size_t path_len = strlen(path) + 1;
+    RtHandleV2 *_path_h = rt_arena_v2_alloc(arena, path_len);
+    rt_handle_v2_pin(_path_h);
+    result->path_str = (char *)_path_h->ptr;
+    result->path_handle = _path_h;
+    if (result->path_str) memcpy(result->path_str, path, path_len);
 
     return result;
 }
@@ -1387,6 +1427,21 @@ void sn_git_repo_close(RtGitRepo *self) {
     if (self->repo_ptr) {
         git_repository_free((git_repository *)self->repo_ptr);
         self->repo_ptr = NULL;
+    }
+
+    /* Unpin and mark handles dead for GC reclamation */
+    if (self->path_handle != NULL) {
+        rt_handle_v2_unpin(self->path_handle);
+        rt_arena_v2_free(self->path_handle);
+        self->path_handle = NULL;
+    }
+    if (self->self_handle != NULL) {
+        RtHandleV2 *self_h = self->self_handle;
+        self->self_handle = NULL;
+        self->path_str = NULL;
+        self->arena = NULL;
+        rt_handle_v2_unpin(self_h);
+        rt_arena_v2_free(self_h);
     }
 }
 

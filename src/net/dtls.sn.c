@@ -85,6 +85,11 @@ typedef struct RtDtlsConnection {
 
     /* SSL context - owned per connection */
     SSL_CTX *ctx;
+
+    /* Arena tracking for memory release on close */
+    RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
+    RtHandleV2 *addr_handle;
 } RtDtlsConnection;
 
 /* ============================================================================
@@ -462,11 +467,16 @@ RtDtlsConnection *sn_dtls_connection_connect(RtArenaV2 *arena, const char *addre
     conn->ssl_ptr = ssl;
     conn->ctx = ctx;
 
+    /* Store arena and handles for memory release on close */
+    conn->arena = arena;
+    conn->self_handle = _conn_h;
+
     /* Copy remote address string */
     size_t addr_len = strlen(address) + 1;
     RtHandleV2 *_addr_h = rt_arena_v2_alloc(arena, addr_len);
     rt_handle_v2_pin(_addr_h);
     conn->remote_addr = (char *)_addr_h->ptr;
+    conn->addr_handle = _addr_h;
     if (conn->remote_addr) {
         memcpy(conn->remote_addr, address, addr_len);
     }
@@ -571,6 +581,21 @@ void sn_dtls_connection_close(RtDtlsConnection *conn) {
         CLOSE_SOCKET(conn->socket_fd);
         conn->socket_fd = INVALID_SOCKET_VAL;
     }
+
+    /* Unpin and mark handles dead for GC reclamation */
+    if (conn->addr_handle != NULL) {
+        rt_handle_v2_unpin(conn->addr_handle);
+        rt_arena_v2_free(conn->addr_handle);
+        conn->addr_handle = NULL;
+    }
+    if (conn->self_handle != NULL) {
+        RtHandleV2 *self = conn->self_handle;
+        conn->self_handle = NULL;
+        conn->remote_addr = NULL;
+        conn->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
+    }
 }
 
 /* ============================================================================
@@ -634,6 +659,7 @@ typedef struct RtDtlsListener {
 
     /* Arena for allocations */
     RtArenaV2 *arena;
+    RtHandleV2 *self_handle;
 } RtDtlsListener;
 
 
@@ -739,10 +765,15 @@ static void dtls_listener_thread_func(RtDtlsListener *listener) {
         conn->ssl_ptr = ssl;
         conn->ctx = NULL;  /* Server connections don't own the context */
 
+        /* Store arena and handles for memory release on close */
+        conn->arena = listener->arena;
+        conn->self_handle = _conn_h;
+
         size_t addr_len = strlen(addr_str) + 1;
         RtHandleV2 *_addr_h = rt_arena_v2_alloc(listener->arena, addr_len);
         rt_handle_v2_pin(_addr_h);
         conn->remote_addr = (char *)_addr_h->ptr;
+        conn->addr_handle = _addr_h;
         if (conn->remote_addr) {
             memcpy(conn->remote_addr, addr_str, addr_len);
         }
@@ -907,6 +938,7 @@ RtDtlsListener *sn_dtls_listener_bind(RtArenaV2 *arena, const char *address,
     listener->ssl_ctx = ctx;
     listener->running = true;
     listener->arena = arena;
+    listener->self_handle = _listener_h;
 
     /* Set receive timeout on listener socket so thread can check running flag */
 #ifdef _WIN32
@@ -1006,4 +1038,13 @@ void sn_dtls_listener_close(RtDtlsListener *listener) {
 
     DTLS_MUTEX_DESTROY(&listener->accept_mutex);
     DTLS_COND_DESTROY(&listener->accept_cond);
+
+    /* Unpin and mark handle dead for GC reclamation */
+    if (listener->self_handle != NULL) {
+        RtHandleV2 *self = listener->self_handle;
+        listener->self_handle = NULL;
+        listener->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
+    }
 }
