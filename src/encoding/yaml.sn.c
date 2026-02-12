@@ -157,6 +157,54 @@ static void sn_yaml_map_set(SnYamlNode *map, const char *key, SnYamlNode *value)
     map->map_count++;
 }
 
+/* Recursively free a YAML node tree */
+static void sn_yaml_node_free(SnYamlNode *node)
+{
+    if (node == NULL) return;
+
+    switch (node->type) {
+        case SN_YAML_SCALAR:
+            free(node->scalar_value);
+            break;
+        case SN_YAML_SEQUENCE:
+            for (int i = 0; i < node->seq_count; i++) {
+                sn_yaml_node_free(node->seq_items[i]);
+            }
+            free(node->seq_items);
+            break;
+        case SN_YAML_MAPPING:
+            for (int i = 0; i < node->map_count; i++) {
+                free(node->map_pairs[i].key);
+                sn_yaml_node_free(node->map_pairs[i].value);
+            }
+            free(node->map_pairs);
+            break;
+    }
+    free(node);
+}
+
+/* ============================================================================
+ * Cleanup Callback for YAML node trees
+ * ============================================================================
+ * When a Yaml with is_root=1 is allocated, we register a cleanup callback
+ * that frees the malloc'd node tree when the arena is destroyed (e.g., when
+ * a thread terminates). This prevents memory leaks from accumulating.
+ * ============================================================================ */
+
+static void sn_yaml_tree_cleanup(RtHandleV2 *data)
+{
+    rt_handle_v2_pin(data);
+    SnYaml *y = (SnYaml *)data->ptr;
+    if (y != NULL && y->is_root && y->root != NULL) {
+        sn_yaml_node_free(y->root);
+        y->root = NULL;
+        y->node = NULL;
+    }
+}
+
+/* Create a new SnYaml wrapper for a node within an existing tree.
+ * If is_root is true, registers a cleanup callback to free the node tree
+ * when the arena is destroyed (e.g., when the thread terminates). */
 static SnYaml *sn_yaml_wrap(RtArenaV2 *arena, SnYamlNode *root, SnYamlNode *node, int is_root)
 {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnYaml));
@@ -165,6 +213,14 @@ static SnYaml *sn_yaml_wrap(RtArenaV2 *arena, SnYamlNode *root, SnYamlNode *node
     y->root = root;
     y->node = node;
     y->is_root = is_root;
+
+    /* Register cleanup callback to free the node tree when arena is destroyed.
+     * This prevents memory leaks when Yaml objects go out of scope.
+     * Priority 100 ensures Yaml cleanup happens after user cleanup callbacks. */
+    if (is_root && root != NULL) {
+        rt_arena_v2_on_cleanup(arena, _h, sn_yaml_tree_cleanup, 100);
+    }
+
     return y;
 }
 
@@ -543,6 +599,9 @@ void sn_yaml_set(SnYaml *y, const char *key, SnYaml *value)
         return;
     }
     sn_yaml_map_set(y->node, key, value->node);
+    /* Transfer ownership: the node is now part of y's tree */
+    value->is_root = 0;
+    value->root = NULL;
 }
 
 void sn_yaml_remove(SnYaml *y, const char *key)
@@ -578,6 +637,9 @@ void sn_yaml_append(SnYaml *y, SnYaml *value)
         return;
     }
     sn_yaml_seq_append(y->node, value->node);
+    /* Transfer ownership: the node is now part of y's tree */
+    value->is_root = 0;
+    value->root = NULL;
 }
 
 void sn_yaml_prepend(SnYaml *y, SnYaml *value)
@@ -607,6 +669,9 @@ void sn_yaml_prepend(SnYaml *y, SnYaml *value)
     }
     y->node->seq_items[0] = value->node;
     y->node->seq_count++;
+    /* Transfer ownership: the node is now part of y's tree */
+    value->is_root = 0;
+    value->root = NULL;
 }
 
 void sn_yaml_remove_at(SnYaml *y, int64_t index)

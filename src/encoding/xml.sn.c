@@ -50,10 +50,30 @@ static void sn_xml_init(void)
 }
 
 /* ============================================================================
+ * Cleanup Callback for xmlDoc documents
+ * ============================================================================
+ * When an Xml with is_root=1 is allocated, we register a cleanup callback
+ * that frees the xmlDoc when the arena is destroyed (e.g., when a thread
+ * terminates). This prevents memory leaks from accumulating.
+ * ============================================================================ */
+
+static void sn_xml_doc_cleanup(RtHandleV2 *data)
+{
+    rt_handle_v2_pin(data);
+    SnXml *x = (SnXml *)data->ptr;
+    if (x != NULL && x->doc != NULL) {
+        xmlFreeDoc(x->doc);
+        x->doc = NULL;
+    }
+}
+
+/* ============================================================================
  * Internal Helper Functions
  * ============================================================================ */
 
-/* Create a new SnXml wrapper for a node within an existing document */
+/* Create a new SnXml wrapper for a node within an existing document.
+ * If is_root is true, registers a cleanup callback to free the xmlDoc
+ * when the arena is destroyed (e.g., when the thread terminates). */
 static SnXml *sn_xml_wrap(RtArenaV2 *arena, xmlDocPtr doc, xmlNodePtr node, int is_root)
 {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnXml));
@@ -62,6 +82,14 @@ static SnXml *sn_xml_wrap(RtArenaV2 *arena, xmlDocPtr doc, xmlNodePtr node, int 
     x->doc = doc;
     x->node = node;
     x->is_root = is_root;
+
+    /* Register cleanup callback to free the xmlDoc when arena is destroyed.
+     * This prevents memory leaks when Xml objects go out of scope.
+     * Priority 100 ensures Xml cleanup happens after user cleanup callbacks. */
+    if (is_root && doc != NULL) {
+        rt_arena_v2_on_cleanup(arena, _h, sn_xml_doc_cleanup, 100);
+    }
+
     return x;
 }
 

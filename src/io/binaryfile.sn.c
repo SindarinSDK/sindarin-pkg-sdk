@@ -36,6 +36,9 @@ typedef struct RtSnBinaryFile {
     void *fp;                   /* FILE* pointer */
     char *path;                 /* Full path to file */
     int32_t is_open;            /* Whether file is still open */
+    RtArenaV2 *arena;           /* Arena used for allocation */
+    RtHandleV2 *self_handle;    /* Handle to this struct */
+    RtHandleV2 *path_handle;    /* Handle to path string */
 } RtSnBinaryFile;
 
 /* ============================================================================
@@ -77,7 +80,9 @@ RtSnBinaryFile *sn_binary_file_open(RtArenaV2 *arena, const char *path)
     }
 
     file->fp = fp;
-    { RtHandleV2 *_h = rt_arena_v2_strdup(arena, path); rt_handle_v2_pin(_h); file->path = (char *)_h->ptr; }
+    file->arena = arena;
+    file->self_handle = _h;
+    { RtHandleV2 *_path_h = rt_arena_v2_strdup(arena, path); rt_handle_v2_pin(_path_h); file->path = (char *)_path_h->ptr; file->path_handle = _path_h; }
     file->is_open = 1;
 
     return file;
@@ -665,6 +670,23 @@ void sn_binary_file_close(RtSnBinaryFile *file)
         fclose((FILE *)file->fp);
         file->is_open = 0;
         file->fp = NULL;
+    }
+
+    /* Unpin/free path handle */
+    if (file->path_handle != NULL) {
+        rt_handle_v2_unpin(file->path_handle);
+        rt_arena_v2_free(file->path_handle);
+        file->path_handle = NULL;
+        file->path = NULL;
+    }
+
+    /* Unpin/free self handle last */
+    if (file->self_handle != NULL) {
+        RtHandleV2 *self = file->self_handle;
+        file->self_handle = NULL;
+        file->arena = NULL;
+        rt_handle_v2_unpin(self);
+        rt_arena_v2_free(self);
     }
 }
 
