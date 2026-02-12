@@ -38,9 +38,8 @@ BIN_DIR := bin
 # Sindarin compiler (from PATH, or override with SN=path/to/sn)
 SN ?= sn
 
-# Sindarin scripts
-SCRIPTS_DIR := scripts
-RUN_TESTS_SN := $(SCRIPTS_DIR)/run_tests.sn
+# Test runner from sindarin-pkg-test dependency
+RUN_TESTS_SN := .sn/sindarin-pkg-test/scripts/run_tests.sn
 
 # SDK source files (for dependency tracking)
 # Note: .sn.c files are compiled by the Sindarin compiler, not tracked separately

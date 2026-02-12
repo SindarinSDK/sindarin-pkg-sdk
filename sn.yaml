@@ -7,3 +7,6 @@ dependencies:
 - name: sindarin-pkg-libs
   git: git@github.com:SindarinSDK/sindarin-pkg-libs-v2.git
   branch: main
+- name: sindarin-pkg-test
+  git: git@github.com:SindarinSDK/sindarin-pkg-test.git
+  branch: main
