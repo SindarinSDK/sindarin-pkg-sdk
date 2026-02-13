@@ -1,7 +1,7 @@
 # ==============================================================================
 # sdk/encoding/json.sn - JSON Library for Sindarin
 # ==============================================================================
-# Provides JSON parsing, manipulation, and serialization using yyjson.
+# Provides JSON parsing, manipulation, and serialization using json-c.
 #
 # Usage:
 #   import "sdk/encoding/json"
@@ -38,14 +38,11 @@
 #       print($"{key}: {doc.get(key).toString()}\n")
 #
 # Requirements:
-#   - yyjson library must be installed
-#   - Linux: Install via vcpkg or package manager
-#   - macOS: brew install yyjson
-#   - Windows: Install via vcpkg
+#   - json-c library must be installed (provided by sindarin-pkg-libs-v2)
 # ==============================================================================
 
-@include <yyjson.h>
-@link yyjson
+@include <json-c/json.h>
+@link json-c
 
 # Self-contained implementation
 @source "json.sn.c"
@@ -54,14 +51,14 @@
 # Json Native Struct Definition
 # ==============================================================================
 # Represents a JSON value (object, array, string, number, boolean, or null).
-# Uses yyjson's mutable API for read-write operations.
+# Uses json-c with reference counting for proper memory management.
 
 @alias "SnJson"
 native struct Json as ref =>
-    @alias "doc"
-    _doc: *void
-    @alias "val"
-    _val: *void
+    @alias "obj"
+    _obj: *void
+    @alias "handle"
+    _handle: *void
     @alias "is_root"
     _is_root: int32
 
@@ -276,6 +273,10 @@ native struct Json as ref =>
     # Get the type as a string ("object", "array", "string", "number", "bool", "null")
     fn typeName(): str =>
         return sn_json_type_name(self)
+
+    # Release this JSON value's resources immediately
+    @alias "sn_json_dispose"
+    native fn dispose(): void
 
 # ==============================================================================
 # Runtime Function Declarations

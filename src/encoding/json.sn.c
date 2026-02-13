@@ -1,8 +1,12 @@
 /* ==============================================================================
- * sdk/json.sn.c - JSON Implementation for Sindarin SDK using yyjson
+ * sdk/json.sn.c - JSON Implementation for Sindarin SDK using json-c
  * ==============================================================================
  * This file provides the C implementation for the Json type.
  * It is compiled via #pragma source and linked with Sindarin code.
+ *
+ * Uses json-c's reference-counted json_object instead of yyjson's pool
+ * allocator. This allows removed values to be freed immediately, eliminating
+ * unbounded memory growth in long-lived JSON arrays/objects.
  * ============================================================================== */
 
 #include <stdlib.h>
@@ -12,7 +16,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <yyjson.h>
+#include <json-c/json.h>
 
 /* Include runtime arena for proper memory management */
 #include "runtime/array/runtime_array_v2.h"
@@ -22,26 +26,26 @@
  * ============================================================================ */
 
 typedef struct SnJson {
-    yyjson_mut_doc *doc;    /* The mutable document (owns memory) */
-    yyjson_mut_val *val;    /* The current value within the document */
-    int32_t is_root;        /* Whether this is the root owner of the doc */
+    json_object *obj;       /* The json-c object (ref-counted) */
+    RtHandleV2 *handle;     /* Self-reference to own arena handle (for dispose) */
+    int32_t is_root;        /* Whether this wrapper owns a json-c reference */
 } SnJson;
 
 /* ============================================================================
- * Cleanup Callback for yyjson documents
+ * Cleanup Callback for json-c objects
  * ============================================================================
- * When a Json with is_root=1 is allocated, we register a cleanup callback
- * that frees the yyjson_mut_doc when the arena is destroyed (e.g., when
- * a thread terminates). This prevents memory leaks from accumulating.
+ * When a Json wrapper is allocated, we register a cleanup callback that
+ * releases the json-c reference when the arena is destroyed. This prevents
+ * memory leaks when Json objects go out of scope without explicit dispose.
  * ============================================================================ */
 
-static void sn_json_doc_cleanup(RtHandleV2 *data)
+static void sn_json_cleanup(RtHandleV2 *data)
 {
     rt_handle_v2_pin(data);
     SnJson *j = (SnJson *)data->ptr;
-    if (j != NULL && j->doc != NULL) {
-        yyjson_mut_doc_free(j->doc);
-        j->doc = NULL;
+    if (j != NULL && j->obj != NULL) {
+        json_object_put(j->obj);
+        j->obj = NULL;
     }
 }
 
@@ -49,37 +53,26 @@ static void sn_json_doc_cleanup(RtHandleV2 *data)
  * Internal Helper Functions
  * ============================================================================ */
 
-/* Create a new SnJson wrapper for a value within an existing document.
- * If is_root is true, registers a cleanup callback to free the yyjson doc
- * when the arena is destroyed (e.g., when the thread terminates). */
-static SnJson *sn_json_wrap(RtArenaV2 *arena, yyjson_mut_doc *doc, yyjson_mut_val *val, int is_root)
+/* Create a new SnJson wrapper for a json-c object.
+ * If the object is non-NULL, registers a cleanup callback to release the
+ * json-c reference when the arena is destroyed. */
+static SnJson *sn_json_wrap(RtArenaV2 *arena, json_object *obj, int is_root)
 {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnJson));
     rt_handle_v2_pin(_h);
     SnJson *j = (SnJson *)_h->ptr;
-    j->doc = doc;
-    j->val = val;
+    j->obj = obj;
+    j->handle = _h;
     j->is_root = is_root;
 
-    /* Register cleanup callback to free the yyjson doc when arena is destroyed.
-     * This prevents memory leaks when Json objects go out of scope.
+    /* Register cleanup callback to release json-c reference when arena is
+     * destroyed. This prevents memory leaks when Json objects go out of scope.
      * Priority 100 ensures Json cleanup happens after user cleanup callbacks. */
-    if (is_root && doc != NULL) {
-        rt_arena_v2_on_cleanup(arena, _h, sn_json_doc_cleanup, 100);
+    if (obj != NULL) {
+        rt_arena_v2_on_cleanup(arena, _h, sn_json_cleanup, 100);
     }
 
     return j;
-}
-
-/* Create a new empty document and wrap it */
-static SnJson *sn_json_new_doc(RtArenaV2 *arena)
-{
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
-    if (doc == NULL) {
-        fprintf(stderr, "Json: failed to create document\n");
-        exit(1);
-    }
-    return sn_json_wrap(arena, doc, NULL, 1);
 }
 
 /* ============================================================================
@@ -97,25 +90,23 @@ SnJson *sn_json_parse(RtArenaV2 *arena, const char *text)
         exit(1);
     }
 
-    /* Parse as immutable first */
-    yyjson_read_err err;
-    yyjson_doc *idoc = yyjson_read_opts((char *)text, strlen(text), 0, NULL, &err);
-    if (idoc == NULL) {
-        fprintf(stderr, "Json.parse: %s at position %zu\n", err.msg, err.pos);
+    json_tokener *tok = json_tokener_new();
+    if (tok == NULL) {
+        fprintf(stderr, "Json.parse: failed to create tokener\n");
         exit(1);
     }
 
-    /* Convert to mutable for read-write operations */
-    yyjson_mut_doc *doc = yyjson_doc_mut_copy(idoc, NULL);
-    yyjson_doc_free(idoc);
+    json_object *obj = json_tokener_parse_ex(tok, text, (int)strlen(text));
+    enum json_tokener_error err = json_tokener_get_error(tok);
 
-    if (doc == NULL) {
-        fprintf(stderr, "Json.parse: failed to create mutable document\n");
+    if (err != json_tokener_success) {
+        fprintf(stderr, "Json.parse: %s\n", json_tokener_error_desc(err));
+        json_tokener_free(tok);
         exit(1);
     }
 
-    yyjson_mut_val *root = yyjson_mut_doc_get_root(doc);
-    return sn_json_wrap(arena, doc, root, 1);
+    json_tokener_free(tok);
+    return sn_json_wrap(arena, obj, 1);
 }
 
 SnJson *sn_json_parse_file(RtArenaV2 *arena, const char *path)
@@ -129,25 +120,15 @@ SnJson *sn_json_parse_file(RtArenaV2 *arena, const char *path)
         exit(1);
     }
 
-    /* Read and parse file */
-    yyjson_read_err err;
-    yyjson_doc *idoc = yyjson_read_file(path, 0, NULL, &err);
-    if (idoc == NULL) {
-        fprintf(stderr, "Json.parseFile: %s (file: %s)\n", err.msg, path);
+    json_object *obj = json_object_from_file(path);
+    if (obj == NULL) {
+        const char *err = json_util_get_last_err();
+        fprintf(stderr, "Json.parseFile: %s (file: %s)\n",
+                err ? err : "unknown error", path);
         exit(1);
     }
 
-    /* Convert to mutable */
-    yyjson_mut_doc *doc = yyjson_doc_mut_copy(idoc, NULL);
-    yyjson_doc_free(idoc);
-
-    if (doc == NULL) {
-        fprintf(stderr, "Json.parseFile: failed to create mutable document\n");
-        exit(1);
-    }
-
-    yyjson_mut_val *root = yyjson_mut_doc_get_root(doc);
-    return sn_json_wrap(arena, doc, root, 1);
+    return sn_json_wrap(arena, obj, 1);
 }
 
 /* ============================================================================
@@ -161,16 +142,13 @@ SnJson *sn_json_new_object(RtArenaV2 *arena)
         exit(1);
     }
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
-    if (doc == NULL) {
-        fprintf(stderr, "Json.object: failed to create document\n");
+    json_object *obj = json_object_new_object();
+    if (obj == NULL) {
+        fprintf(stderr, "Json.object: failed to create object\n");
         exit(1);
     }
 
-    yyjson_mut_val *obj = yyjson_mut_obj(doc);
-    yyjson_mut_doc_set_root(doc, obj);
-
-    return sn_json_wrap(arena, doc, obj, 1);
+    return sn_json_wrap(arena, obj, 1);
 }
 
 SnJson *sn_json_new_array(RtArenaV2 *arena)
@@ -180,16 +158,13 @@ SnJson *sn_json_new_array(RtArenaV2 *arena)
         exit(1);
     }
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
-    if (doc == NULL) {
-        fprintf(stderr, "Json.array: failed to create document\n");
+    json_object *obj = json_object_new_array();
+    if (obj == NULL) {
+        fprintf(stderr, "Json.array: failed to create array\n");
         exit(1);
     }
 
-    yyjson_mut_val *arr = yyjson_mut_arr(doc);
-    yyjson_mut_doc_set_root(doc, arr);
-
-    return sn_json_wrap(arena, doc, arr, 1);
+    return sn_json_wrap(arena, obj, 1);
 }
 
 SnJson *sn_json_new_null(RtArenaV2 *arena)
@@ -199,16 +174,8 @@ SnJson *sn_json_new_null(RtArenaV2 *arena)
         exit(1);
     }
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
-    if (doc == NULL) {
-        fprintf(stderr, "Json.null: failed to create document\n");
-        exit(1);
-    }
-
-    yyjson_mut_val *val = yyjson_mut_null(doc);
-    yyjson_mut_doc_set_root(doc, val);
-
-    return sn_json_wrap(arena, doc, val, 1);
+    /* json-c represents null as NULL pointer. No cleanup needed. */
+    return sn_json_wrap(arena, NULL, 1);
 }
 
 SnJson *sn_json_new_bool(RtArenaV2 *arena, bool value)
@@ -218,16 +185,13 @@ SnJson *sn_json_new_bool(RtArenaV2 *arena, bool value)
         exit(1);
     }
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
-    if (doc == NULL) {
-        fprintf(stderr, "Json.bool: failed to create document\n");
+    json_object *obj = json_object_new_boolean(value);
+    if (obj == NULL) {
+        fprintf(stderr, "Json.bool: failed to create boolean\n");
         exit(1);
     }
 
-    yyjson_mut_val *val = yyjson_mut_bool(doc, value);
-    yyjson_mut_doc_set_root(doc, val);
-
-    return sn_json_wrap(arena, doc, val, 1);
+    return sn_json_wrap(arena, obj, 1);
 }
 
 SnJson *sn_json_new_int(RtArenaV2 *arena, int64_t value)
@@ -237,16 +201,13 @@ SnJson *sn_json_new_int(RtArenaV2 *arena, int64_t value)
         exit(1);
     }
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
-    if (doc == NULL) {
-        fprintf(stderr, "Json.int: failed to create document\n");
+    json_object *obj = json_object_new_int64(value);
+    if (obj == NULL) {
+        fprintf(stderr, "Json.int: failed to create integer\n");
         exit(1);
     }
 
-    yyjson_mut_val *val = yyjson_mut_sint(doc, value);
-    yyjson_mut_doc_set_root(doc, val);
-
-    return sn_json_wrap(arena, doc, val, 1);
+    return sn_json_wrap(arena, obj, 1);
 }
 
 SnJson *sn_json_new_float(RtArenaV2 *arena, double value)
@@ -256,16 +217,13 @@ SnJson *sn_json_new_float(RtArenaV2 *arena, double value)
         exit(1);
     }
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
-    if (doc == NULL) {
-        fprintf(stderr, "Json.float: failed to create document\n");
+    json_object *obj = json_object_new_double(value);
+    if (obj == NULL) {
+        fprintf(stderr, "Json.float: failed to create float\n");
         exit(1);
     }
 
-    yyjson_mut_val *val = yyjson_mut_real(doc, value);
-    yyjson_mut_doc_set_root(doc, val);
-
-    return sn_json_wrap(arena, doc, val, 1);
+    return sn_json_wrap(arena, obj, 1);
 }
 
 SnJson *sn_json_new_string(RtArenaV2 *arena, const char *value)
@@ -275,16 +233,13 @@ SnJson *sn_json_new_string(RtArenaV2 *arena, const char *value)
         exit(1);
     }
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
-    if (doc == NULL) {
-        fprintf(stderr, "Json.string: failed to create document\n");
+    json_object *obj = json_object_new_string(value ? value : "");
+    if (obj == NULL) {
+        fprintf(stderr, "Json.string: failed to create string\n");
         exit(1);
     }
 
-    yyjson_mut_val *val = yyjson_mut_strcpy(doc, value ? value : "");
-    yyjson_mut_doc_set_root(doc, val);
-
-    return sn_json_wrap(arena, doc, val, 1);
+    return sn_json_wrap(arena, obj, 1);
 }
 
 /* ============================================================================
@@ -293,50 +248,51 @@ SnJson *sn_json_new_string(RtArenaV2 *arena, const char *value)
 
 bool sn_json_is_object(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return false;
-    return yyjson_mut_is_obj(j->val);
+    if (j == NULL || j->obj == NULL) return false;
+    return json_object_is_type(j->obj, json_type_object);
 }
 
 bool sn_json_is_array(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return false;
-    return yyjson_mut_is_arr(j->val);
+    if (j == NULL || j->obj == NULL) return false;
+    return json_object_is_type(j->obj, json_type_array);
 }
 
 bool sn_json_is_string(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return false;
-    return yyjson_mut_is_str(j->val);
+    if (j == NULL || j->obj == NULL) return false;
+    return json_object_is_type(j->obj, json_type_string);
 }
 
 bool sn_json_is_number(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return false;
-    return yyjson_mut_is_num(j->val);
+    if (j == NULL || j->obj == NULL) return false;
+    return json_object_is_type(j->obj, json_type_int)
+        || json_object_is_type(j->obj, json_type_double);
 }
 
 bool sn_json_is_int(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return false;
-    return yyjson_mut_is_int(j->val);
+    if (j == NULL || j->obj == NULL) return false;
+    return json_object_is_type(j->obj, json_type_int);
 }
 
 bool sn_json_is_float(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return false;
-    return yyjson_mut_is_real(j->val);
+    if (j == NULL || j->obj == NULL) return false;
+    return json_object_is_type(j->obj, json_type_double);
 }
 
 bool sn_json_is_bool(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return false;
-    return yyjson_mut_is_bool(j->val);
+    if (j == NULL || j->obj == NULL) return false;
+    return json_object_is_type(j->obj, json_type_boolean);
 }
 
 bool sn_json_is_null(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return true;
-    return yyjson_mut_is_null(j->val);
+    if (j == NULL || j->obj == NULL) return true;
+    return json_object_is_type(j->obj, json_type_null);
 }
 
 /* ============================================================================
@@ -345,42 +301,45 @@ bool sn_json_is_null(SnJson *j)
 
 RtHandleV2 *sn_json_as_string(RtArenaV2 *arena, SnJson *j)
 {
-    if (j == NULL || j->val == NULL) {
+    if (j == NULL || j->obj == NULL) {
         return rt_arena_v2_strdup(arena, "");
     }
-    if (!yyjson_mut_is_str(j->val)) {
+    if (!json_object_is_type(j->obj, json_type_string)) {
         return rt_arena_v2_strdup(arena, "");
     }
-    const char *str = yyjson_mut_get_str(j->val);
+    const char *str = json_object_get_string(j->obj);
     return rt_arena_v2_strdup(arena, str ? str : "");
 }
 
 int64_t sn_json_as_int(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return 0;
-    if (!yyjson_mut_is_num(j->val)) return 0;
-    return yyjson_mut_get_sint(j->val);
+    if (j == NULL || j->obj == NULL) return 0;
+    if (!json_object_is_type(j->obj, json_type_int)
+        && !json_object_is_type(j->obj, json_type_double)) return 0;
+    return json_object_get_int64(j->obj);
 }
 
 int64_t sn_json_as_long(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return 0;
-    if (!yyjson_mut_is_num(j->val)) return 0;
-    return yyjson_mut_get_sint(j->val);
+    if (j == NULL || j->obj == NULL) return 0;
+    if (!json_object_is_type(j->obj, json_type_int)
+        && !json_object_is_type(j->obj, json_type_double)) return 0;
+    return json_object_get_int64(j->obj);
 }
 
 double sn_json_as_float(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return 0.0;
-    if (!yyjson_mut_is_num(j->val)) return 0.0;
-    return yyjson_mut_get_real(j->val);
+    if (j == NULL || j->obj == NULL) return 0.0;
+    if (!json_object_is_type(j->obj, json_type_double)
+        && !json_object_is_type(j->obj, json_type_int)) return 0.0;
+    return json_object_get_double(j->obj);
 }
 
 bool sn_json_as_bool(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return false;
-    if (!yyjson_mut_is_bool(j->val)) return false;
-    return yyjson_mut_get_bool(j->val);
+    if (j == NULL || j->obj == NULL) return false;
+    if (!json_object_is_type(j->obj, json_type_boolean)) return false;
+    return json_object_get_boolean(j->obj);
 }
 
 /* ============================================================================
@@ -389,40 +348,43 @@ bool sn_json_as_bool(SnJson *j)
 
 SnJson *sn_json_get(RtArenaV2 *arena, SnJson *j, const char *key)
 {
-    if (j == NULL || j->val == NULL || key == NULL) {
-        return sn_json_wrap(arena, j ? j->doc : NULL, NULL, 0);
+    if (j == NULL || j->obj == NULL || key == NULL) {
+        return sn_json_wrap(arena, NULL, 0);
     }
-    if (!yyjson_mut_is_obj(j->val)) {
-        return sn_json_wrap(arena, j->doc, NULL, 0);
+    if (!json_object_is_type(j->obj, json_type_object)) {
+        return sn_json_wrap(arena, NULL, 0);
     }
 
-    yyjson_mut_val *val = yyjson_mut_obj_get(j->val, key);
-    return sn_json_wrap(arena, j->doc, val, 0);
+    json_object *val = NULL;
+    if (!json_object_object_get_ex(j->obj, key, &val)) {
+        return sn_json_wrap(arena, NULL, 0);
+    }
+
+    /* Increment refcount - child wrapper owns a reference */
+    if (val != NULL) {
+        json_object_get(val);
+    }
+    return sn_json_wrap(arena, val, 0);
 }
 
 bool sn_json_has(SnJson *j, const char *key)
 {
-    if (j == NULL || j->val == NULL || key == NULL) return false;
-    if (!yyjson_mut_is_obj(j->val)) return false;
-    return yyjson_mut_obj_get(j->val, key) != NULL;
+    if (j == NULL || j->obj == NULL || key == NULL) return false;
+    if (!json_object_is_type(j->obj, json_type_object)) return false;
+    return json_object_object_get_ex(j->obj, key, NULL);
 }
 
 RtHandleV2 *sn_json_keys(RtArenaV2 *arena, SnJson *j)
 {
-    if (j == NULL || j->val == NULL || !yyjson_mut_is_obj(j->val)) {
+    if (j == NULL || j->obj == NULL || !json_object_is_type(j->obj, json_type_object)) {
         return rt_array_create_string_v2(arena, 0, NULL);
     }
 
-    /* Start with empty string array */
     RtHandleV2 *keys = rt_array_create_string_v2(arena, 0, NULL);
 
-    yyjson_mut_obj_iter iter;
-    yyjson_mut_obj_iter_init(j->val, &iter);
-    yyjson_mut_val *key;
-
-    while ((key = yyjson_mut_obj_iter_next(&iter)) != NULL) {
-        const char *key_str = yyjson_mut_get_str(key);
-        keys = rt_array_push_string_v2(arena, keys, key_str ? key_str : "");
+    json_object_iter iter;
+    json_object_object_foreachC(j->obj, iter) {
+        keys = rt_array_push_string_v2(arena, keys, iter.key ? iter.key : "");
     }
 
     return keys;
@@ -430,36 +392,57 @@ RtHandleV2 *sn_json_keys(RtArenaV2 *arena, SnJson *j)
 
 SnJson *sn_json_get_at(RtArenaV2 *arena, SnJson *j, int64_t index)
 {
-    if (j == NULL || j->val == NULL) {
-        return sn_json_wrap(arena, j ? j->doc : NULL, NULL, 0);
+    if (j == NULL || j->obj == NULL) {
+        return sn_json_wrap(arena, NULL, 0);
     }
-    if (!yyjson_mut_is_arr(j->val)) {
-        return sn_json_wrap(arena, j->doc, NULL, 0);
+    if (!json_object_is_type(j->obj, json_type_array)) {
+        return sn_json_wrap(arena, NULL, 0);
     }
-    if (index < 0 || (size_t)index >= yyjson_mut_arr_size(j->val)) {
-        return sn_json_wrap(arena, j->doc, NULL, 0);
+    size_t len = json_object_array_length(j->obj);
+    if (index < 0 || (size_t)index >= len) {
+        return sn_json_wrap(arena, NULL, 0);
     }
 
-    yyjson_mut_val *val = yyjson_mut_arr_get(j->val, (size_t)index);
-    return sn_json_wrap(arena, j->doc, val, 0);
+    json_object *val = json_object_array_get_idx(j->obj, (size_t)index);
+    /* Increment refcount - child wrapper owns a reference */
+    if (val != NULL) {
+        json_object_get(val);
+    }
+    return sn_json_wrap(arena, val, 0);
 }
 
 SnJson *sn_json_first(RtArenaV2 *arena, SnJson *j)
 {
-    if (j == NULL || j->val == NULL || !yyjson_mut_is_arr(j->val)) {
-        return sn_json_wrap(arena, j ? j->doc : NULL, NULL, 0);
+    if (j == NULL || j->obj == NULL || !json_object_is_type(j->obj, json_type_array)) {
+        return sn_json_wrap(arena, NULL, 0);
     }
-    yyjson_mut_val *val = yyjson_mut_arr_get_first(j->val);
-    return sn_json_wrap(arena, j->doc, val, 0);
+    size_t len = json_object_array_length(j->obj);
+    if (len == 0) {
+        return sn_json_wrap(arena, NULL, 0);
+    }
+
+    json_object *val = json_object_array_get_idx(j->obj, 0);
+    if (val != NULL) {
+        json_object_get(val);
+    }
+    return sn_json_wrap(arena, val, 0);
 }
 
 SnJson *sn_json_last(RtArenaV2 *arena, SnJson *j)
 {
-    if (j == NULL || j->val == NULL || !yyjson_mut_is_arr(j->val)) {
-        return sn_json_wrap(arena, j ? j->doc : NULL, NULL, 0);
+    if (j == NULL || j->obj == NULL || !json_object_is_type(j->obj, json_type_array)) {
+        return sn_json_wrap(arena, NULL, 0);
     }
-    yyjson_mut_val *val = yyjson_mut_arr_get_last(j->val);
-    return sn_json_wrap(arena, j->doc, val, 0);
+    size_t len = json_object_array_length(j->obj);
+    if (len == 0) {
+        return sn_json_wrap(arena, NULL, 0);
+    }
+
+    json_object *val = json_object_array_get_idx(j->obj, len - 1);
+    if (val != NULL) {
+        json_object_get(val);
+    }
+    return sn_json_wrap(arena, val, 0);
 }
 
 /* ============================================================================
@@ -468,13 +451,13 @@ SnJson *sn_json_last(RtArenaV2 *arena, SnJson *j)
 
 int64_t sn_json_length(SnJson *j)
 {
-    if (j == NULL || j->val == NULL) return 0;
+    if (j == NULL || j->obj == NULL) return 0;
 
-    if (yyjson_mut_is_obj(j->val)) {
-        return (int64_t)yyjson_mut_obj_size(j->val);
+    if (json_object_is_type(j->obj, json_type_object)) {
+        return (int64_t)json_object_object_length(j->obj);
     }
-    if (yyjson_mut_is_arr(j->val)) {
-        return (int64_t)yyjson_mut_arr_size(j->val);
+    if (json_object_is_type(j->obj, json_type_array)) {
+        return (int64_t)json_object_array_length(j->obj);
     }
     return 0;
 }
@@ -485,30 +468,38 @@ int64_t sn_json_length(SnJson *j)
 
 void sn_json_set(SnJson *j, const char *key, SnJson *value)
 {
-    if (j == NULL || j->val == NULL || key == NULL || value == NULL) {
+    if (j == NULL || j->obj == NULL || key == NULL || value == NULL) {
         fprintf(stderr, "Json.set: invalid arguments\n");
         return;
     }
-    if (!yyjson_mut_is_obj(j->val)) {
+    if (!json_object_is_type(j->obj, json_type_object)) {
         fprintf(stderr, "Json.set: not an object\n");
         return;
     }
 
-    /* Copy the value into this document */
-    yyjson_mut_val *val_copy = yyjson_mut_val_mut_copy(j->doc, value->val);
-    yyjson_mut_val *key_val = yyjson_mut_strcpy(j->doc, key);
+    /* Deep copy the value (same value semantics as before) */
+    json_object *copy = NULL;
+    if (value->obj != NULL) {
+        if (json_object_deep_copy(value->obj, &copy, NULL) != 0) {
+            fprintf(stderr, "Json.set: failed to copy value\n");
+            return;
+        }
+    }
 
-    /* Remove existing key if present, then add new */
-    yyjson_mut_obj_remove_key(j->val, key);
-    yyjson_mut_obj_add(j->val, key_val, val_copy);
+    /* Remove existing key if present, then add new.
+     * json_object_object_del frees the old value via json_object_put. */
+    json_object_object_del(j->obj, key);
+    json_object_object_add(j->obj, key, copy);
 }
 
 void sn_json_remove(SnJson *j, const char *key)
 {
-    if (j == NULL || j->val == NULL || key == NULL) return;
-    if (!yyjson_mut_is_obj(j->val)) return;
+    if (j == NULL || j->obj == NULL || key == NULL) return;
+    if (!json_object_is_type(j->obj, json_type_object)) return;
 
-    yyjson_mut_obj_remove_key(j->val, key);
+    /* json_object_object_del calls json_object_put on the removed value,
+     * freeing it immediately if no other references exist. */
+    json_object_object_del(j->obj, key);
 }
 
 /* ============================================================================
@@ -517,59 +508,84 @@ void sn_json_remove(SnJson *j, const char *key)
 
 void sn_json_append(SnJson *j, SnJson *value)
 {
-    if (j == NULL || j->val == NULL || value == NULL) {
+    if (j == NULL || j->obj == NULL || value == NULL) {
         fprintf(stderr, "Json.append: invalid arguments\n");
         return;
     }
-    if (!yyjson_mut_is_arr(j->val)) {
+    if (!json_object_is_type(j->obj, json_type_array)) {
         fprintf(stderr, "Json.append: not an array\n");
         return;
     }
 
-    /* Copy the value into this document */
-    yyjson_mut_val *val_copy = yyjson_mut_val_mut_copy(j->doc, value->val);
-    yyjson_mut_arr_append(j->val, val_copy);
+    /* Deep copy the value - ownership transfers to parent array */
+    json_object *copy = NULL;
+    if (value->obj != NULL) {
+        if (json_object_deep_copy(value->obj, &copy, NULL) != 0) {
+            fprintf(stderr, "Json.append: failed to copy value\n");
+            return;
+        }
+    }
+
+    json_object_array_add(j->obj, copy);
 }
 
 void sn_json_prepend(SnJson *j, SnJson *value)
 {
-    if (j == NULL || j->val == NULL || value == NULL) {
+    if (j == NULL || j->obj == NULL || value == NULL) {
         fprintf(stderr, "Json.prepend: invalid arguments\n");
         return;
     }
-    if (!yyjson_mut_is_arr(j->val)) {
+    if (!json_object_is_type(j->obj, json_type_array)) {
         fprintf(stderr, "Json.prepend: not an array\n");
         return;
     }
 
-    /* Copy the value into this document */
-    yyjson_mut_val *val_copy = yyjson_mut_val_mut_copy(j->doc, value->val);
-    yyjson_mut_arr_prepend(j->val, val_copy);
+    /* Deep copy the value - ownership transfers to parent array */
+    json_object *copy = NULL;
+    if (value->obj != NULL) {
+        if (json_object_deep_copy(value->obj, &copy, NULL) != 0) {
+            fprintf(stderr, "Json.prepend: failed to copy value\n");
+            return;
+        }
+    }
+
+    json_object_array_insert_idx(j->obj, 0, copy);
 }
 
 void sn_json_insert(SnJson *j, int64_t index, SnJson *value)
 {
-    if (j == NULL || j->val == NULL || value == NULL) {
+    if (j == NULL || j->obj == NULL || value == NULL) {
         fprintf(stderr, "Json.insert: invalid arguments\n");
         return;
     }
-    if (!yyjson_mut_is_arr(j->val)) {
+    if (!json_object_is_type(j->obj, json_type_array)) {
         fprintf(stderr, "Json.insert: not an array\n");
         return;
     }
 
-    /* Copy the value into this document */
-    yyjson_mut_val *val_copy = yyjson_mut_val_mut_copy(j->doc, value->val);
-    yyjson_mut_arr_insert(j->val, val_copy, (size_t)index);
+    /* Deep copy the value - ownership transfers to parent array */
+    json_object *copy = NULL;
+    if (value->obj != NULL) {
+        if (json_object_deep_copy(value->obj, &copy, NULL) != 0) {
+            fprintf(stderr, "Json.insert: failed to copy value\n");
+            return;
+        }
+    }
+
+    json_object_array_insert_idx(j->obj, (size_t)index, copy);
 }
 
 void sn_json_remove_at(SnJson *j, int64_t index)
 {
-    if (j == NULL || j->val == NULL) return;
-    if (!yyjson_mut_is_arr(j->val)) return;
-    if (index < 0 || (size_t)index >= yyjson_mut_arr_size(j->val)) return;
+    if (j == NULL || j->obj == NULL) return;
+    if (!json_object_is_type(j->obj, json_type_array)) return;
+    size_t len = json_object_array_length(j->obj);
+    if (index < 0 || (size_t)index >= len) return;
 
-    yyjson_mut_arr_remove(j->val, (size_t)index);
+    /* json_object_array_del_idx calls json_object_put on the removed element,
+     * freeing it immediately if no other references exist.
+     * This is the key fix - removed values are properly freed, not left in a pool. */
+    json_object_array_del_idx(j->obj, (size_t)index, 1);
 }
 
 /* ============================================================================
@@ -578,63 +594,58 @@ void sn_json_remove_at(SnJson *j, int64_t index)
 
 RtHandleV2 *sn_json_to_string(RtArenaV2 *arena, SnJson *j)
 {
-    if (j == NULL || j->val == NULL) {
+    if (j == NULL || j->obj == NULL) {
         return rt_arena_v2_strdup(arena, "null");
     }
 
-    size_t len;
-    char *str = yyjson_mut_val_write(j->val, 0, &len);
+    /* json_object_to_json_string_ext returns internal buffer - copy to arena */
+    const char *str = json_object_to_json_string_ext(j->obj, JSON_C_TO_STRING_PLAIN);
     if (str == NULL) {
         return rt_arena_v2_strdup(arena, "null");
     }
 
-    RtHandleV2 *result = rt_arena_v2_strdup(arena, str);
-    free(str);
-    return result;
+    return rt_arena_v2_strdup(arena, str);
 }
 
 RtHandleV2 *sn_json_to_pretty_string(RtArenaV2 *arena, SnJson *j)
 {
-    if (j == NULL || j->val == NULL) {
+    if (j == NULL || j->obj == NULL) {
         return rt_arena_v2_strdup(arena, "null");
     }
 
-    size_t len;
-    char *str = yyjson_mut_val_write(j->val, YYJSON_WRITE_PRETTY, &len);
+    const char *str = json_object_to_json_string_ext(j->obj, JSON_C_TO_STRING_PRETTY);
     if (str == NULL) {
         return rt_arena_v2_strdup(arena, "null");
     }
 
-    RtHandleV2 *result = rt_arena_v2_strdup(arena, str);
-    free(str);
-    return result;
+    return rt_arena_v2_strdup(arena, str);
 }
 
 void sn_json_write_file(SnJson *j, const char *path)
 {
-    if (j == NULL || j->val == NULL || path == NULL) {
+    if (j == NULL || j->obj == NULL || path == NULL) {
         fprintf(stderr, "Json.writeFile: invalid arguments\n");
         return;
     }
 
-    yyjson_write_err err;
-    bool success = yyjson_mut_write_file(path, j->doc, 0, NULL, &err);
-    if (!success) {
-        fprintf(stderr, "Json.writeFile: %s (file: %s)\n", err.msg, path);
+    if (json_object_to_file_ext(path, j->obj, JSON_C_TO_STRING_PLAIN) != 0) {
+        const char *err = json_util_get_last_err();
+        fprintf(stderr, "Json.writeFile: %s (file: %s)\n",
+                err ? err : "unknown error", path);
     }
 }
 
 void sn_json_write_file_pretty(SnJson *j, const char *path)
 {
-    if (j == NULL || j->val == NULL || path == NULL) {
+    if (j == NULL || j->obj == NULL || path == NULL) {
         fprintf(stderr, "Json.writeFilePretty: invalid arguments\n");
         return;
     }
 
-    yyjson_write_err err;
-    bool success = yyjson_mut_write_file(path, j->doc, YYJSON_WRITE_PRETTY, NULL, &err);
-    if (!success) {
-        fprintf(stderr, "Json.writeFilePretty: %s (file: %s)\n", err.msg, path);
+    if (json_object_to_file_ext(path, j->obj, JSON_C_TO_STRING_PRETTY) != 0) {
+        const char *err = json_util_get_last_err();
+        fprintf(stderr, "Json.writeFilePretty: %s (file: %s)\n",
+                err ? err : "unknown error", path);
     }
 }
 
@@ -644,35 +655,65 @@ void sn_json_write_file_pretty(SnJson *j, const char *path)
 
 SnJson *sn_json_copy(RtArenaV2 *arena, SnJson *j)
 {
-    if (j == NULL || j->val == NULL) {
+    if (j == NULL || j->obj == NULL) {
         return sn_json_new_null(arena);
     }
 
-    /* Create a new document with a deep copy of the value */
-    yyjson_mut_doc *new_doc = yyjson_mut_doc_new(NULL);
-    if (new_doc == NULL) {
-        fprintf(stderr, "Json.copy: failed to create document\n");
+    json_object *copy = NULL;
+    if (json_object_deep_copy(j->obj, &copy, NULL) != 0) {
+        fprintf(stderr, "Json.copy: failed to deep copy\n");
         exit(1);
     }
 
-    yyjson_mut_val *val_copy = yyjson_mut_val_mut_copy(new_doc, j->val);
-    yyjson_mut_doc_set_root(new_doc, val_copy);
-
-    return sn_json_wrap(arena, new_doc, val_copy, 1);
+    return sn_json_wrap(arena, copy, 1);
 }
 
 RtHandleV2 *sn_json_type_name(RtArenaV2 *arena, SnJson *j)
 {
-    if (j == NULL || j->val == NULL) {
+    if (j == NULL || j->obj == NULL) {
         return rt_arena_v2_strdup(arena, "null");
     }
 
-    if (yyjson_mut_is_obj(j->val)) return rt_arena_v2_strdup(arena, "object");
-    if (yyjson_mut_is_arr(j->val)) return rt_arena_v2_strdup(arena, "array");
-    if (yyjson_mut_is_str(j->val)) return rt_arena_v2_strdup(arena, "string");
-    if (yyjson_mut_is_bool(j->val)) return rt_arena_v2_strdup(arena, "bool");
-    if (yyjson_mut_is_null(j->val)) return rt_arena_v2_strdup(arena, "null");
-    if (yyjson_mut_is_num(j->val)) return rt_arena_v2_strdup(arena, "number");
+    if (json_object_is_type(j->obj, json_type_object))  return rt_arena_v2_strdup(arena, "object");
+    if (json_object_is_type(j->obj, json_type_array))   return rt_arena_v2_strdup(arena, "array");
+    if (json_object_is_type(j->obj, json_type_string))  return rt_arena_v2_strdup(arena, "string");
+    if (json_object_is_type(j->obj, json_type_boolean)) return rt_arena_v2_strdup(arena, "bool");
+    if (json_object_is_type(j->obj, json_type_null))    return rt_arena_v2_strdup(arena, "null");
+    if (json_object_is_type(j->obj, json_type_int))     return rt_arena_v2_strdup(arena, "number");
+    if (json_object_is_type(j->obj, json_type_double))  return rt_arena_v2_strdup(arena, "number");
 
     return rt_arena_v2_strdup(arena, "unknown");
+}
+
+/* ============================================================================
+ * Dispose Function
+ * ============================================================================
+ * Releases the json-c reference and arena handle immediately. This allows
+ * deterministic cleanup of JSON values in long-lived arenas.
+ *
+ * Two-tier cleanup:
+ * 1. Explicit: User calls .dispose() - json_object freed, handle reclaimable
+ * 2. Implicit: Arena destruction - cleanup callback fires (safety net)
+ *
+ * If dispose() is called first, it sets obj=NULL so the arena cleanup
+ * callback becomes a no-op (no double-free).
+ * ============================================================================ */
+
+void sn_json_dispose(SnJson *j)
+{
+    if (j == NULL) return;
+
+    if (j->obj != NULL) {
+        json_object_put(j->obj);
+        j->obj = NULL;
+    }
+
+    if (j->handle != NULL) {
+        RtHandleV2 *h = j->handle;
+        j->handle = NULL;
+        /* Remove cleanup callback to avoid redundant no-op during arena destruction */
+        rt_arena_v2_remove_cleanup(h->arena, h);
+        rt_handle_v2_unpin(h);
+        rt_arena_v2_free(h);
+    }
 }
