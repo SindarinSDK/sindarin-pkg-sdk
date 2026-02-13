@@ -39,7 +39,7 @@ BIN_DIR := bin
 SN ?= sn
 
 # Test runner from sindarin-pkg-test dependency
-RUN_TESTS_SN := .sn/sindarin-pkg-test/scripts/run_tests.sn
+RUN_TESTS_SN := .sn/sindarin-pkg-test/src/execute.sn
 
 # SDK source files (for dependency tracking)
 # Note: .sn.c files are compiled by the Sindarin compiler, not tracked separately
@@ -66,7 +66,7 @@ $(BIN_DIR):
 	@$(MKDIR) $(BIN_DIR)
 
 $(RUN_TESTS_BIN): $(RUN_TESTS_SN) $(SDK_SOURCES) | $(BIN_DIR)
-	@echo "Compiling run_tests.sn..."
+	@echo "Compiling execute.sn..."
 	@$(SN) $(RUN_TESTS_SN) -o $(RUN_TESTS_BIN) -l 1
 
 #------------------------------------------------------------------------------
