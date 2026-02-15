@@ -1,0 +1,102 @@
+# Test sdk/core/gc module
+
+import "../../src/core/gc"
+
+fn main(): int =>
+    print("=== SDK GC Module Test ===\n\n")
+
+    # --- GC.collect() ---
+    print("--- collect ---\n")
+    var freed: int = GC.collect()
+    if freed >= 0 =>
+        print("collect returned non-negative: PASS\n")
+    else =>
+        print("collect returned non-negative: FAIL\n")
+
+    # --- GC.stats() ---
+    print("\n--- stats ---\n")
+    var s: GCStats = GC.stats()
+
+    # After collect, gc_runs should be at least 1
+    if s.gc_runs >= 1 =>
+        print("gc_runs >= 1: PASS\n")
+    else =>
+        print("gc_runs >= 1: FAIL\n")
+
+    # handles_total should be non-negative
+    if s.handles_total >= 0 =>
+        print("handles_total >= 0: PASS\n")
+    else =>
+        print("handles_total >= 0: FAIL\n")
+
+    # handles_total = handles_local + handles_children
+    if s.handles_total == s.handles_local + s.handles_children =>
+        print("handles_total = local + children: PASS\n")
+    else =>
+        print("handles_total = local + children: FAIL\n")
+
+    # bytes_total = bytes_local + bytes_children
+    if s.bytes_total == s.bytes_local + s.bytes_children =>
+        print("bytes_total = local + children: PASS\n")
+    else =>
+        print("bytes_total = local + children: FAIL\n")
+
+    # blocks_total = blocks_local + blocks_children
+    if s.blocks_total == s.blocks_local + s.blocks_children =>
+        print("blocks_total = local + children: PASS\n")
+    else =>
+        print("blocks_total = local + children: FAIL\n")
+
+    # fragmentation should be between 0 and 100
+    if s.fragmentation >= 0.0 && s.fragmentation <= 100.0 =>
+        print("fragmentation in [0, 100]: PASS\n")
+    else =>
+        print("fragmentation in [0, 100]: FAIL\n")
+
+    # block_capacity should be >= block_used
+    if s.block_capacity >= s.block_used =>
+        print("block_capacity >= block_used: PASS\n")
+    else =>
+        print("block_capacity >= block_used: FAIL\n")
+
+    # dead_handles and dead_bytes should be non-negative
+    if s.dead_handles >= 0 && s.dead_bytes >= 0 =>
+        print("dead counts non-negative: PASS\n")
+    else =>
+        print("dead counts non-negative: FAIL\n")
+
+    # --- GC.enableLog / disableLog ---
+    print("\n--- logging ---\n")
+    GC.enableLog()
+    print("enableLog: PASS\n")
+    GC.disableLog()
+    print("disableLog: PASS\n")
+
+    # --- GC.print() and GC.snapshot() ---
+    # These write to stderr, so they won't affect stdout comparison
+    print("\n--- debug output ---\n")
+    GC.print()
+    print("print (to stderr): PASS\n")
+    GC.snapshot()
+    print("snapshot (to stderr): PASS\n")
+
+    # --- collect after allocations ---
+    print("\n--- collect after work ---\n")
+    # Create some strings that become garbage
+    for i in 0..100 =>
+        var tmp: str = $"garbage string {i}"
+    var freed2: int = GC.collect()
+    if freed2 >= 0 =>
+        print("collect after allocs non-negative: PASS\n")
+    else =>
+        print("collect after allocs non-negative: FAIL\n")
+
+    # Stats should still be consistent after second collect
+    var s2: GCStats = GC.stats()
+    if s2.gc_runs >= 2 =>
+        print("gc_runs >= 2 after second collect: PASS\n")
+    else =>
+        print("gc_runs >= 2 after second collect: FAIL\n")
+
+    print("\n=== All GC tests completed! ===\n")
+    return 0

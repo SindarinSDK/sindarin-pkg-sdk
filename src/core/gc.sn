@@ -1,0 +1,87 @@
+# ==============================================================================
+# sdk/core/gc.sn - Garbage Collection for Sindarin
+# ==============================================================================
+# Opt-in observability and control for the runtime GC system.
+# Import this module and call GC static methods to inspect and control GC.
+#
+# Usage:
+#   import "sdk/core/gc"
+#
+#   var freed: int = GC.collect()
+#   var s: GCStats = GC.stats()
+#   print($"Handles: {s.handles_total}, GC runs: {s.gc_runs}\n")
+#
+#   GC.print()             # Print summary to stderr
+#   GC.snapshot()          # Print per-block breakdown to stderr
+#   GC.enableLog()         # Enable one-line GC logging per pass
+#   GC.disableLog()        # Disable GC logging
+#
+# ==============================================================================
+
+@source "gc.sn.c"
+
+# ==============================================================================
+# GCStats - GC statistics snapshot
+# ==============================================================================
+
+struct GCStats =>
+    handles_local: int = 0
+    handles_children: int = 0
+    handles_total: int = 0
+    bytes_local: int = 0
+    bytes_children: int = 0
+    bytes_total: int = 0
+    blocks_local: int = 0
+    blocks_children: int = 0
+    blocks_total: int = 0
+    dead_handles: int = 0
+    dead_bytes: int = 0
+    block_capacity: int = 0
+    block_used: int = 0
+    gc_runs: int = 0
+    last_handles_freed: int = 0
+    last_bytes_freed: int = 0
+    last_blocks_freed: int = 0
+    fragmentation: double = 0.0
+
+# ==============================================================================
+# GC Static-Only Type Definition
+# ==============================================================================
+
+@alias "SnGCHelper"
+native struct GC =>
+
+    # Trigger garbage collection. Returns number of handles freed.
+    static fn collect(): int =>
+        return sn_gc_collect()
+
+    # Get stats snapshot for the root arena.
+    static fn stats(): GCStats =>
+        return sn_gc_stats()
+
+    # Print human-readable summary to stderr.
+    static fn print(): void =>
+        sn_gc_print()
+
+    # Print detailed per-block breakdown to stderr.
+    static fn snapshot(): void =>
+        sn_gc_snapshot()
+
+    # Enable one-line GC logging per pass to stderr.
+    static fn enableLog(): void =>
+        sn_gc_enable_log()
+
+    # Disable GC logging.
+    static fn disableLog(): void =>
+        sn_gc_disable_log()
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+native fn sn_gc_collect(arena): int
+native fn sn_gc_stats(arena): GCStats
+native fn sn_gc_print(arena): void
+native fn sn_gc_snapshot(arena): void
+native fn sn_gc_enable_log(arena): void
+native fn sn_gc_disable_log(arena): void

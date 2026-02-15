@@ -1,0 +1,28 @@
+=== SDK GC Module Test ===
+
+--- collect ---
+collect returned non-negative: PASS
+
+--- stats ---
+gc_runs >= 1: PASS
+handles_total >= 0: PASS
+handles_total = local + children: PASS
+bytes_total = local + children: PASS
+blocks_total = local + children: PASS
+fragmentation in [0, 100]: PASS
+block_capacity >= block_used: PASS
+dead counts non-negative: PASS
+
+--- logging ---
+enableLog: PASS
+disableLog: PASS
+
+--- debug output ---
+print (to stderr): PASS
+snapshot (to stderr): PASS
+
+--- collect after work ---
+collect after allocs non-negative: PASS
+gc_runs >= 2 after second collect: PASS
+
+=== All GC tests completed! ===
