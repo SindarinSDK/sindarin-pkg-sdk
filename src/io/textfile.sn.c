@@ -472,10 +472,7 @@ RtHandleV2 *sn_text_file_read_lines(RtArenaV2 *arena, RtSnTextFile *file)
     while (c != EOF) {
         ungetc(c, fp);
         RtHandleV2 *line = sn_text_file_read_line(arena, file);
-        rt_handle_v2_pin(line);
-        const char *line_str = (const char *)line->ptr;
-        lines = rt_array_push_string_v2(arena, lines, line_str);
-        rt_handle_v2_unpin(line);
+        lines = rt_array_push_string_v2(arena, lines, line);
         c = fgetc(fp);
     }
 

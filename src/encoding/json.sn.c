@@ -384,7 +384,8 @@ RtHandleV2 *sn_json_keys(RtArenaV2 *arena, SnJson *j)
 
     json_object_iter iter;
     json_object_object_foreachC(j->obj, iter) {
-        keys = rt_array_push_string_v2(arena, keys, iter.key ? iter.key : "");
+        RtHandleV2 *key_h = rt_arena_v2_strdup(arena, iter.key ? iter.key : "");
+        keys = rt_array_push_string_v2(arena, keys, key_h);
     }
 
     return keys;

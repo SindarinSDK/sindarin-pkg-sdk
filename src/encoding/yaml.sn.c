@@ -531,9 +531,7 @@ RtHandleV2 *sn_yaml_keys(RtArenaV2 *arena, SnYaml *y)
     RtHandleV2 *keys = rt_array_create_string_v2(arena, 0, NULL);
     for (int i = 0; i < y->node->map_count; i++) {
         RtHandleV2 *dup = rt_arena_v2_strdup(arena, y->node->map_pairs[i].key ? y->node->map_pairs[i].key : "");
-        rt_handle_v2_pin(dup);
-        keys = rt_array_push_string_v2(arena, keys, (const char *)dup->ptr);
-        rt_handle_v2_unpin(dup);
+        keys = rt_array_push_string_v2(arena, keys, dup);
     }
     return keys;
 }

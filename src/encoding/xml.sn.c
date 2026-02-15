@@ -388,10 +388,7 @@ RtHandleV2 *sn_xml_attrs(RtArenaV2 *arena, SnXml *x)
     while (attr != NULL) {
         if (attr->name != NULL) {
             RtHandleV2 *name = rt_arena_v2_strdup(arena, (const char *)attr->name);
-            rt_handle_v2_pin(name);
-            char *name_ptr = (char *)name->ptr;
-            names = rt_array_push_string_v2(arena, names, name_ptr);
-            rt_handle_v2_unpin(name);
+            names = rt_array_push_string_v2(arena, names, name);
         }
         attr = attr->next;
     }
