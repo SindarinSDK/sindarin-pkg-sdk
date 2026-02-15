@@ -33,12 +33,10 @@
  * ============================================================================ */
 
 typedef struct RtSnBinaryFile {
-    void *fp;                   /* FILE* pointer */
-    char *path;                 /* Full path to file */
-    int32_t is_open;            /* Whether file is still open */
-    RtArenaV2 *arena;           /* Arena used for allocation */
-    RtHandleV2 *self_handle;    /* Handle to this struct */
-    RtHandleV2 *path_handle;    /* Handle to path string */
+    void *fp;
+    char *path;
+    int32_t is_open;
+    RtArenaV2 *arena;           /* Private arena — owns all internal allocations */
 } RtSnBinaryFile;
 
 /* ============================================================================
@@ -56,6 +54,7 @@ RtSnBinaryFile *sn_binary_file_open(RtArenaV2 *arena, const char *path)
         fprintf(stderr, "SnBinaryFile.open: path is NULL\n");
         exit(1);
     }
+    (void)arena;
 
     /* Try to open in r+b (read/write binary, must exist) */
     FILE *fp = fopen(path, "r+b");
@@ -70,8 +69,8 @@ RtSnBinaryFile *sn_binary_file_open(RtArenaV2 *arena, const char *path)
     }
 
     /* Allocate file handle */
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtSnBinaryFile));
-    rt_handle_v2_pin(_h);
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "binary_file");
+    RtHandleV2 *_h = rt_arena_v2_alloc(priv, sizeof(RtSnBinaryFile));
     RtSnBinaryFile *file = (RtSnBinaryFile *)_h->ptr;
     if (file == NULL) {
         fclose(fp);
@@ -80,9 +79,8 @@ RtSnBinaryFile *sn_binary_file_open(RtArenaV2 *arena, const char *path)
     }
 
     file->fp = fp;
-    file->arena = arena;
-    file->self_handle = _h;
-    { RtHandleV2 *_path_h = rt_arena_v2_strdup(arena, path); rt_handle_v2_pin(_path_h); file->path = (char *)_path_h->ptr; file->path_handle = _path_h; }
+    file->arena = priv;
+    { RtHandleV2 *_path_h = rt_arena_v2_strdup(priv, path); file->path = (char *)_path_h->ptr; }
     file->is_open = 1;
 
     return file;
@@ -666,27 +664,17 @@ void sn_binary_file_close(RtSnBinaryFile *file)
     if (file == NULL) {
         return;
     }
-    if (file->is_open && file->fp != NULL) {
-        fclose((FILE *)file->fp);
-        file->is_open = 0;
-        file->fp = NULL;
+
+    FILE *fp_val = (FILE *)file->fp;
+    RtArenaV2 *priv = file->arena;
+
+    if (file->is_open && fp_val != NULL) {
+        fclose(fp_val);
     }
 
-    /* Unpin/free path handle */
-    if (file->path_handle != NULL) {
-        rt_handle_v2_unpin(file->path_handle);
-        rt_arena_v2_free(file->path_handle);
-        file->path_handle = NULL;
-        file->path = NULL;
-    }
-
-    /* Unpin/free self handle last */
-    if (file->self_handle != NULL) {
-        RtHandleV2 *self = file->self_handle;
-        file->self_handle = NULL;
-        file->arena = NULL;
-        rt_handle_v2_unpin(self);
-        rt_arena_v2_free(self);
+    /* Destroy private arena — frees struct, path string */
+    if (priv != NULL) {
+        rt_arena_v2_destroy(priv, false);
     }
 }
 

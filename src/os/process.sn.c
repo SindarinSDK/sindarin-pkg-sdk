@@ -45,14 +45,12 @@ static char *sdk_arena_strdup(RtArenaV2 *arena, const char *str)
 {
     if (str == NULL) {
         RtHandleV2 *_h = rt_arena_v2_alloc(arena, 1);
-        rt_handle_v2_pin(_h);
         char *empty = (char *)_h->ptr;
         if (empty) empty[0] = '\0';
         return empty;
     }
     size_t len = strlen(str);
     RtHandleV2 *_h2 = rt_arena_v2_alloc(arena, len + 1);
-    rt_handle_v2_pin(_h2);
     char *copy = (char *)_h2->ptr;
     if (copy == NULL) return NULL;
     memcpy(copy, str, len + 1);
@@ -69,7 +67,6 @@ static RtProcess *sn_process_create(RtArenaV2 *arena, int exit_code,
     }
 
     RtHandleV2 *_h_proc = rt_arena_v2_alloc(arena, sizeof(RtProcess));
-    rt_handle_v2_pin(_h_proc);
     RtProcess *proc = (RtProcess *)_h_proc->ptr;
     if (proc == NULL) {
         fprintf(stderr, "sn_process_create: allocation failed\n");
@@ -104,7 +101,6 @@ static char *read_handle_to_string(RtArenaV2 *arena, HANDLE handle)
     size_t capacity = READ_BUFFER_INITIAL_SIZE;
     size_t length = 0;
     RtHandleV2 *_h_buf = rt_arena_v2_alloc(arena, capacity);
-    rt_handle_v2_pin(_h_buf);
     char *buffer = (char *)_h_buf->ptr;
     if (buffer == NULL) {
         CloseHandle(handle);
@@ -115,7 +111,6 @@ static char *read_handle_to_string(RtArenaV2 *arena, HANDLE handle)
         if (length + 1 >= capacity) {
             size_t new_capacity = capacity * 2;
             RtHandleV2 *_h_grow = rt_arena_v2_alloc(arena, new_capacity);
-            rt_handle_v2_pin(_h_grow);
             char *new_buffer = (char *)_h_grow->ptr;
             if (new_buffer == NULL) {
                 buffer[length] = '\0';
@@ -324,7 +319,6 @@ static char *read_fd_to_string(RtArenaV2 *arena, int fd)
     size_t capacity = READ_BUFFER_INITIAL_SIZE;
     size_t length = 0;
     RtHandleV2 *_h_buf = rt_arena_v2_alloc(arena, capacity);
-    rt_handle_v2_pin(_h_buf);
     char *buffer = (char *)_h_buf->ptr;
     if (buffer == NULL) {
         close(fd);
@@ -338,7 +332,6 @@ static char *read_fd_to_string(RtArenaV2 *arena, int fd)
             /* Need to grow the buffer - allocate new larger buffer */
             size_t new_capacity = capacity * 2;
             RtHandleV2 *_h_grow = rt_arena_v2_alloc(arena, new_capacity);
-            rt_handle_v2_pin(_h_grow);
             char *new_buffer = (char *)_h_grow->ptr;
             if (new_buffer == NULL) {
                 /* Allocation failed, return what we have */

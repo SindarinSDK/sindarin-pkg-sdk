@@ -27,6 +27,7 @@ typedef struct SnXml {
     xmlDocPtr doc;       /* The XML document (owns memory when is_root) */
     xmlNodePtr node;     /* The current node within the document */
     int32_t is_root;     /* Whether this owns the document */
+    RtHandleV2 *handle;  /* Self-reference for dispose */
 } SnXml;
 
 /* ============================================================================
@@ -59,11 +60,40 @@ static void sn_xml_init(void)
 
 static void sn_xml_doc_cleanup(RtHandleV2 *data)
 {
-    rt_handle_v2_pin(data);
     SnXml *x = (SnXml *)data->ptr;
     if (x != NULL && x->doc != NULL) {
         xmlFreeDoc(x->doc);
         x->doc = NULL;
+    }
+}
+
+/* ============================================================================
+ * Dispose Function
+ * ============================================================================
+ * Releases the xmlDoc and arena handle immediately. This allows
+ * deterministic cleanup of XML values in long-lived arenas.
+ *
+ * Two-tier cleanup:
+ * 1. Explicit: User calls .dispose() - xmlDoc freed, handle reclaimable
+ * 2. Implicit: Arena destruction - cleanup callback fires (safety net)
+ *
+ * If dispose() is called first, it sets doc=NULL so the arena cleanup
+ * callback becomes a no-op (no double-free).
+ * ============================================================================ */
+
+void sn_xml_dispose(SnXml *x)
+{
+    if (x == NULL) return;
+    if (x->doc != NULL) {
+        xmlFreeDoc(x->doc);
+        x->doc = NULL;
+        x->node = NULL;
+    }
+    if (x->handle != NULL) {
+        RtHandleV2 *h = x->handle;
+        x->handle = NULL;
+        rt_arena_v2_remove_cleanup(h->arena, h);
+        rt_arena_v2_free(h);
     }
 }
 
@@ -77,11 +107,11 @@ static void sn_xml_doc_cleanup(RtHandleV2 *data)
 static SnXml *sn_xml_wrap(RtArenaV2 *arena, xmlDocPtr doc, xmlNodePtr node, int is_root)
 {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnXml));
-    rt_handle_v2_pin(_h);
     SnXml *x = (SnXml *)_h->ptr;
     x->doc = doc;
     x->node = node;
     x->is_root = is_root;
+    x->handle = _h;
 
     /* Register cleanup callback to free the xmlDoc when arena is destroyed.
      * This prevents memory leaks when Xml objects go out of scope.

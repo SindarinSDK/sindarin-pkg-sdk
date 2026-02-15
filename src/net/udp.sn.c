@@ -49,17 +49,10 @@
  * ============================================================================ */
 
 typedef struct RtUdpSocket {
-    socket_t socket_fd;     /* Socket file descriptor */
-    int bound_port;         /* Port number we're bound to */
-    int recv_timeout_ms;    /* Receive timeout: -1=blocking, 0=non-blocking, >0=timeout ms */
-
-    /* Arena tracking for memory release on close */
-    RtArenaV2 *arena;
-    RtHandleV2 *self_handle;
-
-    /* Last receive result handles (freed on next receive or close) */
-    RtHandleV2 *recv_result_handle;
-    RtHandleV2 *recv_sender_handle;
+    socket_t socket_fd;
+    int bound_port;
+    int recv_timeout_ms;
+    RtArenaV2 *arena;             /* Private arena — owns all internal allocations */
 } RtUdpSocket;
 
 /* Result struct for receiveFrom */
@@ -124,8 +117,9 @@ static int udp_wait_readable(RtUdpSocket *socket_obj) {
 }
 
 static RtUdpSocket *sn_udp_socket_create(RtArenaV2 *arena, socket_t sock, int port) {
-    RtHandleV2 *_socket_h = rt_arena_v2_alloc(arena, sizeof(RtUdpSocket));
-    rt_handle_v2_pin(_socket_h);
+    (void)arena;
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "udp_socket");
+    RtHandleV2 *_socket_h = rt_arena_v2_alloc(priv, sizeof(RtUdpSocket));
     RtUdpSocket *socket_obj = (RtUdpSocket *)_socket_h->ptr;
     if (socket_obj == NULL) {
         fprintf(stderr, "sn_udp_socket_create: allocation failed\n");
@@ -133,11 +127,8 @@ static RtUdpSocket *sn_udp_socket_create(RtArenaV2 *arena, socket_t sock, int po
     }
     socket_obj->socket_fd = sock;
     socket_obj->bound_port = port;
-    socket_obj->recv_timeout_ms = -1;  /* Blocking by default */
-    socket_obj->arena = arena;
-    socket_obj->self_handle = _socket_h;
-    socket_obj->recv_result_handle = NULL;
-    socket_obj->recv_sender_handle = NULL;
+    socket_obj->recv_timeout_ms = -1;
+    socket_obj->arena = priv;
     return socket_obj;
 }
 
@@ -352,22 +343,7 @@ long sn_udp_socket_send_to(RtUdpSocket *socket_obj, unsigned char *data, const c
 
 /* Receive datagram and sender address */
 RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *socket_obj, long maxBytes) {
-    /* Free previous receive result handles to prevent accumulation in loops */
-    if (socket_obj != NULL) {
-        if (socket_obj->recv_sender_handle != NULL) {
-            rt_handle_v2_unpin(socket_obj->recv_sender_handle);
-            rt_arena_v2_free(socket_obj->recv_sender_handle);
-            socket_obj->recv_sender_handle = NULL;
-        }
-        if (socket_obj->recv_result_handle != NULL) {
-            rt_handle_v2_unpin(socket_obj->recv_result_handle);
-            rt_arena_v2_free(socket_obj->recv_result_handle);
-            socket_obj->recv_result_handle = NULL;
-        }
-    }
-
     RtHandleV2 *_result_h = rt_arena_v2_alloc(arena, sizeof(RtUdpReceiveResult));
-    rt_handle_v2_pin(_result_h);
     RtUdpReceiveResult *result = (RtUdpReceiveResult *)_result_h->ptr;
     if (result == NULL) {
         fprintf(stderr, "sn_udp_socket_receive_from: allocation failed\n");
@@ -375,31 +351,19 @@ RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *so
     }
 
     if (socket_obj == NULL || maxBytes <= 0) {
-        /* Return empty result */
         result->data = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
         RtHandleV2 *_sender_h = rt_arena_v2_strdup(arena, "");
-        rt_handle_v2_pin(_sender_h);
         result->sender = (char *)_sender_h->ptr;
-        if (socket_obj != NULL) {
-            socket_obj->recv_result_handle = _result_h;
-            socket_obj->recv_sender_handle = _sender_h;
-        }
         return result;
     }
-
-    /* Store result handle on socket for cleanup */
-    socket_obj->recv_result_handle = _result_h;
 
     /* Wait for data with timeout if configured */
     if (socket_obj->recv_timeout_ms >= 0) {
         int wait_result = udp_wait_readable(socket_obj);
         if (wait_result == 0) {
-            /* Timeout - return empty result */
             result->data = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
             RtHandleV2 *_sender_h = rt_arena_v2_strdup(arena, "");
-            rt_handle_v2_pin(_sender_h);
             result->sender = (char *)_sender_h->ptr;
-            socket_obj->recv_sender_handle = _sender_h;
             return result;
         }
         if (wait_result < 0) {
@@ -427,20 +391,16 @@ RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *so
         exit(1);
     }
 
-    /* Create runtime array with received data */
     result->data = rt_array_create_generic_v2(arena, (size_t)bytes_received, sizeof(unsigned char), temp);
     free(temp);
 
-    /* Format sender address as "ip:port" */
     char sender_str[64];
     char ip_str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &sender_addr.sin_addr, ip_str, sizeof(ip_str));
     snprintf(sender_str, sizeof(sender_str), "%s:%d", ip_str, ntohs(sender_addr.sin_port));
 
     RtHandleV2 *_sender_h = rt_arena_v2_strdup(arena, sender_str);
-    rt_handle_v2_pin(_sender_h);
     result->sender = (char *)_sender_h->ptr;
-    socket_obj->recv_sender_handle = _sender_h;
     if (result->sender == NULL) {
         fprintf(stderr, "sn_udp_socket_receive_from: sender allocation failed\n");
         exit(1);
@@ -481,30 +441,16 @@ long sn_udp_socket_get_timeout(RtUdpSocket *socket_obj) {
 void sn_udp_socket_close(RtUdpSocket *socket_obj) {
     if (socket_obj == NULL) return;
 
-    if (socket_obj->socket_fd != INVALID_SOCKET_VAL) {
-        CLOSE_SOCKET(socket_obj->socket_fd);
-        socket_obj->socket_fd = INVALID_SOCKET_VAL;
+    socket_t fd = socket_obj->socket_fd;
+    RtArenaV2 *priv = socket_obj->arena;
+
+    if (fd != INVALID_SOCKET_VAL) {
+        CLOSE_SOCKET(fd);
     }
 
-    /* Free last receive result handles */
-    if (socket_obj->recv_sender_handle != NULL) {
-        rt_handle_v2_unpin(socket_obj->recv_sender_handle);
-        rt_arena_v2_free(socket_obj->recv_sender_handle);
-        socket_obj->recv_sender_handle = NULL;
-    }
-    if (socket_obj->recv_result_handle != NULL) {
-        rt_handle_v2_unpin(socket_obj->recv_result_handle);
-        rt_arena_v2_free(socket_obj->recv_result_handle);
-        socket_obj->recv_result_handle = NULL;
-    }
-
-    /* Unpin and mark handle dead for GC reclamation */
-    if (socket_obj->self_handle != NULL) {
-        RtHandleV2 *self = socket_obj->self_handle;
-        socket_obj->self_handle = NULL;
-        socket_obj->arena = NULL;
-        rt_handle_v2_unpin(self);
-        rt_arena_v2_free(self);
+    /* Destroy private arena — frees everything */
+    if (priv != NULL) {
+        rt_arena_v2_destroy(priv, false);
     }
 }
 

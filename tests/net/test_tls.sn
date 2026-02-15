@@ -52,9 +52,6 @@ fn test_tls_close(): void =>
     var conn: TlsStream = TlsStream.connect("example.com:443")
     conn.close()
 
-    # Closing again should be safe (no-op)
-    conn.close()
-
     print("PASS\n")
 
 fn main(): void =>

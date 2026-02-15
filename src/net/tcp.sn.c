@@ -56,31 +56,21 @@
  * ============================================================================ */
 
 typedef struct RtTcpStream {
-    socket_t socket_fd;         /* Socket file descriptor */
-    char *remote_addr;          /* Remote address string (host:port) */
-
-    /* Read buffer - arena allocated */
-    unsigned char *read_buf;    /* Buffer storage */
-    size_t read_buf_capacity;   /* Total buffer size */
-    size_t read_buf_pos;        /* Current read position (start of unread data) */
-    size_t read_buf_end;        /* End of valid data */
-
-    /* Configuration */
-    int read_timeout_ms;        /* Read timeout: -1=blocking, 0=non-blocking, >0=timeout ms */
-    bool eof_reached;           /* True if EOF has been encountered */
-
-    /* Arena tracking for memory release on close */
-    RtArenaV2 *arena;             /* Arena this stream was allocated from */
-    RtHandleV2 *self_handle;      /* Handle to this struct (for GC on close) */
-    RtHandleV2 *buf_handle;       /* Handle to read_buf (for GC on close) */
-    RtHandleV2 *addr_handle;      /* Handle to remote_addr (for GC on close) */
+    socket_t socket_fd;
+    char *remote_addr;
+    unsigned char *read_buf;
+    size_t read_buf_capacity;
+    size_t read_buf_pos;
+    size_t read_buf_end;
+    int read_timeout_ms;
+    bool eof_reached;
+    RtArenaV2 *arena;             /* Private arena — owns all internal allocations */
 } RtTcpStream;
 
 typedef struct RtTcpListener {
-    socket_t socket_fd;     /* Listening socket file descriptor */
-    int bound_port;         /* Port number we're bound to */
-    RtArenaV2 *arena;       /* Arena used for allocation (for GC on close) */
-    RtHandleV2 *self_handle; /* Handle to self (for GC on close) */
+    socket_t socket_fd;
+    int bound_port;
+    RtArenaV2 *arena;       /* Private arena — owns all internal allocations */
 } RtTcpListener;
 
 /* ============================================================================
@@ -238,8 +228,9 @@ static inline void stream_consume(RtTcpStream *stream, size_t n) {
  * ============================================================================ */
 
 static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const char *remote_addr) {
-    RtHandleV2 *_stream_h = rt_arena_v2_alloc(arena, sizeof(RtTcpStream));
-    rt_handle_v2_pin(_stream_h);
+    (void)arena;  /* caller arena not used for internal allocations */
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tcp_stream");
+    RtHandleV2 *_stream_h = rt_arena_v2_alloc(priv, sizeof(RtTcpStream));
     RtTcpStream *stream = (RtTcpStream *)_stream_h->ptr;
     if (stream == NULL) {
         fprintf(stderr, "sn_tcp_stream_create: allocation failed\n");
@@ -249,8 +240,7 @@ static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const 
 
     /* Initialize read buffer */
     stream->read_buf_capacity = SN_TCP_DEFAULT_BUFFER_SIZE;
-    RtHandleV2 *_buf_h = rt_arena_v2_alloc(arena, stream->read_buf_capacity);
-    rt_handle_v2_pin(_buf_h);
+    RtHandleV2 *_buf_h = rt_arena_v2_alloc(priv, stream->read_buf_capacity);
     stream->read_buf = (unsigned char *)_buf_h->ptr;
     if (stream->read_buf == NULL) {
         fprintf(stderr, "sn_tcp_stream_create: buffer allocation failed\n");
@@ -260,27 +250,22 @@ static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const 
     stream->read_buf_end = 0;
 
     /* Configuration defaults */
-    stream->read_timeout_ms = -1;  /* Blocking by default */
+    stream->read_timeout_ms = -1;
     stream->eof_reached = false;
 
-    /* Store arena and handles for memory release on close */
-    stream->arena = arena;
-    stream->self_handle = _stream_h;
-    stream->buf_handle = _buf_h;
+    /* Store private arena */
+    stream->arena = priv;
 
     /* Copy remote address string */
     if (remote_addr) {
         size_t len = strlen(remote_addr) + 1;
-        RtHandleV2 *_addr_h = rt_arena_v2_alloc(arena, len);
-        rt_handle_v2_pin(_addr_h);
+        RtHandleV2 *_addr_h = rt_arena_v2_alloc(priv, len);
         stream->remote_addr = (char *)_addr_h->ptr;
-        stream->addr_handle = _addr_h;
         if (stream->remote_addr) {
             memcpy(stream->remote_addr, remote_addr, len);
         }
     } else {
         stream->remote_addr = NULL;
-        stream->addr_handle = NULL;
     }
 
     return stream;
@@ -885,30 +870,17 @@ RtHandleV2 *sn_tcp_stream_get_remote_address(RtArenaV2 *arena, RtTcpStream *stre
 void sn_tcp_stream_close(RtTcpStream *stream) {
     if (stream == NULL) return;
 
-    if (stream->socket_fd != INVALID_SOCKET_VAL) {
-        CLOSE_SOCKET(stream->socket_fd);
-        stream->socket_fd = INVALID_SOCKET_VAL;
+    socket_t fd = stream->socket_fd;
+    RtArenaV2 *priv = stream->arena;
+
+    /* Close socket before destroying arena */
+    if (fd != INVALID_SOCKET_VAL) {
+        CLOSE_SOCKET(fd);
     }
 
-    /* Unpin and mark handles dead for GC reclamation */
-    if (stream->addr_handle != NULL) {
-        rt_handle_v2_unpin(stream->addr_handle);
-        rt_arena_v2_free(stream->addr_handle);
-        stream->addr_handle = NULL;
-    }
-    if (stream->buf_handle != NULL) {
-        rt_handle_v2_unpin(stream->buf_handle);
-        rt_arena_v2_free(stream->buf_handle);
-        stream->buf_handle = NULL;
-    }
-    if (stream->self_handle != NULL) {
-        RtHandleV2 *self = stream->self_handle;
-        stream->self_handle = NULL;
-        stream->read_buf = NULL;
-        stream->remote_addr = NULL;
-        stream->arena = NULL;
-        rt_handle_v2_unpin(self);
-        rt_arena_v2_free(self);
+    /* Destroy private arena — frees struct, buffer, addr string */
+    if (priv != NULL) {
+        rt_arena_v2_destroy(priv, false);
     }
 }
 
@@ -917,8 +889,9 @@ void sn_tcp_stream_close(RtTcpStream *stream) {
  * ============================================================================ */
 
 static RtTcpListener *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, int port) {
-    RtHandleV2 *_listener_h = rt_arena_v2_alloc(arena, sizeof(RtTcpListener));
-    rt_handle_v2_pin(_listener_h);
+    (void)arena;
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tcp_listener");
+    RtHandleV2 *_listener_h = rt_arena_v2_alloc(priv, sizeof(RtTcpListener));
     RtTcpListener *listener = (RtTcpListener *)_listener_h->ptr;
     if (listener == NULL) {
         fprintf(stderr, "sn_tcp_listener_create: allocation failed\n");
@@ -926,8 +899,7 @@ static RtTcpListener *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, in
     }
     listener->socket_fd = sock;
     listener->bound_port = port;
-    listener->arena = arena;
-    listener->self_handle = _listener_h;
+    listener->arena = priv;
     return listener;
 }
 
@@ -1061,17 +1033,15 @@ long sn_tcp_listener_get_port(RtTcpListener *listener) {
 void sn_tcp_listener_close(RtTcpListener *listener) {
     if (listener == NULL) return;
 
-    if (listener->socket_fd != INVALID_SOCKET_VAL) {
-        CLOSE_SOCKET(listener->socket_fd);
-        listener->socket_fd = INVALID_SOCKET_VAL;
+    socket_t fd = listener->socket_fd;
+    RtArenaV2 *priv = listener->arena;
+
+    if (fd != INVALID_SOCKET_VAL) {
+        CLOSE_SOCKET(fd);
     }
 
-    /* Unpin and mark handle dead for GC reclamation */
-    if (listener->self_handle != NULL) {
-        RtHandleV2 *self = listener->self_handle;
-        listener->self_handle = NULL;
-        listener->arena = NULL;
-        rt_handle_v2_unpin(self);
-        rt_arena_v2_free(self);
+    /* Destroy private arena — frees everything */
+    if (priv != NULL) {
+        rt_arena_v2_destroy(priv, false);
     }
 }

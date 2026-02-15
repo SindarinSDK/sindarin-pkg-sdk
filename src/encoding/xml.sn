@@ -60,6 +60,8 @@ native struct Xml as ref =>
     _node: *void
     @alias "is_root"
     _is_root: int32
+    @alias "handle"
+    _handle: *void
 
     # ==========================================================================
     # Static Parsing Methods
@@ -236,6 +238,10 @@ native struct Xml as ref =>
     # Deep copy
     fn copy(): Xml =>
         return sn_xml_copy(self)
+
+    # Release this XML document's resources immediately
+    @alias "sn_xml_dispose"
+    native fn dispose(): void
 
 # ==============================================================================
 # Runtime Function Declarations

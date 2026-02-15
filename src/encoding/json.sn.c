@@ -41,7 +41,6 @@ typedef struct SnJson {
 
 static void sn_json_cleanup(RtHandleV2 *data)
 {
-    rt_handle_v2_pin(data);
     SnJson *j = (SnJson *)data->ptr;
     if (j != NULL && j->obj != NULL) {
         json_object_put(j->obj);
@@ -59,7 +58,6 @@ static void sn_json_cleanup(RtHandleV2 *data)
 static SnJson *sn_json_wrap(RtArenaV2 *arena, json_object *obj, int is_root)
 {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnJson));
-    rt_handle_v2_pin(_h);
     SnJson *j = (SnJson *)_h->ptr;
     j->obj = obj;
     j->handle = _h;
@@ -714,7 +712,6 @@ void sn_json_dispose(SnJson *j)
         j->handle = NULL;
         /* Remove cleanup callback to avoid redundant no-op during arena destruction */
         rt_arena_v2_remove_cleanup(h->arena, h);
-        rt_handle_v2_unpin(h);
         rt_arena_v2_free(h);
     }
 }

@@ -48,7 +48,6 @@ static RtTime *sn_time_create(RtArenaV2 *arena, long long milliseconds)
         exit(1);
     }
     RtHandleV2 *_time_h = rt_arena_v2_alloc(arena, sizeof(RtTime));
-    rt_handle_v2_pin(_time_h);
     RtTime *time = (RtTime *)_time_h->ptr;
     if (time == NULL) {
         fprintf(stderr, "sn_time_create: allocation failed\n");

@@ -58,6 +58,7 @@ typedef struct SnYaml {
     SnYamlNode *root;       /* Root node of the tree (for ownership) */
     SnYamlNode *node;       /* Current node */
     int32_t is_root;        /* Whether this wrapper owns the tree */
+    RtHandleV2 *handle;     /* Self-reference for dispose */
 } SnYaml;
 
 /* ============================================================================
@@ -193,7 +194,6 @@ static void sn_yaml_node_free(SnYamlNode *node)
 
 static void sn_yaml_tree_cleanup(RtHandleV2 *data)
 {
-    rt_handle_v2_pin(data);
     SnYaml *y = (SnYaml *)data->ptr;
     if (y != NULL && y->is_root && y->root != NULL) {
         sn_yaml_node_free(y->root);
@@ -208,11 +208,11 @@ static void sn_yaml_tree_cleanup(RtHandleV2 *data)
 static SnYaml *sn_yaml_wrap(RtArenaV2 *arena, SnYamlNode *root, SnYamlNode *node, int is_root)
 {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnYaml));
-    rt_handle_v2_pin(_h);
     SnYaml *y = (SnYaml *)_h->ptr;
     y->root = root;
     y->node = node;
     y->is_root = is_root;
+    y->handle = _h;
 
     /* Register cleanup callback to free the node tree when arena is destroyed.
      * This prevents memory leaks when Yaml objects go out of scope.
@@ -222,6 +222,36 @@ static SnYaml *sn_yaml_wrap(RtArenaV2 *arena, SnYamlNode *root, SnYamlNode *node
     }
 
     return y;
+}
+
+/* ============================================================================
+ * Dispose Function
+ * ============================================================================
+ * Releases the YAML node tree and arena handle immediately. This allows
+ * deterministic cleanup of YAML values in long-lived arenas.
+ *
+ * Two-tier cleanup:
+ * 1. Explicit: User calls .dispose() - node tree freed, handle reclaimable
+ * 2. Implicit: Arena destruction - cleanup callback fires (safety net)
+ *
+ * If dispose() is called first, it sets root=NULL so the arena cleanup
+ * callback becomes a no-op (no double-free).
+ * ============================================================================ */
+
+void sn_yaml_dispose(SnYaml *y)
+{
+    if (y == NULL) return;
+    if (y->is_root && y->root != NULL) {
+        sn_yaml_node_free(y->root);
+        y->root = NULL;
+        y->node = NULL;
+    }
+    if (y->handle != NULL) {
+        RtHandleV2 *h = y->handle;
+        y->handle = NULL;
+        rt_arena_v2_remove_cleanup(h->arena, h);
+        rt_arena_v2_free(h);
+    }
 }
 
 /* ============================================================================

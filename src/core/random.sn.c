@@ -183,7 +183,6 @@ RtRandom *sn_random_create(RtArenaV2 *arena)
     }
 
     RtHandleV2 *_rng_h = rt_arena_v2_alloc(arena, sizeof(RtRandom));
-    rt_handle_v2_pin(_rng_h);
     RtRandom *rng = (RtRandom *)_rng_h->ptr;
     rng->is_seeded = 0;
 
@@ -199,7 +198,6 @@ RtRandom *sn_random_create_with_seed(RtArenaV2 *arena, long long seed)
     }
 
     RtHandleV2 *_rng_h = rt_arena_v2_alloc(arena, sizeof(RtRandom));
-    rt_handle_v2_pin(_rng_h);
     RtRandom *rng = (RtRandom *)_rng_h->ptr;
     rng->is_seeded = 1;
 
@@ -795,7 +793,6 @@ static double *sn_random_build_cumulative(RtArenaV2 *arena, double *weights, lon
     }
 
     RtHandleV2 *_cumul_h = rt_arena_v2_alloc(arena, (size_t)len * sizeof(double));
-    rt_handle_v2_pin(_cumul_h);
     double *cumulative = (double *)_cumul_h->ptr;
 
     double running_sum = 0.0;
@@ -869,7 +866,7 @@ long long sn_random_static_weighted_choice_int(long long *arr, double *weights)
 
     double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
     if (cumulative == NULL) {
-        rt_arena_destroy(temp_arena);
+        rt_arena_v2_destroy(temp_arena, false);
         return 0;
     }
 
@@ -877,7 +874,7 @@ long long sn_random_static_weighted_choice_int(long long *arr, double *weights)
     long index = sn_random_select_weighted_index(random_val, cumulative, len);
     long long result = arr[index];
 
-    rt_arena_destroy(temp_arena);
+    rt_arena_v2_destroy(temp_arena, false);
 
     return result;
 }
@@ -909,7 +906,7 @@ double sn_random_static_weighted_choice_double(double *arr, double *weights)
 
     double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
     if (cumulative == NULL) {
-        rt_arena_destroy(temp_arena);
+        rt_arena_v2_destroy(temp_arena, false);
         return 0.0;
     }
 
@@ -917,7 +914,7 @@ double sn_random_static_weighted_choice_double(double *arr, double *weights)
     long index = sn_random_select_weighted_index(random_val, cumulative, len);
     double result = arr[index];
 
-    rt_arena_destroy(temp_arena);
+    rt_arena_v2_destroy(temp_arena, false);
 
     return result;
 }
@@ -937,14 +934,14 @@ RtHandleV2 *sn_random_static_weighted_choice_str(RtArenaV2 *arena, char **arr, d
         return NULL;
     }
 
-    RtArenaV2 *temp_arena = rt_arena_create(NULL);
+    RtArenaV2 *temp_arena = rt_arena_v2_create(arena, RT_ARENA_MODE_DEFAULT, NULL);
     if (temp_arena == NULL) {
         return NULL;
     }
 
     double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
     if (cumulative == NULL) {
-        rt_arena_destroy(temp_arena);
+        rt_arena_v2_condemn(temp_arena);
         return NULL;
     }
 
@@ -952,7 +949,7 @@ RtHandleV2 *sn_random_static_weighted_choice_str(RtArenaV2 *arena, char **arr, d
     long index = sn_random_select_weighted_index(random_val, cumulative, len);
     char *str_result = arr[index];
 
-    rt_arena_destroy(temp_arena);
+    rt_arena_v2_condemn(temp_arena);
 
     return rt_arena_v2_strdup(arena, str_result);
 }
@@ -1307,7 +1304,7 @@ long long sn_random_weighted_choice_int(RtRandom *rng, long long *arr, double *w
 
     double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
     if (cumulative == NULL) {
-        rt_arena_destroy(temp_arena);
+        rt_arena_v2_destroy(temp_arena, false);
         return 0;
     }
 
@@ -1315,7 +1312,7 @@ long long sn_random_weighted_choice_int(RtRandom *rng, long long *arr, double *w
     long index = sn_random_select_weighted_index(random_val, cumulative, len);
     long long result = arr[index];
 
-    rt_arena_destroy(temp_arena);
+    rt_arena_v2_destroy(temp_arena, false);
 
     return result;
 }
@@ -1347,7 +1344,7 @@ double sn_random_weighted_choice_double(RtRandom *rng, double *arr, double *weig
 
     double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
     if (cumulative == NULL) {
-        rt_arena_destroy(temp_arena);
+        rt_arena_v2_destroy(temp_arena, false);
         return 0.0;
     }
 
@@ -1355,7 +1352,7 @@ double sn_random_weighted_choice_double(RtRandom *rng, double *arr, double *weig
     long index = sn_random_select_weighted_index(random_val, cumulative, len);
     double result = arr[index];
 
-    rt_arena_destroy(temp_arena);
+    rt_arena_v2_destroy(temp_arena, false);
 
     return result;
 }
@@ -1375,14 +1372,14 @@ RtHandleV2 *sn_random_weighted_choice_str(RtArenaV2 *arena, RtRandom *rng, char 
         return NULL;
     }
 
-    RtArenaV2 *temp_arena = rt_arena_create(NULL);
+    RtArenaV2 *temp_arena = rt_arena_v2_create(arena, RT_ARENA_MODE_DEFAULT, NULL);
     if (temp_arena == NULL) {
         return NULL;
     }
 
     double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
     if (cumulative == NULL) {
-        rt_arena_destroy(temp_arena);
+        rt_arena_v2_condemn(temp_arena);
         return NULL;
     }
 
@@ -1390,7 +1387,7 @@ RtHandleV2 *sn_random_weighted_choice_str(RtArenaV2 *arena, RtRandom *rng, char 
     long index = sn_random_select_weighted_index(random_val, cumulative, len);
     char *str_result = arr[index];
 
-    rt_arena_destroy(temp_arena);
+    rt_arena_v2_condemn(temp_arena);
 
     return rt_arena_v2_strdup(arena, str_result);
 }

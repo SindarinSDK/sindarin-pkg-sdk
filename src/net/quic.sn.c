@@ -252,10 +252,8 @@ typedef struct RtQuicConnection {
     uint8_t *resumption_token;
     size_t resumption_token_len;
 
-    /* Arena for allocations */
+    /* Private arena for connection allocations */
     RtArenaV2 *arena;
-    RtHandleV2 *self_handle;
-    RtHandleV2 *addr_handle;
 } RtQuicConnection;
 
 typedef struct RtQuicListener {
@@ -288,9 +286,8 @@ typedef struct RtQuicListener {
     struct sockaddr_storage local_addr;
     socklen_t local_addrlen;
 
-    /* Arena */
+    /* Private arena for listener allocations */
     RtArenaV2 *arena;
-    RtHandleV2 *self_handle;
 } RtQuicListener;
 
 /* ============================================================================
@@ -422,21 +419,18 @@ static int parse_address(const char *address, char *host, size_t hostlen, char *
     return 0;
 }
 
-static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, RtArenaV2 *arena, RtHandleV2 **out_handle) {
+static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, RtArenaV2 *arena) {
     char host[NI_MAXHOST];
     char port[NI_MAXSERV];
     (void)addrlen;
     if (getnameinfo((struct sockaddr *)addr, addrlen, host, sizeof(host),
                     port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV) != 0) {
-        if (out_handle) *out_handle = NULL;
         return NULL;
     }
     size_t len = strlen(host) + strlen(port) + 2;
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, len);
-    rt_handle_v2_pin(_h);
     char *result = (char *)_h->ptr;
     snprintf(result, len, "%s:%s", host, port);
-    if (out_handle) *out_handle = _h;
     return result;
 }
 
@@ -997,15 +991,12 @@ static RtQuicConnection *quic_connection_create(RtArenaV2 *arena, const char *ad
     socklen_t local_len = sizeof(local_addr);
     getsockname(sock, (struct sockaddr *)&local_addr, &local_len);
 
-    /* Allocate connection from arena. rt_arena_v2_alloc + pin ensures pinned
-     * allocations that will never be moved by the compactor, which is required
-     * because RtQuicConnection contains pthread_mutex_t and pthread_cond_t. */
-    RtHandleV2 *_conn_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConnection));
-    rt_handle_v2_pin(_conn_h);
+    /* Create private detached arena for connection — immune to GC compaction */
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "quic_connection");
+    RtHandleV2 *_conn_h = rt_arena_v2_alloc(priv, sizeof(RtQuicConnection));
     RtQuicConnection *conn = (RtQuicConnection *)_conn_h->ptr;
     memset(conn, 0, sizeof(RtQuicConnection));
-    conn->arena = arena;
-    conn->self_handle = _conn_h;
+    conn->arena = priv;
     conn->socket_fd = sock;
     conn->is_server = false;
 
@@ -1013,7 +1004,7 @@ static RtQuicConnection *quic_connection_create(RtArenaV2 *arena, const char *ad
     conn->remote_addrlen = (socklen_t)res->ai_addrlen;
     memcpy(&conn->local_addr, &local_addr, local_len);
     conn->local_addrlen = local_len;
-    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, arena, &conn->addr_handle);
+    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, priv);
 
     freeaddrinfo(res);
 
@@ -1193,14 +1184,13 @@ static RtQuicConnection *quic_server_connection_create(RtArenaV2 *arena, socket_
                                                         const uint8_t *pkt, size_t pktlen,
                                                         const ngtcp2_pkt_hd *hd,
                                                         RtQuicConfig *config) {
-    /* Allocate connection from arena. rt_arena_v2_alloc + pin ensures pinned
-     * allocations that will never be moved by the compactor. */
-    RtHandleV2 *_conn_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConnection));
-    rt_handle_v2_pin(_conn_h);
+    /* Create private detached arena for server connection — immune to GC compaction */
+    (void)arena;  /* caller arena not used for internal allocations */
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "quic_server_conn");
+    RtHandleV2 *_conn_h = rt_arena_v2_alloc(priv, sizeof(RtQuicConnection));
     RtQuicConnection *conn = (RtQuicConnection *)_conn_h->ptr;
     memset(conn, 0, sizeof(RtQuicConnection));
-    conn->arena = arena;
-    conn->self_handle = _conn_h;
+    conn->arena = priv;
     conn->is_server = true;
 
     /* Server connections share the listener's socket */
@@ -1209,7 +1199,7 @@ static RtQuicConnection *quic_server_connection_create(RtArenaV2 *arena, socket_
     conn->remote_addrlen = remote_len;
     memcpy(&conn->local_addr, local, local_len);
     conn->local_addrlen = local_len;
-    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, arena, &conn->addr_handle);
+    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, priv);
 
     MUTEX_INIT(&conn->conn_mutex);
     COND_INIT(&conn->handshake_cond);
@@ -1528,7 +1518,6 @@ handle_timers:
 
 RtQuicConfig *sn_quic_config_defaults(RtArenaV2 *arena) {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    rt_handle_v2_pin(_h);
     RtQuicConfig *config = (RtQuicConfig *)_h->ptr;
     config->max_bidi_streams = QUIC_DEFAULT_MAX_BIDI_STREAMS;
     config->max_uni_streams = QUIC_DEFAULT_MAX_UNI_STREAMS;
@@ -1647,7 +1636,6 @@ RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtQuicStream *stream) {
                 if (line_len > 0 && start[line_len - 1] == '\r') line_len--;
 
                 RtHandleV2 *_line_h = rt_arena_v2_alloc(arena, line_len + 1);
-                rt_handle_v2_pin(_line_h);
                 char *temp = (char *)_line_h->ptr;
                 memcpy(temp, start, line_len);
                 temp[line_len] = '\0';
@@ -1660,7 +1648,6 @@ RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtQuicStream *stream) {
         if (stream->recv_buf.fin_received || stream->closed) {
             /* Return remaining data as last line */
             RtHandleV2 *_rem_h = rt_arena_v2_alloc(arena, avail + 1);
-            rt_handle_v2_pin(_rem_h);
             char *temp = (char *)_rem_h->ptr;
             if (avail > 0) memcpy(temp, start, avail);
             temp[avail] = '\0';
@@ -2057,69 +2044,66 @@ void sn_quic_connection_close(RtQuicConnection *conn) {
         return;
     }
 
+    /* Save OS resources and arena pointer before destroying */
+    RtArenaV2 *priv = conn->arena;
+    SSL *ssl = conn->ssl;
+    ngtcp2_crypto_ossl_ctx *ossl_ctx = conn->ossl_ctx;
+    SSL_CTX *ssl_ctx = conn->ssl_ctx;
+    ngtcp2_conn *qconn = conn->qconn;
+    socket_t sock = conn->socket_fd;
+    uint8_t *token = conn->resumption_token;
+    bool io_was_running = conn->io_running;
+    sn_thread_t io_thread = conn->io_thread;
+    int stream_count = conn->stream_count;
+    RtQuicStream *streams_copy[QUIC_MAX_STREAMS];
+    for (int i = 0; i < stream_count; i++) streams_copy[i] = conn->streams[i];
+
     /* Stop and join I/O thread (client connections only) */
-    if (conn->io_running) {
+    if (io_was_running) {
         conn->io_running = false;
 #ifdef _WIN32
-        WaitForSingleObject(conn->io_thread, 5000);
-        CloseHandle(conn->io_thread);
+        WaitForSingleObject(io_thread, 5000);
+        CloseHandle(io_thread);
 #else
-        pthread_join(conn->io_thread, NULL);
+        pthread_join(io_thread, NULL);
 #endif
     }
 
-    /* Cleanup (client connections only) */
-    if (conn->ssl) {
-        SSL_set_app_data(conn->ssl, NULL);
-        SSL_free(conn->ssl);
-        conn->ssl = NULL;
+    /* Cleanup OS resources (client connections only) */
+    if (ssl) {
+        SSL_set_app_data(ssl, NULL);
+        SSL_free(ssl);
     }
-    if (conn->ossl_ctx) {
-        ngtcp2_crypto_ossl_ctx_del(conn->ossl_ctx);
-        conn->ossl_ctx = NULL;
+    if (ossl_ctx) {
+        ngtcp2_crypto_ossl_ctx_del(ossl_ctx);
     }
-    if (conn->ssl_ctx) {
-        SSL_CTX_free(conn->ssl_ctx);
-        conn->ssl_ctx = NULL;
+    if (ssl_ctx) {
+        SSL_CTX_free(ssl_ctx);
     }
-    if (conn->qconn) {
-        ngtcp2_conn_del(conn->qconn);
-        conn->qconn = NULL;
+    if (qconn) {
+        ngtcp2_conn_del(qconn);
     }
-    if (conn->socket_fd != INVALID_SOCKET_VAL) {
-        CLOSE_SOCKET(conn->socket_fd);
-        conn->socket_fd = INVALID_SOCKET_VAL;
+    if (sock != INVALID_SOCKET_VAL) {
+        CLOSE_SOCKET(sock);
     }
 
-    /* Free streams */
-    for (int i = 0; i < conn->stream_count; i++) {
-        quic_stream_free(conn->streams[i]);
-        conn->streams[i] = NULL;
+    /* Free streams (allocated with calloc/malloc, not from arena) */
+    for (int i = 0; i < stream_count; i++) {
+        quic_stream_free(streams_copy[i]);
     }
 
-    /* Free resumption token */
-    if (conn->resumption_token) {
-        free(conn->resumption_token);
-        conn->resumption_token = NULL;
+    /* Free resumption token (allocated with malloc) */
+    if (token) {
+        free(token);
     }
 
     MUTEX_DESTROY(&conn->conn_mutex);
     COND_DESTROY(&conn->handshake_cond);
     COND_DESTROY(&conn->accept_stream_cond);
 
-    /* Unpin and mark handles dead for GC reclamation */
-    if (conn->addr_handle != NULL) {
-        rt_handle_v2_unpin(conn->addr_handle);
-        rt_arena_v2_free(conn->addr_handle);
-        conn->addr_handle = NULL;
-    }
-    if (conn->self_handle != NULL) {
-        RtHandleV2 *self = conn->self_handle;
-        conn->self_handle = NULL;
-        conn->remote_addr_str = NULL;
-        conn->arena = NULL;
-        rt_handle_v2_unpin(self);
-        rt_arena_v2_free(self);
+    /* Destroy private arena — frees connection struct and all internal allocations */
+    if (priv != NULL) {
+        rt_arena_v2_destroy(priv, false);
     }
 }
 
@@ -2192,14 +2176,13 @@ static RtQuicListener *quic_listener_create(RtArenaV2 *arena, const char *addres
         bound_port = ntohs(((struct sockaddr_in6 *)&bound_addr)->sin6_port);
     }
 
-    /* Create listener struct from arena. rt_arena_v2_alloc + pin ensures pinned
-     * allocations that will never be moved by the compactor. */
-    RtHandleV2 *_listener_h = rt_arena_v2_alloc(arena, sizeof(RtQuicListener));
-    rt_handle_v2_pin(_listener_h);
+    /* Create private detached arena for listener — immune to GC compaction */
+    (void)arena;  /* caller arena not used for internal allocations */
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "quic_listener");
+    RtHandleV2 *_listener_h = rt_arena_v2_alloc(priv, sizeof(RtQuicListener));
     RtQuicListener *listener = (RtQuicListener *)_listener_h->ptr;
     memset(listener, 0, sizeof(RtQuicListener));
-    listener->arena = arena;
-    listener->self_handle = _listener_h;
+    listener->arena = priv;
     listener->socket_fd = sock;
     listener->bound_port = bound_port;
     listener->ssl_ctx = ssl_ctx;
@@ -2306,34 +2289,38 @@ void sn_quic_listener_close(RtQuicListener *listener) {
         RtQuicConnection *conn = listener->connections[i];
         if (!conn) continue;
 
-        /* Cleanup SSL */
-        if (conn->ssl) {
-            SSL_set_app_data(conn->ssl, NULL);
-            SSL_free(conn->ssl);
-            conn->ssl = NULL;
+        /* Save OS resources and arena before destroying */
+        RtArenaV2 *conn_priv = conn->arena;
+        SSL *conn_ssl = conn->ssl;
+        ngtcp2_crypto_ossl_ctx *conn_ossl_ctx = conn->ossl_ctx;
+        ngtcp2_conn *conn_qconn = conn->qconn;
+        uint8_t *conn_token = conn->resumption_token;
+        int conn_stream_count = conn->stream_count;
+        RtQuicStream *conn_streams[QUIC_MAX_STREAMS];
+        for (int j = 0; j < conn_stream_count; j++) conn_streams[j] = conn->streams[j];
+
+        /* Cleanup SSL (server connections share listener's ssl_ctx, don't free it) */
+        if (conn_ssl) {
+            SSL_set_app_data(conn_ssl, NULL);
+            SSL_free(conn_ssl);
         }
-        if (conn->ossl_ctx) {
-            ngtcp2_crypto_ossl_ctx_del(conn->ossl_ctx);
-            conn->ossl_ctx = NULL;
+        if (conn_ossl_ctx) {
+            ngtcp2_crypto_ossl_ctx_del(conn_ossl_ctx);
         }
-        /* Server connections share listener's ssl_ctx, don't free it here */
 
         /* Delete ngtcp2 connection */
-        if (conn->qconn) {
-            ngtcp2_conn_del(conn->qconn);
-            conn->qconn = NULL;
+        if (conn_qconn) {
+            ngtcp2_conn_del(conn_qconn);
         }
 
-        /* Free streams */
-        for (int j = 0; j < conn->stream_count; j++) {
-            quic_stream_free(conn->streams[j]);
-            conn->streams[j] = NULL;
+        /* Free streams (allocated with calloc/malloc, not from arena) */
+        for (int j = 0; j < conn_stream_count; j++) {
+            quic_stream_free(conn_streams[j]);
         }
 
-        /* Free resumption token */
-        if (conn->resumption_token) {
-            free(conn->resumption_token);
-            conn->resumption_token = NULL;
+        /* Free resumption token (allocated with malloc) */
+        if (conn_token) {
+            free(conn_token);
         }
 
         /* Destroy mutex/cond */
@@ -2341,42 +2328,31 @@ void sn_quic_listener_close(RtQuicListener *listener) {
         COND_DESTROY(&conn->handshake_cond);
         COND_DESTROY(&conn->accept_stream_cond);
 
-        /* Unpin and mark handles dead for GC reclamation */
-        if (conn->addr_handle != NULL) {
-            rt_handle_v2_unpin(conn->addr_handle);
-            rt_arena_v2_free(conn->addr_handle);
-            conn->addr_handle = NULL;
-        }
-        if (conn->self_handle != NULL) {
-            RtHandleV2 *self = conn->self_handle;
-            conn->self_handle = NULL;
-            conn->remote_addr_str = NULL;
-            conn->arena = NULL;
-            rt_handle_v2_unpin(self);
-            rt_arena_v2_free(self);
+        /* Destroy server connection's private arena — frees struct and all internal allocs */
+        if (conn_priv != NULL) {
+            rt_arena_v2_destroy(conn_priv, false);
         }
     }
 
-    /* Cleanup */
-    if (listener->ssl_ctx) {
-        SSL_CTX_free(listener->ssl_ctx);
-        listener->ssl_ctx = NULL;
+    /* Save listener OS resources and arena before destroying */
+    RtArenaV2 *priv = listener->arena;
+    SSL_CTX *ssl_ctx = listener->ssl_ctx;
+    socket_t sock = listener->socket_fd;
+
+    /* Cleanup OS resources */
+    if (ssl_ctx) {
+        SSL_CTX_free(ssl_ctx);
     }
-    if (listener->socket_fd != INVALID_SOCKET_VAL) {
-        CLOSE_SOCKET(listener->socket_fd);
-        listener->socket_fd = INVALID_SOCKET_VAL;
+    if (sock != INVALID_SOCKET_VAL) {
+        CLOSE_SOCKET(sock);
     }
 
     MUTEX_DESTROY(&listener->accept_mutex);
     COND_DESTROY(&listener->accept_cond);
     MUTEX_DESTROY(&listener->conn_list_mutex);
 
-    /* Unpin and mark handle dead for GC reclamation */
-    if (listener->self_handle != NULL) {
-        RtHandleV2 *self = listener->self_handle;
-        listener->self_handle = NULL;
-        listener->arena = NULL;
-        rt_handle_v2_unpin(self);
-        rt_arena_v2_free(self);
+    /* Destroy listener's private arena — frees listener struct and all internal allocs */
+    if (priv != NULL) {
+        rt_arena_v2_destroy(priv, false);
     }
 }

@@ -82,10 +82,8 @@ typedef struct RtGitRepo {
     void *repo_ptr;      /* git_repository* */
     char *path_str;
 
-    /* Arena tracking for memory release on close */
-    RtArenaV2 *arena;
-    RtHandleV2 *self_handle;
-    RtHandleV2 *path_handle;
+    /* Private detached arena — owns this struct and internal strings */
+    RtArenaV2 *priv_arena;
 } RtGitRepo;
 
 /* ============================================================================
@@ -157,14 +155,12 @@ static int git_credential_cb(git_credential **out, const char *url,
 static char *arena_strdup(RtArenaV2 *arena, const char *str) {
     if (!str) {
         RtHandleV2 *_h = rt_arena_v2_alloc(arena, 1);
-        rt_handle_v2_pin(_h);
         char *empty = (char *)_h->ptr;
         if (empty) empty[0] = '\0';
         return empty;
     }
     size_t len = strlen(str) + 1;
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, len);
-    rt_handle_v2_pin(_h);
     char *copy = (char *)_h->ptr;
     if (copy) memcpy(copy, str, len);
     return copy;
@@ -214,14 +210,16 @@ static void check_git_error(int rc, const char *context) {
  * ============================================================================ */
 
 RtGitRepo *sn_git_repo_open(RtArenaV2 *arena, const char *path) {
+    (void)arena;
     ensure_libgit2_initialized();
 
     git_repository *repo = NULL;
     int rc = git_repository_open(&repo, path);
     check_git_error(rc, "GitRepo.open");
 
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRepo));
-    rt_handle_v2_pin(_h);
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "git_repo");
+
+    RtHandleV2 *_h = rt_arena_v2_alloc(priv, sizeof(RtGitRepo));
     RtGitRepo *result = (RtGitRepo *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitRepo.open: allocation failed\n");
@@ -230,22 +228,17 @@ RtGitRepo *sn_git_repo_open(RtArenaV2 *arena, const char *path) {
     }
 
     result->repo_ptr = repo;
-    result->arena = arena;
-    result->self_handle = _h;
+    result->priv_arena = priv;
 
     const char *workdir = git_repository_workdir(repo);
     const char *path_src = workdir ? workdir : path;
-    size_t path_len = strlen(path_src) + 1;
-    RtHandleV2 *_path_h = rt_arena_v2_alloc(arena, path_len);
-    rt_handle_v2_pin(_path_h);
-    result->path_str = (char *)_path_h->ptr;
-    result->path_handle = _path_h;
-    if (result->path_str) memcpy(result->path_str, path_src, path_len);
+    result->path_str = arena_strdup(priv, path_src);
 
     return result;
 }
 
 RtGitRepo *sn_git_repo_clone(RtArenaV2 *arena, const char *url, const char *path) {
+    (void)arena;
     ensure_libgit2_initialized();
 
     git_repository *repo = NULL;
@@ -256,8 +249,9 @@ RtGitRepo *sn_git_repo_clone(RtArenaV2 *arena, const char *url, const char *path
     int rc = git_clone(&repo, url, path, &opts);
     check_git_error(rc, "GitRepo.clone");
 
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRepo));
-    rt_handle_v2_pin(_h);
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "git_repo");
+
+    RtHandleV2 *_h = rt_arena_v2_alloc(priv, sizeof(RtGitRepo));
     RtGitRepo *result = (RtGitRepo *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitRepo.clone: allocation failed\n");
@@ -266,30 +260,26 @@ RtGitRepo *sn_git_repo_clone(RtArenaV2 *arena, const char *url, const char *path
     }
 
     result->repo_ptr = repo;
-    result->arena = arena;
-    result->self_handle = _h;
+    result->priv_arena = priv;
 
     const char *workdir = git_repository_workdir(repo);
     const char *path_src = workdir ? workdir : path;
-    size_t path_len = strlen(path_src) + 1;
-    RtHandleV2 *_path_h = rt_arena_v2_alloc(arena, path_len);
-    rt_handle_v2_pin(_path_h);
-    result->path_str = (char *)_path_h->ptr;
-    result->path_handle = _path_h;
-    if (result->path_str) memcpy(result->path_str, path_src, path_len);
+    result->path_str = arena_strdup(priv, path_src);
 
     return result;
 }
 
 RtGitRepo *sn_git_repo_init(RtArenaV2 *arena, const char *path) {
+    (void)arena;
     ensure_libgit2_initialized();
 
     git_repository *repo = NULL;
     int rc = git_repository_init(&repo, path, 0);
     check_git_error(rc, "GitRepo.init");
 
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRepo));
-    rt_handle_v2_pin(_h);
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "git_repo");
+
+    RtHandleV2 *_h = rt_arena_v2_alloc(priv, sizeof(RtGitRepo));
     RtGitRepo *result = (RtGitRepo *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitRepo.init: allocation failed\n");
@@ -298,30 +288,26 @@ RtGitRepo *sn_git_repo_init(RtArenaV2 *arena, const char *path) {
     }
 
     result->repo_ptr = repo;
-    result->arena = arena;
-    result->self_handle = _h;
+    result->priv_arena = priv;
 
     const char *workdir = git_repository_workdir(repo);
     const char *path_src = workdir ? workdir : path;
-    size_t path_len = strlen(path_src) + 1;
-    RtHandleV2 *_path_h = rt_arena_v2_alloc(arena, path_len);
-    rt_handle_v2_pin(_path_h);
-    result->path_str = (char *)_path_h->ptr;
-    result->path_handle = _path_h;
-    if (result->path_str) memcpy(result->path_str, path_src, path_len);
+    result->path_str = arena_strdup(priv, path_src);
 
     return result;
 }
 
 RtGitRepo *sn_git_repo_init_bare(RtArenaV2 *arena, const char *path) {
+    (void)arena;
     ensure_libgit2_initialized();
 
     git_repository *repo = NULL;
     int rc = git_repository_init(&repo, path, 1);
     check_git_error(rc, "GitRepo.initBare");
 
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRepo));
-    rt_handle_v2_pin(_h);
+    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "git_repo");
+
+    RtHandleV2 *_h = rt_arena_v2_alloc(priv, sizeof(RtGitRepo));
     RtGitRepo *result = (RtGitRepo *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitRepo.initBare: allocation failed\n");
@@ -330,15 +316,8 @@ RtGitRepo *sn_git_repo_init_bare(RtArenaV2 *arena, const char *path) {
     }
 
     result->repo_ptr = repo;
-    result->arena = arena;
-    result->self_handle = _h;
-
-    size_t path_len = strlen(path) + 1;
-    RtHandleV2 *_path_h = rt_arena_v2_alloc(arena, path_len);
-    rt_handle_v2_pin(_path_h);
-    result->path_str = (char *)_path_h->ptr;
-    result->path_handle = _path_h;
-    if (result->path_str) memcpy(result->path_str, path, path_len);
+    result->priv_arena = priv;
+    result->path_str = arena_strdup(priv, path);
 
     return result;
 }
@@ -385,7 +364,6 @@ RtHandleV2 *sn_git_repo_status(RtArenaV2 *arena, RtGitRepo *self) {
         if (!filepath) continue;
 
         RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitStatus));
-        rt_handle_v2_pin(_h);
         RtGitStatus *s = (RtGitStatus *)_h->ptr;
         if (!s) continue;
 
@@ -482,7 +460,6 @@ void sn_git_repo_unstage(RtGitRepo *self, const char *path) {
 
 static RtGitCommit *create_commit_from_git(RtArenaV2 *arena, git_commit *commit) {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitCommit));
-    rt_handle_v2_pin(_h);
     RtGitCommit *result = (RtGitCommit *)_h->ptr;
     if (!result) {
         fprintf(stderr, "GitCommit: allocation failed\n");
@@ -744,7 +721,6 @@ RtHandleV2 *sn_git_repo_branches(RtArenaV2 *arena, RtGitRepo *self) {
         git_branch_name(&branch_name, ref);
 
         RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitBranch));
-        rt_handle_v2_pin(_h);
         RtGitBranch *b = (RtGitBranch *)_h->ptr;
         if (!b) {
             git_reference_free(ref);
@@ -805,7 +781,6 @@ RtGitBranch *sn_git_repo_create_branch(RtArenaV2 *arena, RtGitRepo *self, const 
     check_git_error(rc, "GitRepo.createBranch");
 
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitBranch));
-    rt_handle_v2_pin(_h);
     RtGitBranch *b = (RtGitBranch *)_h->ptr;
     if (!b) {
         fprintf(stderr, "GitRepo.createBranch: allocation failed\n");
@@ -909,7 +884,6 @@ RtHandleV2 *sn_git_repo_remotes(RtArenaV2 *arena, RtGitRepo *self) {
         if (rc < 0) continue;
 
         RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRemote));
-        rt_handle_v2_pin(_h);
         RtGitRemote *r = (RtGitRemote *)_h->ptr;
         if (!r) {
             git_remote_free(remote);
@@ -941,7 +915,6 @@ RtGitRemote *sn_git_repo_add_remote(RtArenaV2 *arena, RtGitRepo *self,
     check_git_error(rc, "GitRepo.addRemote");
 
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitRemote));
-    rt_handle_v2_pin(_h);
     RtGitRemote *r = (RtGitRemote *)_h->ptr;
     if (!r) {
         fprintf(stderr, "GitRepo.addRemote: allocation failed\n");
@@ -1170,7 +1143,6 @@ static RtHandleV2 *build_diff_array_h(RtArenaV2 *arena, git_diff *diff) {
         if (!delta) continue;
 
         RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitDiff));
-        rt_handle_v2_pin(_h);
         RtGitDiff *d = (RtGitDiff *)_h->ptr;
         if (!d) continue;
 
@@ -1253,7 +1225,6 @@ RtHandleV2 *sn_git_repo_tags(RtArenaV2 *arena, RtGitRepo *self) {
         const char *tag_name = tag_names.strings[i];
 
         RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitTag));
-        rt_handle_v2_pin(_h);
         RtGitTag *t = (RtGitTag *)_h->ptr;
         if (!t) continue;
 
@@ -1323,7 +1294,6 @@ RtGitTag *sn_git_repo_create_tag(RtArenaV2 *arena, RtGitRepo *self, const char *
     check_git_error(rc, "GitRepo.createTag");
 
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitTag));
-    rt_handle_v2_pin(_h);
     RtGitTag *t = (RtGitTag *)_h->ptr;
     if (!t) {
         fprintf(stderr, "GitRepo.createTag: allocation failed\n");
@@ -1371,7 +1341,6 @@ RtGitTag *sn_git_repo_create_annotated_tag(RtArenaV2 *arena, RtGitRepo *self,
     check_git_error(rc, "GitRepo.createAnnotatedTag");
 
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitTag));
-    rt_handle_v2_pin(_h);
     RtGitTag *t = (RtGitTag *)_h->ptr;
     if (!t) {
         fprintf(stderr, "GitRepo.createAnnotatedTag: allocation failed\n");
@@ -1424,24 +1393,19 @@ long sn_git_repo_is_bare(RtGitRepo *self) {
 
 void sn_git_repo_close(RtGitRepo *self) {
     if (!self) return;
-    if (self->repo_ptr) {
-        git_repository_free((git_repository *)self->repo_ptr);
-        self->repo_ptr = NULL;
+
+    /* Save pointers before destroying the arena that owns self */
+    git_repository *repo = (git_repository *)self->repo_ptr;
+    RtArenaV2 *priv = self->priv_arena;
+
+    /* Free git resources */
+    if (repo) {
+        git_repository_free(repo);
     }
 
-    /* Unpin and mark handles dead for GC reclamation */
-    if (self->path_handle != NULL) {
-        rt_handle_v2_unpin(self->path_handle);
-        rt_arena_v2_free(self->path_handle);
-        self->path_handle = NULL;
-    }
-    if (self->self_handle != NULL) {
-        RtHandleV2 *self_h = self->self_handle;
-        self->self_handle = NULL;
-        self->path_str = NULL;
-        self->arena = NULL;
-        rt_handle_v2_unpin(self_h);
-        rt_arena_v2_free(self_h);
+    /* Destroy private arena — frees self, path_str, and all internal allocations */
+    if (priv) {
+        rt_arena_v2_destroy(priv, false);
     }
 }
 
