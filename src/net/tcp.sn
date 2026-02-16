@@ -87,6 +87,14 @@ native struct TcpStream as ref =>
         return sn_tcp_stream_get_remote_address(self)
 
     # ==========================================================================
+    # Configuration Methods
+    # ==========================================================================
+
+    # Set read timeout in milliseconds (-1 = blocking, 0 = non-blocking)
+    @alias "sn_tcp_stream_set_timeout"
+    native fn setTimeout(ms: int): void
+
+    # ==========================================================================
     # Lifecycle Methods
     # ==========================================================================
 

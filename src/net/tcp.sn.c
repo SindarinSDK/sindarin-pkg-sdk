@@ -392,9 +392,8 @@ RtHandleV2 *sn_tcp_stream_read(RtArenaV2 *arena, RtTcpStream *stream, long maxBy
     /* If buffer is empty, fill it */
     if (stream_buffered(stream) == 0 && !stream->eof_reached) {
         int n = stream_fill(stream);
-        if (n < 0 && n != -2) {  /* Error (not timeout) */
-            fprintf(stderr, "sn_tcp_stream_read: recv failed (%d)\n", GET_SOCKET_ERROR());
-            exit(1);
+        if (n < 0 && n != -2) {  /* Error (not timeout) - return empty array */
+            return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
         }
     }
 
