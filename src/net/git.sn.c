@@ -371,7 +371,7 @@ RtHandleV2 *sn_git_repo_status(RtArenaV2 *arena, RtGitRepo *self) {
         s->status_str = arena_strdup(arena, status_str);
         s->is_staged = is_staged;
 
-        result = rt_array_push_voidptr_v2(arena, result, s);
+        result = rt_array_push_v2(arena, result, &s, sizeof(s));
     }
 
     git_status_list_free(status_list);
@@ -458,10 +458,10 @@ void sn_git_repo_unstage(RtGitRepo *self, const char *path) {
  * GitRepo Commits & Log
  * ============================================================================ */
 
-static RtGitCommit *create_commit_from_git(RtArenaV2 *arena, git_commit *commit) {
+static RtHandleV2 *create_commit_from_git(RtArenaV2 *arena, git_commit *commit) {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtGitCommit));
-    RtGitCommit *result = (RtGitCommit *)_h->ptr;
-    if (!result) {
+    RtGitCommit *c = (RtGitCommit *)_h->ptr;
+    if (!c) {
         fprintf(stderr, "GitCommit: allocation failed\n");
         exit(1);
     }
@@ -470,25 +470,25 @@ static RtGitCommit *create_commit_from_git(RtArenaV2 *arena, git_commit *commit)
     const git_oid *oid = git_commit_id(commit);
     char id_buf[GIT_OID_SHA1_HEXSIZE + 1];
     git_oid_tostr(id_buf, sizeof(id_buf), oid);
-    result->id_str = arena_strdup(arena, id_buf);
+    c->id_str = arena_strdup(arena, id_buf);
 
     /* Get message */
     const char *msg = git_commit_message(commit);
-    result->message_str = arena_strdup(arena, msg ? msg : "");
+    c->message_str = arena_strdup(arena, msg ? msg : "");
 
     /* Get author */
     const git_signature *author = git_commit_author(commit);
     if (author) {
-        result->author_name = arena_strdup(arena, author->name ? author->name : "");
-        result->author_email_str = arena_strdup(arena, author->email ? author->email : "");
-        result->timestamp = (long long)author->when.time;
+        c->author_name = arena_strdup(arena, author->name ? author->name : "");
+        c->author_email_str = arena_strdup(arena, author->email ? author->email : "");
+        c->timestamp = (long long)author->when.time;
     } else {
-        result->author_name = arena_strdup(arena, "");
-        result->author_email_str = arena_strdup(arena, "");
-        result->timestamp = 0;
+        c->author_name = arena_strdup(arena, "");
+        c->author_email_str = arena_strdup(arena, "");
+        c->timestamp = 0;
     }
 
-    return result;
+    return _h;
 }
 
 RtGitCommit *sn_git_repo_commit(RtArenaV2 *arena, RtGitRepo *self, const char *message) {
@@ -551,7 +551,8 @@ RtGitCommit *sn_git_repo_commit(RtArenaV2 *arena, RtGitRepo *self, const char *m
     rc = git_commit_lookup(&new_commit, repo, &commit_oid);
     check_git_error(rc, "GitRepo.commit: lookup new commit");
 
-    RtGitCommit *result = create_commit_from_git(arena, new_commit);
+    RtHandleV2 *_h = create_commit_from_git(arena, new_commit);
+    RtGitCommit *result = (RtGitCommit *)_h->ptr;
 
     git_commit_free(new_commit);
     if (parent) git_commit_free(parent);
@@ -619,7 +620,8 @@ RtGitCommit *sn_git_repo_commit_as(RtArenaV2 *arena, RtGitRepo *self, const char
     rc = git_commit_lookup(&new_commit, repo, &commit_oid);
     check_git_error(rc, "GitRepo.commitAs: lookup new commit");
 
-    RtGitCommit *result = create_commit_from_git(arena, new_commit);
+    RtHandleV2 *_h = create_commit_from_git(arena, new_commit);
+    RtGitCommit *result = (RtGitCommit *)_h->ptr;
 
     git_commit_free(new_commit);
     if (parent) git_commit_free(parent);
@@ -662,8 +664,9 @@ RtHandleV2 *sn_git_repo_log(RtArenaV2 *arena, RtGitRepo *self, long maxCount) {
         rc = git_commit_lookup(&commit, repo, &oid);
         if (rc < 0) continue;
 
-        RtGitCommit *c = create_commit_from_git(arena, commit);
-        result = rt_array_push_voidptr_v2(arena, result, c);
+        RtHandleV2 *_h = create_commit_from_git(arena, commit);
+        RtGitCommit *c = (RtGitCommit *)_h->ptr;
+        result = rt_array_push_v2(arena, result, &c, sizeof(c));
         count++;
 
         git_commit_free(commit);
@@ -689,7 +692,8 @@ RtGitCommit *sn_git_repo_head_commit(RtArenaV2 *arena, RtGitRepo *self) {
     rc = git_commit_lookup(&commit, repo, &head_oid);
     check_git_error(rc, "GitRepo.head: lookup commit");
 
-    RtGitCommit *result = create_commit_from_git(arena, commit);
+    RtHandleV2 *_h = create_commit_from_git(arena, commit);
+    RtGitCommit *result = (RtGitCommit *)_h->ptr;
     git_commit_free(commit);
 
     return result;
@@ -731,7 +735,7 @@ RtHandleV2 *sn_git_repo_branches(RtArenaV2 *arena, RtGitRepo *self) {
         b->is_head = git_branch_is_head(ref) ? 1 : 0;
         b->is_remote = (branch_type == GIT_BRANCH_REMOTE) ? 1 : 0;
 
-        result = rt_array_push_voidptr_v2(arena, result, b);
+        result = rt_array_push_v2(arena, result, &b, sizeof(b));
         git_reference_free(ref);
     }
 
@@ -893,7 +897,7 @@ RtHandleV2 *sn_git_repo_remotes(RtArenaV2 *arena, RtGitRepo *self) {
         r->name_str = arena_strdup(arena, git_remote_name(remote));
         r->url_str = arena_strdup(arena, git_remote_url(remote));
 
-        result = rt_array_push_voidptr_v2(arena, result, r);
+        result = rt_array_push_v2(arena, result, &r, sizeof(r));
         git_remote_free(remote);
     }
 
@@ -1150,7 +1154,7 @@ static RtHandleV2 *build_diff_array_h(RtArenaV2 *arena, git_diff *diff) {
         d->status_str = arena_strdup(arena, diff_status_to_string(delta->status));
         d->old_path_str = arena_strdup(arena, delta->old_file.path ? delta->old_file.path : "");
 
-        result = rt_array_push_voidptr_v2(arena, result, d);
+        result = rt_array_push_v2(arena, result, &d, sizeof(d));
     }
 
     return result;
@@ -1266,7 +1270,7 @@ RtHandleV2 *sn_git_repo_tags(RtArenaV2 *arena, RtGitRepo *self) {
             t->is_lightweight = 1;
         }
 
-        result = rt_array_push_voidptr_v2(arena, result, t);
+        result = rt_array_push_v2(arena, result, &t, sizeof(t));
     }
 
     git_strarray_dispose(&tag_names);
