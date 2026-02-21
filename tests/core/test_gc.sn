@@ -41,24 +41,6 @@ fn main(): int =>
     else =>
         print("bytes_total = local + children: FAIL\n")
 
-    # blocks_total = blocks_local + blocks_children
-    if s.blocks_total == s.blocks_local + s.blocks_children =>
-        print("blocks_total = local + children: PASS\n")
-    else =>
-        print("blocks_total = local + children: FAIL\n")
-
-    # fragmentation should be between 0 and 100
-    if s.fragmentation >= 0.0 && s.fragmentation <= 100.0 =>
-        print("fragmentation in [0, 100]: PASS\n")
-    else =>
-        print("fragmentation in [0, 100]: FAIL\n")
-
-    # block_capacity should be >= block_used
-    if s.block_capacity >= s.block_used =>
-        print("block_capacity >= block_used: PASS\n")
-    else =>
-        print("block_capacity >= block_used: FAIL\n")
-
     # dead_handles and dead_bytes should be non-negative
     if s.dead_handles >= 0 && s.dead_bytes >= 0 =>
         print("dead counts non-negative: PASS\n")

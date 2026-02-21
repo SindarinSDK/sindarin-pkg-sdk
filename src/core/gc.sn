@@ -31,18 +31,11 @@ struct GCStats =>
     bytes_local: int = 0
     bytes_children: int = 0
     bytes_total: int = 0
-    blocks_local: int = 0
-    blocks_children: int = 0
-    blocks_total: int = 0
     dead_handles: int = 0
     dead_bytes: int = 0
-    block_capacity: int = 0
-    block_used: int = 0
     gc_runs: int = 0
     last_handles_freed: int = 0
     last_bytes_freed: int = 0
-    last_blocks_freed: int = 0
-    fragmentation: double = 0.0
 
 # ==============================================================================
 # GC Static-Only Type Definition

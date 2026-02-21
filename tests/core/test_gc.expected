@@ -8,9 +8,6 @@ gc_runs >= 1: PASS
 handles_total >= 0: PASS
 handles_total = local + children: PASS
 bytes_total = local + children: PASS
-blocks_total = local + children: PASS
-fragmentation in [0, 100]: PASS
-block_capacity >= block_used: PASS
 dead counts non-negative: PASS
 
 --- logging ---

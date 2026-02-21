@@ -15,24 +15,18 @@
  * ============================================================================== */
 
 typedef struct SnGCStats {
+    RtArenaV2 *__arena__;
     long long handles_local;
     long long handles_children;
     long long handles_total;
     long long bytes_local;
     long long bytes_children;
     long long bytes_total;
-    long long blocks_local;
-    long long blocks_children;
-    long long blocks_total;
     long long dead_handles;
     long long dead_bytes;
-    long long block_capacity;
-    long long block_used;
     long long gc_runs;
     long long last_handles_freed;
     long long last_bytes_freed;
-    long long last_blocks_freed;
-    double fragmentation;
 } SnGCStats;
 
 /* ==============================================================================
@@ -63,18 +57,11 @@ SnGCStats sn_gc_stats(RtArenaV2 *arena)
     result.bytes_local      = (long long)stats.bytes.local;
     result.bytes_children   = (long long)stats.bytes.children;
     result.bytes_total      = (long long)stats.bytes.total;
-    result.blocks_local     = (long long)stats.blocks.local;
-    result.blocks_children  = (long long)stats.blocks.children;
-    result.blocks_total     = (long long)stats.blocks.total;
     result.dead_handles     = (long long)stats.dead_handles;
     result.dead_bytes       = (long long)stats.dead_bytes;
-    result.block_capacity   = (long long)stats.block_capacity;
-    result.block_used       = (long long)stats.block_used;
     result.gc_runs          = (long long)stats.gc_runs;
     result.last_handles_freed = (long long)stats.last_handles_freed;
     result.last_bytes_freed   = (long long)stats.last_bytes_freed;
-    result.last_blocks_freed  = (long long)stats.last_blocks_freed;
-    result.fragmentation    = stats.fragmentation * 100.0;
 
     return result;
 }
