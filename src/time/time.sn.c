@@ -41,7 +41,7 @@ typedef struct RtTime {
  * ============================================================================ */
 
 /* Create RtTime from milliseconds using arena allocation */
-static RtTime *sn_time_create(RtArenaV2 *arena, long long milliseconds)
+static RtHandleV2 *sn_time_create(RtArenaV2 *arena, long long milliseconds)
 {
     if (arena == NULL) {
         fprintf(stderr, "sn_time_create: NULL arena\n");
@@ -54,7 +54,7 @@ static RtTime *sn_time_create(RtArenaV2 *arena, long long milliseconds)
         exit(1);
     }
     time->milliseconds = milliseconds;
-    return time;
+    return _time_h;
 }
 
 /* Floor division (toward negative infinity) */
@@ -156,19 +156,19 @@ static void sn_time_to_tm(RtTime *time, struct tm *tm_result)
  * ============================================================================ */
 
 /* Create Time from milliseconds since Unix epoch */
-RtTime *sn_time_from_millis(RtArenaV2 *arena, long long ms)
+RtHandleV2 *sn_time_from_millis(RtArenaV2 *arena, long long ms)
 {
     return sn_time_create(arena, ms);
 }
 
 /* Create Time from seconds since Unix epoch */
-RtTime *sn_time_from_seconds(RtArenaV2 *arena, long long s)
+RtHandleV2 *sn_time_from_seconds(RtArenaV2 *arena, long long s)
 {
     return sn_time_create(arena, s * 1000);
 }
 
 /* Get current local time */
-RtTime *sn_time_now(RtArenaV2 *arena)
+RtHandleV2 *sn_time_now(RtArenaV2 *arena)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -177,7 +177,7 @@ RtTime *sn_time_now(RtArenaV2 *arena)
 }
 
 /* Get current UTC time */
-RtTime *sn_time_utc(RtArenaV2 *arena)
+RtHandleV2 *sn_time_utc(RtArenaV2 *arena)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -404,32 +404,32 @@ RtHandleV2 *sn_time_format(RtArenaV2 *arena, RtTime *time, const char *pattern)
  * ============================================================================ */
 
 /* Add milliseconds to time */
-RtTime *sn_time_add(RtArenaV2 *arena, RtTime *time, long long ms)
+RtHandleV2 *sn_time_add(RtArenaV2 *arena, RtTime *time, long long ms)
 {
     if (arena == NULL || time == NULL) return NULL;
     return sn_time_create(arena, time->milliseconds + ms);
 }
 
 /* Add seconds to time */
-RtTime *sn_time_add_seconds(RtArenaV2 *arena, RtTime *time, long seconds)
+RtHandleV2 *sn_time_add_seconds(RtArenaV2 *arena, RtTime *time, long seconds)
 {
     return sn_time_add(arena, time, seconds * 1000LL);
 }
 
 /* Add minutes to time */
-RtTime *sn_time_add_minutes(RtArenaV2 *arena, RtTime *time, long minutes)
+RtHandleV2 *sn_time_add_minutes(RtArenaV2 *arena, RtTime *time, long minutes)
 {
     return sn_time_add(arena, time, minutes * 60 * 1000LL);
 }
 
 /* Add hours to time */
-RtTime *sn_time_add_hours(RtArenaV2 *arena, RtTime *time, long hours)
+RtHandleV2 *sn_time_add_hours(RtArenaV2 *arena, RtTime *time, long hours)
 {
     return sn_time_add(arena, time, hours * 60 * 60 * 1000LL);
 }
 
 /* Add days to time */
-RtTime *sn_time_add_days(RtArenaV2 *arena, RtTime *time, long days)
+RtHandleV2 *sn_time_add_days(RtArenaV2 *arena, RtTime *time, long days)
 {
     return sn_time_add(arena, time, days * 24 * 60 * 60 * 1000LL);
 }

@@ -153,7 +153,7 @@ int sn_date_is_valid_ymd(int year, int month, int day)
  * Helper Functions
  * ============================================================================ */
 
-static RtDate *sn_date_create(RtArenaV2 *arena, int32_t days)
+static RtHandleV2 *sn_date_create(RtArenaV2 *arena, int32_t days)
 {
     RtHandleV2 *_date_h = rt_arena_v2_alloc(arena, sizeof(RtDate));
     RtDate *date = (RtDate *)_date_h->ptr;
@@ -162,19 +162,19 @@ static RtDate *sn_date_create(RtArenaV2 *arena, int32_t days)
         exit(1);
     }
     date->days = days;
-    return date;
+    return _date_h;
 }
 
 /* ============================================================================
  * Date Creation
  * ============================================================================ */
 
-RtDate *sn_date_from_epoch_days(RtArenaV2 *arena, int32_t days)
+RtHandleV2 *sn_date_from_epoch_days(RtArenaV2 *arena, int32_t days)
 {
     return sn_date_create(arena, days);
 }
 
-RtDate *sn_date_from_ymd(RtArenaV2 *arena, int year, int month, int day)
+RtHandleV2 *sn_date_from_ymd(RtArenaV2 *arena, int year, int month, int day)
 {
     if (!sn_date_is_valid_ymd(year, month, day)) {
         fprintf(stderr, "sn_date_from_ymd: invalid date %d-%02d-%02d\n", year, month, day);
@@ -184,7 +184,7 @@ RtDate *sn_date_from_ymd(RtArenaV2 *arena, int year, int month, int day)
     return sn_date_create(arena, days);
 }
 
-RtDate *sn_date_from_string(RtArenaV2 *arena, const char *str)
+RtHandleV2 *sn_date_from_string(RtArenaV2 *arena, const char *str)
 {
     if (str == NULL) {
         fprintf(stderr, "sn_date_from_string: NULL string\n");
@@ -210,7 +210,7 @@ RtDate *sn_date_from_string(RtArenaV2 *arena, const char *str)
     return sn_date_from_ymd(arena, year, month, day);
 }
 
-RtDate *sn_date_today(RtArenaV2 *arena)
+RtHandleV2 *sn_date_today(RtArenaV2 *arena)
 {
     time_t now = time(NULL);
     struct tm tm;
@@ -388,18 +388,18 @@ RtHandleV2 *sn_date_to_string(RtArenaV2 *arena, RtDate *date)
  * Date Arithmetic
  * ============================================================================ */
 
-RtDate *sn_date_add_days(RtArenaV2 *arena, RtDate *date, long days)
+RtHandleV2 *sn_date_add_days(RtArenaV2 *arena, RtDate *date, long days)
 {
     if (date == NULL) return NULL;
     return sn_date_create(arena, date->days + (int32_t)days);
 }
 
-RtDate *sn_date_add_weeks(RtArenaV2 *arena, RtDate *date, long weeks)
+RtHandleV2 *sn_date_add_weeks(RtArenaV2 *arena, RtDate *date, long weeks)
 {
     return sn_date_add_days(arena, date, weeks * 7);
 }
 
-RtDate *sn_date_add_months(RtArenaV2 *arena, RtDate *date, int months)
+RtHandleV2 *sn_date_add_months(RtArenaV2 *arena, RtDate *date, int months)
 {
     if (date == NULL) return NULL;
 
@@ -414,7 +414,7 @@ RtDate *sn_date_add_months(RtArenaV2 *arena, RtDate *date, int months)
     return sn_date_from_ymd(arena, target_year, target_month, target_day);
 }
 
-RtDate *sn_date_add_years(RtArenaV2 *arena, RtDate *date, long years)
+RtHandleV2 *sn_date_add_years(RtArenaV2 *arena, RtDate *date, long years)
 {
     if (date == NULL) return NULL;
 
@@ -435,7 +435,7 @@ long long sn_date_diff_days(RtDate *date, RtDate *other)
     return (long long)date->days - (long long)other->days;
 }
 
-RtDate *sn_date_start_of_month(RtArenaV2 *arena, RtDate *date)
+RtHandleV2 *sn_date_start_of_month(RtArenaV2 *arena, RtDate *date)
 {
     if (date == NULL) return NULL;
     int year, month, day;
@@ -443,7 +443,7 @@ RtDate *sn_date_start_of_month(RtArenaV2 *arena, RtDate *date)
     return sn_date_from_ymd(arena, year, month, 1);
 }
 
-RtDate *sn_date_end_of_month(RtArenaV2 *arena, RtDate *date)
+RtHandleV2 *sn_date_end_of_month(RtArenaV2 *arena, RtDate *date)
 {
     if (date == NULL) return NULL;
     int year, month, day;
@@ -452,7 +452,7 @@ RtDate *sn_date_end_of_month(RtArenaV2 *arena, RtDate *date)
     return sn_date_from_ymd(arena, year, month, last_day);
 }
 
-RtDate *sn_date_start_of_year(RtArenaV2 *arena, RtDate *date)
+RtHandleV2 *sn_date_start_of_year(RtArenaV2 *arena, RtDate *date)
 {
     if (date == NULL) return NULL;
     int year, month, day;
@@ -460,7 +460,7 @@ RtDate *sn_date_start_of_year(RtArenaV2 *arena, RtDate *date)
     return sn_date_from_ymd(arena, year, 1, 1);
 }
 
-RtDate *sn_date_end_of_year(RtArenaV2 *arena, RtDate *date)
+RtHandleV2 *sn_date_end_of_year(RtArenaV2 *arena, RtDate *date)
 {
     if (date == NULL) return NULL;
     int year, month, day;

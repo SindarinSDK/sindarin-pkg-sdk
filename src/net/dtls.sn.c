@@ -285,7 +285,7 @@ static int dtls_parse_address(const char *address, char *host, size_t host_len, 
  * DtlsConnection Connect
  * ============================================================================ */
 
-RtDtlsConnection *sn_dtls_connection_connect(RtArenaV2 *arena, const char *address) {
+RtHandleV2 *sn_dtls_connection_connect(RtArenaV2 *arena, const char *address) {
     ensure_winsock_initialized();
     ensure_openssl_initialized();
 
@@ -472,7 +472,7 @@ RtDtlsConnection *sn_dtls_connection_connect(RtArenaV2 *arena, const char *addre
         memcpy(conn->remote_addr, address, addr_len);
     }
 
-    return conn;
+    return _conn_h;
 }
 
 /* ============================================================================
@@ -629,7 +629,7 @@ typedef struct RtDtlsListener {
     bool running;               /* Whether listener is active */
 
     /* Accept queue (thread-safe) */
-    RtDtlsConnection *accept_queue[DTLS_MAX_ACCEPT_QUEUE];
+    RtHandleV2 *accept_queue[DTLS_MAX_ACCEPT_QUEUE];
     int accept_head;
     int accept_tail;
     int accept_count;
@@ -759,7 +759,7 @@ static void dtls_listener_thread_func(RtDtlsListener *listener) {
         /* Push to accept queue */
         DTLS_MUTEX_LOCK(&listener->accept_mutex);
         if (listener->accept_count < DTLS_MAX_ACCEPT_QUEUE) {
-            listener->accept_queue[listener->accept_tail] = conn;
+            listener->accept_queue[listener->accept_tail] = _conn_h;
             listener->accept_tail = (listener->accept_tail + 1) % DTLS_MAX_ACCEPT_QUEUE;
             listener->accept_count++;
             DTLS_COND_SIGNAL(&listener->accept_cond);
@@ -795,7 +795,7 @@ static void *dtls_listener_thread_entry(void *arg) {
  * DtlsListener Bind
  * ============================================================================ */
 
-RtDtlsListener *sn_dtls_listener_bind(RtArenaV2 *arena, const char *address,
+RtHandleV2 *sn_dtls_listener_bind(RtArenaV2 *arena, const char *address,
                                         const char *cert_file, const char *key_file) {
     ensure_winsock_initialized();
     ensure_openssl_initialized();
@@ -939,14 +939,14 @@ RtDtlsListener *sn_dtls_listener_bind(RtArenaV2 *arena, const char *address,
     pthread_create(&listener->listen_thread, NULL, dtls_listener_thread_entry, listener);
 #endif
 
-    return listener;
+    return _listener_h;
 }
 
 /* ============================================================================
  * DtlsListener Accept (blocks until a connection is available)
  * ============================================================================ */
 
-RtDtlsConnection *sn_dtls_listener_accept(RtArenaV2 *arena, RtDtlsListener *listener) {
+RtHandleV2 *sn_dtls_listener_accept(RtArenaV2 *arena, RtDtlsListener *listener) {
     if (listener == NULL || !listener->running) {
         fprintf(stderr, "DtlsListener.accept: listener is NULL or closed\n");
         exit(1);
@@ -964,12 +964,12 @@ RtDtlsConnection *sn_dtls_listener_accept(RtArenaV2 *arena, RtDtlsListener *list
         return NULL;
     }
 
-    RtDtlsConnection *conn = listener->accept_queue[listener->accept_head];
+    RtHandleV2 *conn_h = listener->accept_queue[listener->accept_head];
     listener->accept_head = (listener->accept_head + 1) % DTLS_MAX_ACCEPT_QUEUE;
     listener->accept_count--;
 
     DTLS_MUTEX_UNLOCK(&listener->accept_mutex);
-    return conn;
+    return conn_h;
 }
 
 /* ============================================================================

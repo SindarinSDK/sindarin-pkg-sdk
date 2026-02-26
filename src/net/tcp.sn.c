@@ -227,18 +227,17 @@ static inline void stream_consume(RtTcpStream *stream, size_t n) {
  * Helper Functions
  * ============================================================================ */
 
-static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const char *remote_addr) {
-    (void)arena;  /* caller arena not used for internal allocations */
+static RtHandleV2 *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const char *remote_addr) {
     RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tcp_stream");
-    RtHandleV2 *_stream_h = rt_arena_v2_alloc(priv, sizeof(RtTcpStream));
-    RtTcpStream *stream = (RtTcpStream *)_stream_h->ptr;
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, sizeof(RtTcpStream));
+    RtTcpStream *stream = (RtTcpStream *)h->ptr;
     if (stream == NULL) {
         fprintf(stderr, "sn_tcp_stream_create: allocation failed\n");
         exit(1);
     }
     stream->socket_fd = sock;
 
-    /* Initialize read buffer */
+    /* Initialize read buffer in private arena */
     stream->read_buf_capacity = SN_TCP_DEFAULT_BUFFER_SIZE;
     RtHandleV2 *_buf_h = rt_arena_v2_alloc(priv, stream->read_buf_capacity);
     stream->read_buf = (unsigned char *)_buf_h->ptr;
@@ -256,7 +255,7 @@ static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const 
     /* Store private arena */
     stream->arena = priv;
 
-    /* Copy remote address string */
+    /* Copy remote address string into private arena */
     if (remote_addr) {
         size_t len = strlen(remote_addr) + 1;
         RtHandleV2 *_addr_h = rt_arena_v2_alloc(priv, len);
@@ -268,7 +267,7 @@ static RtTcpStream *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const 
         stream->remote_addr = NULL;
     }
 
-    return stream;
+    return h;
 }
 
 /* Parse address string "host:port" into host and port components */
@@ -322,7 +321,7 @@ static int parse_address(const char *address, char *host, size_t host_len, int *
  * TcpStream Creation
  * ============================================================================ */
 
-RtTcpStream *sn_tcp_stream_connect(RtArenaV2 *arena, const char *address) {
+RtHandleV2 *sn_tcp_stream_connect(RtArenaV2 *arena, const char *address) {
     ensure_winsock_initialized();
 
     if (address == NULL) {
@@ -887,11 +886,10 @@ void sn_tcp_stream_close(RtTcpStream *stream) {
  * TcpListener Creation
  * ============================================================================ */
 
-static RtTcpListener *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, int port) {
-    (void)arena;
+static RtHandleV2 *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, int port) {
     RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tcp_listener");
-    RtHandleV2 *_listener_h = rt_arena_v2_alloc(priv, sizeof(RtTcpListener));
-    RtTcpListener *listener = (RtTcpListener *)_listener_h->ptr;
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, sizeof(RtTcpListener));
+    RtTcpListener *listener = (RtTcpListener *)h->ptr;
     if (listener == NULL) {
         fprintf(stderr, "sn_tcp_listener_create: allocation failed\n");
         exit(1);
@@ -899,10 +897,10 @@ static RtTcpListener *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, in
     listener->socket_fd = sock;
     listener->bound_port = port;
     listener->arena = priv;
-    return listener;
+    return h;
 }
 
-RtTcpListener *sn_tcp_listener_bind(RtArenaV2 *arena, const char *address) {
+RtHandleV2 *sn_tcp_listener_bind(RtArenaV2 *arena, const char *address) {
     ensure_winsock_initialized();
 
     if (address == NULL) {
@@ -991,7 +989,7 @@ RtTcpListener *sn_tcp_listener_bind(RtArenaV2 *arena, const char *address) {
  * TcpListener Accept
  * ============================================================================ */
 
-RtTcpStream *sn_tcp_listener_accept(RtArenaV2 *arena, RtTcpListener *listener) {
+RtHandleV2 *sn_tcp_listener_accept(RtArenaV2 *arena, RtTcpListener *listener) {
     if (listener == NULL) {
         fprintf(stderr, "sn_tcp_listener_accept: NULL listener\n");
         exit(1);

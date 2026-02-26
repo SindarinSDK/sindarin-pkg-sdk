@@ -44,7 +44,7 @@ typedef struct RtSnBinaryFile {
  * ============================================================================ */
 
 /* Open binary file for reading and writing */
-RtSnBinaryFile *sn_binary_file_open(RtArenaV2 *arena, const char *path)
+RtHandleV2 *sn_binary_file_open(RtArenaV2 *arena, const char *path)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.open: arena is NULL\n");
@@ -83,7 +83,7 @@ RtSnBinaryFile *sn_binary_file_open(RtArenaV2 *arena, const char *path)
     { RtHandleV2 *_path_h = rt_arena_v2_strdup(priv, path); file->path = (char *)_path_h->ptr; }
     file->is_open = 1;
 
-    return file;
+    return _h;
 }
 
 /* Check if binary file exists without opening */

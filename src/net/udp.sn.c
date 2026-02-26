@@ -116,11 +116,10 @@ static int udp_wait_readable(RtUdpSocket *socket_obj) {
     return result;
 }
 
-static RtUdpSocket *sn_udp_socket_create(RtArenaV2 *arena, socket_t sock, int port) {
-    (void)arena;
+static RtHandleV2 *sn_udp_socket_create(RtArenaV2 *arena, socket_t sock, int port) {
     RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "udp_socket");
-    RtHandleV2 *_socket_h = rt_arena_v2_alloc(priv, sizeof(RtUdpSocket));
-    RtUdpSocket *socket_obj = (RtUdpSocket *)_socket_h->ptr;
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, sizeof(RtUdpSocket));
+    RtUdpSocket *socket_obj = (RtUdpSocket *)h->ptr;
     if (socket_obj == NULL) {
         fprintf(stderr, "sn_udp_socket_create: allocation failed\n");
         exit(1);
@@ -129,7 +128,7 @@ static RtUdpSocket *sn_udp_socket_create(RtArenaV2 *arena, socket_t sock, int po
     socket_obj->bound_port = port;
     socket_obj->recv_timeout_ms = -1;
     socket_obj->arena = priv;
-    return socket_obj;
+    return h;
 }
 
 /* Parse address string "host:port" or ":port" into host and port components */
@@ -235,7 +234,7 @@ static int parse_dest_address(const char *address, struct sockaddr_in *dest_addr
  * UdpSocket Creation
  * ============================================================================ */
 
-RtUdpSocket *sn_udp_socket_bind(RtArenaV2 *arena, const char *address) {
+RtHandleV2 *sn_udp_socket_bind(RtArenaV2 *arena, const char *address) {
     ensure_winsock_initialized();
 
     if (address == NULL) {
@@ -342,7 +341,7 @@ long sn_udp_socket_send_to(RtUdpSocket *socket_obj, unsigned char *data, const c
 }
 
 /* Receive datagram and sender address */
-RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *socket_obj, long maxBytes) {
+RtHandleV2 *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *socket_obj, long maxBytes) {
     RtHandleV2 *_result_h = rt_arena_v2_alloc(arena, sizeof(RtUdpReceiveResult));
     RtUdpReceiveResult *result = (RtUdpReceiveResult *)_result_h->ptr;
     if (result == NULL) {
@@ -354,7 +353,7 @@ RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *so
         result->data = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
         RtHandleV2 *_sender_h = rt_arena_v2_strdup(arena, "");
         result->sender = (char *)_sender_h->ptr;
-        return result;
+        return _result_h;
     }
 
     /* Wait for data with timeout if configured */
@@ -364,7 +363,7 @@ RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *so
             result->data = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
             RtHandleV2 *_sender_h = rt_arena_v2_strdup(arena, "");
             result->sender = (char *)_sender_h->ptr;
-            return result;
+            return _result_h;
         }
         if (wait_result < 0) {
             fprintf(stderr, "sn_udp_socket_receive_from: select failed (%d)\n", GET_SOCKET_ERROR());
@@ -406,7 +405,7 @@ RtUdpReceiveResult *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *so
         exit(1);
     }
 
-    return result;
+    return _result_h;
 }
 
 /* ============================================================================

@@ -209,7 +209,7 @@ static void check_git_error(int rc, const char *context) {
  * GitRepo Factory Functions
  * ============================================================================ */
 
-RtGitRepo *sn_git_repo_open(RtArenaV2 *arena, const char *path) {
+RtHandleV2 *sn_git_repo_open(RtArenaV2 *arena, const char *path) {
     (void)arena;
     ensure_libgit2_initialized();
 
@@ -234,10 +234,10 @@ RtGitRepo *sn_git_repo_open(RtArenaV2 *arena, const char *path) {
     const char *path_src = workdir ? workdir : path;
     result->path_str = arena_strdup(priv, path_src);
 
-    return result;
+    return _h;
 }
 
-RtGitRepo *sn_git_repo_clone(RtArenaV2 *arena, const char *url, const char *path) {
+RtHandleV2 *sn_git_repo_clone(RtArenaV2 *arena, const char *url, const char *path) {
     (void)arena;
     ensure_libgit2_initialized();
 
@@ -266,10 +266,10 @@ RtGitRepo *sn_git_repo_clone(RtArenaV2 *arena, const char *url, const char *path
     const char *path_src = workdir ? workdir : path;
     result->path_str = arena_strdup(priv, path_src);
 
-    return result;
+    return _h;
 }
 
-RtGitRepo *sn_git_repo_init(RtArenaV2 *arena, const char *path) {
+RtHandleV2 *sn_git_repo_init(RtArenaV2 *arena, const char *path) {
     (void)arena;
     ensure_libgit2_initialized();
 
@@ -294,10 +294,10 @@ RtGitRepo *sn_git_repo_init(RtArenaV2 *arena, const char *path) {
     const char *path_src = workdir ? workdir : path;
     result->path_str = arena_strdup(priv, path_src);
 
-    return result;
+    return _h;
 }
 
-RtGitRepo *sn_git_repo_init_bare(RtArenaV2 *arena, const char *path) {
+RtHandleV2 *sn_git_repo_init_bare(RtArenaV2 *arena, const char *path) {
     (void)arena;
     ensure_libgit2_initialized();
 
@@ -319,7 +319,7 @@ RtGitRepo *sn_git_repo_init_bare(RtArenaV2 *arena, const char *path) {
     result->priv_arena = priv;
     result->path_str = arena_strdup(priv, path);
 
-    return result;
+    return _h;
 }
 
 /* ============================================================================
@@ -491,7 +491,7 @@ static RtHandleV2 *create_commit_from_git(RtArenaV2 *arena, git_commit *commit) 
     return _h;
 }
 
-RtGitCommit *sn_git_repo_commit(RtArenaV2 *arena, RtGitRepo *self, const char *message) {
+RtHandleV2 *sn_git_repo_commit(RtArenaV2 *arena, RtGitRepo *self, const char *message) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.commit: repository is closed\n");
         exit(1);
@@ -552,7 +552,6 @@ RtGitCommit *sn_git_repo_commit(RtArenaV2 *arena, RtGitRepo *self, const char *m
     check_git_error(rc, "GitRepo.commit: lookup new commit");
 
     RtHandleV2 *_h = create_commit_from_git(arena, new_commit);
-    RtGitCommit *result = (RtGitCommit *)_h->ptr;
 
     git_commit_free(new_commit);
     if (parent) git_commit_free(parent);
@@ -560,10 +559,10 @@ RtGitCommit *sn_git_repo_commit(RtArenaV2 *arena, RtGitRepo *self, const char *m
     git_index_free(index);
     git_signature_free(sig);
 
-    return result;
+    return _h;
 }
 
-RtGitCommit *sn_git_repo_commit_as(RtArenaV2 *arena, RtGitRepo *self, const char *message,
+RtHandleV2 *sn_git_repo_commit_as(RtArenaV2 *arena, RtGitRepo *self, const char *message,
                                      const char *authorName, const char *authorEmail) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.commitAs: repository is closed\n");
@@ -621,7 +620,6 @@ RtGitCommit *sn_git_repo_commit_as(RtArenaV2 *arena, RtGitRepo *self, const char
     check_git_error(rc, "GitRepo.commitAs: lookup new commit");
 
     RtHandleV2 *_h = create_commit_from_git(arena, new_commit);
-    RtGitCommit *result = (RtGitCommit *)_h->ptr;
 
     git_commit_free(new_commit);
     if (parent) git_commit_free(parent);
@@ -629,7 +627,7 @@ RtGitCommit *sn_git_repo_commit_as(RtArenaV2 *arena, RtGitRepo *self, const char
     git_index_free(index);
     git_signature_free(sig);
 
-    return result;
+    return _h;
 }
 
 RtHandleV2 *sn_git_repo_log(RtArenaV2 *arena, RtGitRepo *self, long maxCount) {
@@ -676,7 +674,7 @@ RtHandleV2 *sn_git_repo_log(RtArenaV2 *arena, RtGitRepo *self, long maxCount) {
     return result;
 }
 
-RtGitCommit *sn_git_repo_head_commit(RtArenaV2 *arena, RtGitRepo *self) {
+RtHandleV2 *sn_git_repo_head_commit(RtArenaV2 *arena, RtGitRepo *self) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.head: repository is closed\n");
         exit(1);
@@ -693,10 +691,9 @@ RtGitCommit *sn_git_repo_head_commit(RtArenaV2 *arena, RtGitRepo *self) {
     check_git_error(rc, "GitRepo.head: lookup commit");
 
     RtHandleV2 *_h = create_commit_from_git(arena, commit);
-    RtGitCommit *result = (RtGitCommit *)_h->ptr;
     git_commit_free(commit);
 
-    return result;
+    return _h;
 }
 
 /* ============================================================================
@@ -764,7 +761,7 @@ RtHandleV2 *sn_git_repo_current_branch(RtArenaV2 *arena, RtGitRepo *self) {
     return result;
 }
 
-RtGitBranch *sn_git_repo_create_branch(RtArenaV2 *arena, RtGitRepo *self, const char *name) {
+RtHandleV2 *sn_git_repo_create_branch(RtArenaV2 *arena, RtGitRepo *self, const char *name) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.createBranch: repository is closed\n");
         exit(1);
@@ -798,7 +795,7 @@ RtGitBranch *sn_git_repo_create_branch(RtArenaV2 *arena, RtGitRepo *self, const 
     git_reference_free(new_ref);
     git_commit_free(head_commit);
 
-    return b;
+    return _h;
 }
 
 void sn_git_repo_delete_branch(RtGitRepo *self, const char *name) {
@@ -905,7 +902,7 @@ RtHandleV2 *sn_git_repo_remotes(RtArenaV2 *arena, RtGitRepo *self) {
     return result;
 }
 
-RtGitRemote *sn_git_repo_add_remote(RtArenaV2 *arena, RtGitRepo *self,
+RtHandleV2 *sn_git_repo_add_remote(RtArenaV2 *arena, RtGitRepo *self,
                                       const char *name, const char *url) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.addRemote: repository is closed\n");
@@ -930,7 +927,7 @@ RtGitRemote *sn_git_repo_add_remote(RtArenaV2 *arena, RtGitRepo *self,
     r->url_str = arena_strdup(arena, url);
 
     git_remote_free(remote);
-    return r;
+    return _h;
 }
 
 void sn_git_repo_remove_remote(RtGitRepo *self, const char *name) {
@@ -1277,7 +1274,7 @@ RtHandleV2 *sn_git_repo_tags(RtArenaV2 *arena, RtGitRepo *self) {
     return result;
 }
 
-RtGitTag *sn_git_repo_create_tag(RtArenaV2 *arena, RtGitRepo *self, const char *name) {
+RtHandleV2 *sn_git_repo_create_tag(RtArenaV2 *arena, RtGitRepo *self, const char *name) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.createTag: repository is closed\n");
         exit(1);
@@ -1314,10 +1311,10 @@ RtGitTag *sn_git_repo_create_tag(RtArenaV2 *arena, RtGitRepo *self, const char *
     t->is_lightweight = 1;
 
     git_object_free(target);
-    return t;
+    return _h;
 }
 
-RtGitTag *sn_git_repo_create_annotated_tag(RtArenaV2 *arena, RtGitRepo *self,
+RtHandleV2 *sn_git_repo_create_annotated_tag(RtArenaV2 *arena, RtGitRepo *self,
                                              const char *name, const char *message) {
     if (!self || !self->repo_ptr) {
         fprintf(stderr, "GitRepo.createAnnotatedTag: repository is closed\n");
@@ -1361,7 +1358,7 @@ RtGitTag *sn_git_repo_create_annotated_tag(RtArenaV2 *arena, RtGitRepo *self,
 
     git_signature_free(sig);
     git_object_free(target);
-    return t;
+    return _h;
 }
 
 void sn_git_repo_delete_tag(RtGitRepo *self, const char *name) {

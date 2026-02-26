@@ -176,7 +176,7 @@ static uint64_t sn_random_static_next_u64(void) {
  * Factory Functions
  * ============================================================================ */
 
-RtRandom *sn_random_create(RtArenaV2 *arena)
+RtHandleV2 *sn_random_create(RtArenaV2 *arena)
 {
     if (arena == NULL) {
         return NULL;
@@ -188,10 +188,10 @@ RtRandom *sn_random_create(RtArenaV2 *arena)
 
     sn_random_fill_entropy((uint8_t *)rng->state, sizeof(rng->state));
 
-    return rng;
+    return _rng_h;
 }
 
-RtRandom *sn_random_create_with_seed(RtArenaV2 *arena, long long seed)
+RtHandleV2 *sn_random_create_with_seed(RtArenaV2 *arena, long long seed)
 {
     if (arena == NULL) {
         return NULL;
@@ -203,7 +203,7 @@ RtRandom *sn_random_create_with_seed(RtArenaV2 *arena, long long seed)
 
     xoshiro256_seed(rng->state, (uint64_t)seed);
 
-    return rng;
+    return _rng_h;
 }
 
 /* ============================================================================

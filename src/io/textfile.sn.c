@@ -44,7 +44,7 @@ typedef struct RtSnTextFile {
  * ============================================================================ */
 
 /* Open file for reading and writing */
-RtSnTextFile *sn_text_file_open(RtArenaV2 *arena, const char *path)
+RtHandleV2 *sn_text_file_open(RtArenaV2 *arena, const char *path)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.open: arena is NULL\n");
@@ -81,7 +81,7 @@ RtSnTextFile *sn_text_file_open(RtArenaV2 *arena, const char *path)
     { RtHandleV2 *_path_h = rt_arena_v2_strdup(priv, path); file->path = (char *)_path_h->ptr; }
     file->is_open = 1;
 
-    return file;
+    return _h;
 }
 
 /* Check if file exists without opening */

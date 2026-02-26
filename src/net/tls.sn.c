@@ -389,13 +389,12 @@ static int tls_parse_address(const char *address, char *host, size_t host_len, i
  * TlsStream Creation
  * ============================================================================ */
 
-static RtTlsStream *sn_tls_stream_create(RtArenaV2 *arena, socket_t sock,
+static RtHandleV2 *sn_tls_stream_create(RtArenaV2 *arena, socket_t sock,
                                            SSL_CTX *ctx, SSL *ssl,
                                            const char *remote_addr) {
-    (void)arena;
     RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tls_stream");
-    RtHandleV2 *_stream_h = rt_arena_v2_alloc(priv, sizeof(RtTlsStream));
-    RtTlsStream *stream = (RtTlsStream *)_stream_h->ptr;
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, sizeof(RtTlsStream));
+    RtTlsStream *stream = (RtTlsStream *)h->ptr;
     if (stream == NULL) {
         fprintf(stderr, "TlsStream: allocation failed\n");
         exit(1);
@@ -429,14 +428,14 @@ static RtTlsStream *sn_tls_stream_create(RtArenaV2 *arena, socket_t sock,
         stream->remote_addr = NULL;
     }
 
-    return stream;
+    return h;
 }
 
 /* ============================================================================
  * TlsStream Connect
  * ============================================================================ */
 
-RtTlsStream *sn_tls_stream_connect(RtArenaV2 *arena, const char *address) {
+RtHandleV2 *sn_tls_stream_connect(RtArenaV2 *arena, const char *address) {
     ensure_winsock_initialized();
     ensure_openssl_initialized();
 
@@ -885,7 +884,7 @@ typedef struct RtTlsListener {
  * TlsListener Bind
  * ============================================================================ */
 
-RtTlsListener *sn_tls_listener_bind(RtArenaV2 *arena, const char *address,
+RtHandleV2 *sn_tls_listener_bind(RtArenaV2 *arena, const char *address,
                                       const char *cert_file, const char *key_file) {
     ensure_winsock_initialized();
     ensure_openssl_initialized();
@@ -999,8 +998,8 @@ RtTlsListener *sn_tls_listener_bind(RtArenaV2 *arena, const char *address,
 
     /* Create listener struct */
     RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tls_listener");
-    RtHandleV2 *_listener_h = rt_arena_v2_alloc(priv, sizeof(RtTlsListener));
-    RtTlsListener *listener = (RtTlsListener *)_listener_h->ptr;
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, sizeof(RtTlsListener));
+    RtTlsListener *listener = (RtTlsListener *)h->ptr;
     if (listener == NULL) {
         CLOSE_SOCKET(sock);
         SSL_CTX_free(ctx);
@@ -1013,14 +1012,14 @@ RtTlsListener *sn_tls_listener_bind(RtArenaV2 *arena, const char *address,
     listener->ssl_ctx = ctx;
     listener->arena = priv;
 
-    return listener;
+    return h;
 }
 
 /* ============================================================================
  * TlsListener Accept (blocks until a connection is available)
  * ============================================================================ */
 
-RtTlsStream *sn_tls_listener_accept(RtArenaV2 *arena, RtTlsListener *listener) {
+RtHandleV2 *sn_tls_listener_accept(RtArenaV2 *arena, RtTlsListener *listener) {
     if (listener == NULL) {
         fprintf(stderr, "TlsListener.accept: listener is NULL\n");
         exit(1);

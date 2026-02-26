@@ -104,7 +104,7 @@ void sn_xml_dispose(SnXml *x)
 /* Create a new SnXml wrapper for a node within an existing document.
  * If is_root is true, registers a cleanup callback to free the xmlDoc
  * when the arena is destroyed (e.g., when the thread terminates). */
-static SnXml *sn_xml_wrap(RtArenaV2 *arena, xmlDocPtr doc, xmlNodePtr node, int is_root)
+static RtHandleV2 *sn_xml_wrap(RtArenaV2 *arena, xmlDocPtr doc, xmlNodePtr node, int is_root)
 {
     RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnXml));
     SnXml *x = (SnXml *)_h->ptr;
@@ -120,7 +120,7 @@ static SnXml *sn_xml_wrap(RtArenaV2 *arena, xmlDocPtr doc, xmlNodePtr node, int 
         rt_arena_v2_on_cleanup(arena, _h, sn_xml_doc_cleanup, 100);
     }
 
-    return x;
+    return _h;
 }
 
 /* Find the next sibling that is an element node */
@@ -175,7 +175,7 @@ static xmlNodePtr last_element_child(xmlNodePtr node)
  * Parsing Functions
  * ============================================================================ */
 
-SnXml *sn_xml_parse(RtArenaV2 *arena, const char *text)
+RtHandleV2 *sn_xml_parse(RtArenaV2 *arena, const char *text)
 {
     if (arena == NULL) {
         fprintf(stderr, "Xml.parse: arena is NULL\n");
@@ -198,7 +198,7 @@ SnXml *sn_xml_parse(RtArenaV2 *arena, const char *text)
     return sn_xml_wrap(arena, doc, root, 1);
 }
 
-SnXml *sn_xml_parse_file(RtArenaV2 *arena, const char *path)
+RtHandleV2 *sn_xml_parse_file(RtArenaV2 *arena, const char *path)
 {
     if (arena == NULL) {
         fprintf(stderr, "Xml.parseFile: arena is NULL\n");
@@ -225,7 +225,7 @@ SnXml *sn_xml_parse_file(RtArenaV2 *arena, const char *path)
  * Creation Functions
  * ============================================================================ */
 
-SnXml *sn_xml_element(RtArenaV2 *arena, const char *name)
+RtHandleV2 *sn_xml_element(RtArenaV2 *arena, const char *name)
 {
     if (arena == NULL) {
         fprintf(stderr, "Xml.element: arena is NULL\n");
@@ -256,7 +256,7 @@ SnXml *sn_xml_element(RtArenaV2 *arena, const char *name)
     return sn_xml_wrap(arena, doc, node, 1);
 }
 
-SnXml *sn_xml_document(RtArenaV2 *arena, const char *rootName)
+RtHandleV2 *sn_xml_document(RtArenaV2 *arena, const char *rootName)
 {
     if (arena == NULL) {
         fprintf(stderr, "Xml.document: arena is NULL\n");
@@ -441,8 +441,8 @@ RtHandleV2 *sn_xml_children(RtArenaV2 *arena, SnXml *x)
     xmlNodePtr cur = x->node->children;
     while (cur != NULL) {
         if (cur->type == XML_ELEMENT_NODE) {
-            SnXml *child = sn_xml_wrap(arena, x->doc, cur, 0);
-            children = rt_array_push_voidptr_v2(arena, children, child);
+            RtHandleV2 *child_h = sn_xml_wrap(arena, x->doc, cur, 0);
+            children = rt_array_push_voidptr_v2(arena, children, (SnXml *)child_h->ptr);
         }
         cur = cur->next;
     }
@@ -450,7 +450,7 @@ RtHandleV2 *sn_xml_children(RtArenaV2 *arena, SnXml *x)
     return children;
 }
 
-SnXml *sn_xml_first_child(RtArenaV2 *arena, SnXml *x)
+RtHandleV2 *sn_xml_first_child(RtArenaV2 *arena, SnXml *x)
 {
     if (x == NULL || x->node == NULL) {
         return sn_xml_wrap(arena, NULL, NULL, 0);
@@ -460,7 +460,7 @@ SnXml *sn_xml_first_child(RtArenaV2 *arena, SnXml *x)
     return sn_xml_wrap(arena, x->doc, child, 0);
 }
 
-SnXml *sn_xml_last_child(RtArenaV2 *arena, SnXml *x)
+RtHandleV2 *sn_xml_last_child(RtArenaV2 *arena, SnXml *x)
 {
     if (x == NULL || x->node == NULL) {
         return sn_xml_wrap(arena, NULL, NULL, 0);
@@ -493,7 +493,7 @@ bool sn_xml_has_children(SnXml *x)
  * Sibling/Parent Navigation Functions
  * ============================================================================ */
 
-SnXml *sn_xml_parent(RtArenaV2 *arena, SnXml *x)
+RtHandleV2 *sn_xml_parent(RtArenaV2 *arena, SnXml *x)
 {
     if (x == NULL || x->node == NULL || x->node->parent == NULL) {
         return sn_xml_wrap(arena, x ? x->doc : NULL, NULL, 0);
@@ -508,7 +508,7 @@ SnXml *sn_xml_parent(RtArenaV2 *arena, SnXml *x)
     return sn_xml_wrap(arena, x->doc, parent, 0);
 }
 
-SnXml *sn_xml_next(RtArenaV2 *arena, SnXml *x)
+RtHandleV2 *sn_xml_next(RtArenaV2 *arena, SnXml *x)
 {
     if (x == NULL || x->node == NULL) {
         return sn_xml_wrap(arena, x ? x->doc : NULL, NULL, 0);
@@ -518,7 +518,7 @@ SnXml *sn_xml_next(RtArenaV2 *arena, SnXml *x)
     return sn_xml_wrap(arena, x->doc, next, 0);
 }
 
-SnXml *sn_xml_prev(RtArenaV2 *arena, SnXml *x)
+RtHandleV2 *sn_xml_prev(RtArenaV2 *arena, SnXml *x)
 {
     if (x == NULL || x->node == NULL) {
         return sn_xml_wrap(arena, x ? x->doc : NULL, NULL, 0);
@@ -532,7 +532,7 @@ SnXml *sn_xml_prev(RtArenaV2 *arena, SnXml *x)
  * XPath Functions
  * ============================================================================ */
 
-SnXml *sn_xml_find(RtArenaV2 *arena, SnXml *x, const char *xpath)
+RtHandleV2 *sn_xml_find(RtArenaV2 *arena, SnXml *x, const char *xpath)
 {
     if (x == NULL || x->doc == NULL || xpath == NULL) {
         return sn_xml_wrap(arena, x ? x->doc : NULL, NULL, 0);
@@ -556,7 +556,7 @@ SnXml *sn_xml_find(RtArenaV2 *arena, SnXml *x, const char *xpath)
         return sn_xml_wrap(arena, x->doc, NULL, 0);
     }
 
-    SnXml *found = NULL;
+    RtHandleV2 *found = NULL;
     if (result->nodesetval != NULL && result->nodesetval->nodeNr > 0) {
         xmlNodePtr node = result->nodesetval->nodeTab[0];
         found = sn_xml_wrap(arena, x->doc, node, 0);
@@ -598,8 +598,8 @@ RtHandleV2 *sn_xml_find_all(RtArenaV2 *arena, SnXml *x, const char *xpath)
     if (result->nodesetval != NULL) {
         for (int i = 0; i < result->nodesetval->nodeNr; i++) {
             xmlNodePtr node = result->nodesetval->nodeTab[i];
-            SnXml *wrapped = sn_xml_wrap(arena, x->doc, node, 0);
-            nodes = rt_array_push_voidptr_v2(arena, nodes, wrapped);
+            RtHandleV2 *wrapped_h = sn_xml_wrap(arena, x->doc, node, 0);
+            nodes = rt_array_push_voidptr_v2(arena, nodes, (SnXml *)wrapped_h->ptr);
         }
     }
 
@@ -751,7 +751,7 @@ void sn_xml_write_file_pretty(SnXml *x, const char *path)
  * Utility Functions
  * ============================================================================ */
 
-SnXml *sn_xml_copy(RtArenaV2 *arena, SnXml *x)
+RtHandleV2 *sn_xml_copy(RtArenaV2 *arena, SnXml *x)
 {
     if (x == NULL || x->node == NULL) {
         return sn_xml_wrap(arena, NULL, NULL, 0);

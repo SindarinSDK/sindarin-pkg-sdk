@@ -371,7 +371,7 @@ static void sha1_final(SHA1_Context *ctx, uint8_t digest[SHA1_DIGEST_SIZE]) {
  * UUIDv4 Generation
  * ============================================================================ */
 
-RtUuid *sn_uuid_v4(RtArenaV2 *arena) {
+RtHandleV2 *sn_uuid_v4(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -409,14 +409,14 @@ RtUuid *sn_uuid_v4(RtArenaV2 *arena) {
     /* Set variant bits */
     uuid->low = (uuid->low & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;
 
-    return uuid;
+    return _uuid_h;
 }
 
 /* ============================================================================
  * UUIDv5 Generation
  * ============================================================================ */
 
-RtUuid *sn_uuid_v5(RtArenaV2 *arena, RtUuid *namespace_uuid, const char *name) {
+RtHandleV2 *sn_uuid_v5(RtArenaV2 *arena, RtUuid *namespace_uuid, const char *name) {
     if (arena == NULL || namespace_uuid == NULL || name == NULL) {
         return NULL;
     }
@@ -478,14 +478,14 @@ RtUuid *sn_uuid_v5(RtArenaV2 *arena, RtUuid *namespace_uuid, const char *name) {
     /* Set variant bits */
     uuid->low = (uuid->low & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;
 
-    return uuid;
+    return _uuid_h;
 }
 
 /* ============================================================================
  * UUIDv7 Generation
  * ============================================================================ */
 
-RtUuid *sn_uuid_v7(RtArenaV2 *arena) {
+RtHandleV2 *sn_uuid_v7(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -520,11 +520,11 @@ RtUuid *sn_uuid_v7(RtArenaV2 *arena) {
     /* Set variant bits */
     uuid->low = (uuid->low & 0x3FFFFFFFFFFFFFFFULL) | 0x8000000000000000ULL;
 
-    return uuid;
+    return _uuid_h;
 }
 
 /* Create using recommended default (v7) */
-RtUuid *sn_uuid_create(RtArenaV2 *arena) {
+RtHandleV2 *sn_uuid_create(RtArenaV2 *arena) {
     return sn_uuid_v7(arena);
 }
 
@@ -707,7 +707,7 @@ int sn_uuid_is_greater_than(RtUuid *uuid, RtUuid *other) {
  * Special UUIDs
  * ============================================================================ */
 
-RtUuid *sn_uuid_nil(RtArenaV2 *arena) {
+RtHandleV2 *sn_uuid_nil(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -720,10 +720,10 @@ RtUuid *sn_uuid_nil(RtArenaV2 *arena) {
 
     uuid->high = 0;
     uuid->low = 0;
-    return uuid;
+    return _uuid_h;
 }
 
-RtUuid *sn_uuid_max(RtArenaV2 *arena) {
+RtHandleV2 *sn_uuid_max(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -736,14 +736,14 @@ RtUuid *sn_uuid_max(RtArenaV2 *arena) {
 
     uuid->high = 0xFFFFFFFFFFFFFFFFULL;
     uuid->low = 0xFFFFFFFFFFFFFFFFULL;
-    return uuid;
+    return _uuid_h;
 }
 
 /* ============================================================================
  * Namespace Accessors
  * ============================================================================ */
 
-RtUuid *sn_uuid_namespace_dns(RtArenaV2 *arena) {
+RtHandleV2 *sn_uuid_namespace_dns(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -755,10 +755,10 @@ RtUuid *sn_uuid_namespace_dns(RtArenaV2 *arena) {
     }
 
     *uuid = SN_UUID_NAMESPACE_DNS;
-    return uuid;
+    return _uuid_h;
 }
 
-RtUuid *sn_uuid_namespace_url(RtArenaV2 *arena) {
+RtHandleV2 *sn_uuid_namespace_url(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -770,10 +770,10 @@ RtUuid *sn_uuid_namespace_url(RtArenaV2 *arena) {
     }
 
     *uuid = SN_UUID_NAMESPACE_URL;
-    return uuid;
+    return _uuid_h;
 }
 
-RtUuid *sn_uuid_namespace_oid(RtArenaV2 *arena) {
+RtHandleV2 *sn_uuid_namespace_oid(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -785,10 +785,10 @@ RtUuid *sn_uuid_namespace_oid(RtArenaV2 *arena) {
     }
 
     *uuid = SN_UUID_NAMESPACE_OID;
-    return uuid;
+    return _uuid_h;
 }
 
-RtUuid *sn_uuid_namespace_x500(RtArenaV2 *arena) {
+RtHandleV2 *sn_uuid_namespace_x500(RtArenaV2 *arena) {
     if (arena == NULL) {
         return NULL;
     }
@@ -800,7 +800,7 @@ RtUuid *sn_uuid_namespace_x500(RtArenaV2 *arena) {
     }
 
     *uuid = SN_UUID_NAMESPACE_X500;
-    return uuid;
+    return _uuid_h;
 }
 
 /* ============================================================================
@@ -818,7 +818,7 @@ static int hex_char_to_int(char c) {
  * Parsing Methods
  * ============================================================================ */
 
-RtUuid *sn_uuid_from_string(RtArenaV2 *arena, const char *str) {
+RtHandleV2 *sn_uuid_from_string(RtArenaV2 *arena, const char *str) {
     if (arena == NULL || str == NULL) {
         return NULL;
     }
@@ -871,10 +871,10 @@ RtUuid *sn_uuid_from_string(RtArenaV2 *arena, const char *str) {
                 ((uint64_t)bytes[14] << 8)  |
                 ((uint64_t)bytes[15]);
 
-    return uuid;
+    return _uuid_h;
 }
 
-RtUuid *sn_uuid_from_hex(RtArenaV2 *arena, const char *str) {
+RtHandleV2 *sn_uuid_from_hex(RtArenaV2 *arena, const char *str) {
     if (arena == NULL || str == NULL) {
         return NULL;
     }
@@ -920,7 +920,7 @@ RtUuid *sn_uuid_from_hex(RtArenaV2 *arena, const char *str) {
                 ((uint64_t)bytes[14] << 8)  |
                 ((uint64_t)bytes[15]);
 
-    return uuid;
+    return _uuid_h;
 }
 
 static int base64_url_char_to_int(char c) {
@@ -932,7 +932,7 @@ static int base64_url_char_to_int(char c) {
     return -1;
 }
 
-static RtUuid *sn_uuid_from_bytes(RtArenaV2 *arena, const unsigned char *bytes) {
+static RtHandleV2 *sn_uuid_from_bytes(RtArenaV2 *arena, const unsigned char *bytes) {
     if (arena == NULL || bytes == NULL) {
         return NULL;
     }
@@ -961,10 +961,10 @@ static RtUuid *sn_uuid_from_bytes(RtArenaV2 *arena, const unsigned char *bytes) 
                 ((uint64_t)bytes[14] << 8)  |
                 ((uint64_t)bytes[15]);
 
-    return uuid;
+    return _uuid_h;
 }
 
-RtUuid *sn_uuid_from_base64(RtArenaV2 *arena, const char *str) {
+RtHandleV2 *sn_uuid_from_base64(RtArenaV2 *arena, const char *str) {
     if (arena == NULL || str == NULL) {
         return NULL;
     }

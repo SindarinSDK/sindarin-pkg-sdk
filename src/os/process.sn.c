@@ -58,7 +58,7 @@ static char *sdk_arena_strdup(RtArenaV2 *arena, const char *str)
 }
 
 /* Helper function to create RtProcess with given values */
-static RtProcess *sn_process_create(RtArenaV2 *arena, int exit_code,
+static RtHandleV2 *sn_process_create(RtArenaV2 *arena, int exit_code,
                                      const char *stdout_str, const char *stderr_str)
 {
     if (arena == NULL) {
@@ -77,7 +77,7 @@ static RtProcess *sn_process_create(RtArenaV2 *arena, int exit_code,
     proc->stdout_h = rt_arena_v2_strdup(arena,stdout_str ? stdout_str : "");
     proc->stderr_h = rt_arena_v2_strdup(arena,stderr_str ? stderr_str : "");
 
-    return proc;
+    return _h_proc;
 }
 
 #ifdef SN_WINDOWS
@@ -184,7 +184,7 @@ static char *build_command_line(const char *cmd, char **args, size_t args_len)
 }
 
 /* Windows implementation of process execution with args */
-static RtProcess *sn_process_run_internal(RtArenaV2 *arena, const char *cmd, char **args, size_t args_len)
+static RtHandleV2 *sn_process_run_internal(RtArenaV2 *arena, const char *cmd, char **args, size_t args_len)
 {
     if (arena == NULL) {
         fprintf(stderr, "sn_process_run_internal: NULL arena\n");
@@ -409,7 +409,7 @@ static char **build_argv(const char *cmd, char **args, size_t args_len)
 }
 
 /* POSIX implementation of process execution with args */
-static RtProcess *sn_process_run_internal(RtArenaV2 *arena, const char *cmd, char **args, size_t args_len)
+static RtHandleV2 *sn_process_run_internal(RtArenaV2 *arena, const char *cmd, char **args, size_t args_len)
 {
     if (arena == NULL) {
         fprintf(stderr, "sn_process_run_internal: NULL arena\n");
@@ -532,13 +532,13 @@ static RtProcess *sn_process_run_internal(RtArenaV2 *arena, const char *cmd, cha
  * ============================================================================ */
 
 /* Run a command with no arguments */
-RtProcess *sn_process_run(RtArenaV2 *arena, const char *cmd)
+RtHandleV2 *sn_process_run(RtArenaV2 *arena, const char *cmd)
 {
     return sn_process_run_internal(arena, cmd, NULL, 0);
 }
 
 /* Run a command with arguments (args is a Sindarin array) */
-RtProcess *sn_process_run_args(RtArenaV2 *arena, const char *cmd, char **args)
+RtHandleV2 *sn_process_run_args(RtArenaV2 *arena, const char *cmd, char **args)
 {
     size_t args_len = rt_v2_data_array_length(args);
     return sn_process_run_internal(arena, cmd, args, args_len);
