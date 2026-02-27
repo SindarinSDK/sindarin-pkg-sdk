@@ -12,6 +12,7 @@
 
 /* Include runtime for proper memory management */
 #include "runtime/array/runtime_array_v2.h"
+#include "runtime/arena/arena_safepoint.h"
 
 /* Platform-specific socket includes */
 #ifdef _WIN32
@@ -146,7 +147,9 @@ static int stream_wait_readable(RtTcpStream *stream) {
         tvp = &tv;
     }
 
+    rt_safepoint_enter_native();
     int result = select((int)(stream->socket_fd + 1), &readfds, NULL, NULL, tvp);
+    rt_safepoint_leave_native();
     return result;
 }
 
@@ -185,9 +188,11 @@ static int stream_fill(RtTcpStream *stream) {
     }
 
     /* Read from socket into buffer */
+    rt_safepoint_enter_native();
     int n = recv(stream->socket_fd,
                  (char *)(stream->read_buf + stream->read_buf_end),
                  (int)space, 0);
+    rt_safepoint_leave_native();
 
     if (n > 0) {
         stream->read_buf_end += n;
@@ -229,7 +234,14 @@ static inline void stream_consume(RtTcpStream *stream, size_t n) {
 
 static RtHandleV2 *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const char *remote_addr) {
     RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tcp_stream");
-    RtHandleV2 *h = rt_arena_v2_alloc(arena, sizeof(RtTcpStream));
+
+    /* Allocate the struct in the private arena so close() frees everything.
+     * The handle in the caller's arena uses EXTERN so GC won't double-free. */
+    RtHandleV2 *priv_h = rt_arena_v2_alloc(priv, sizeof(RtTcpStream));
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, 1); /* minimal allocation for handle wrapper */
+    h->ptr = priv_h->ptr;    /* point to data in private arena */
+    h->size = sizeof(RtTcpStream);
+    h->flags |= RT_HANDLE_FLAG_EXTERN;  /* GC: free handle struct, not data */
     RtTcpStream *stream = (RtTcpStream *)h->ptr;
     if (stream == NULL) {
         fprintf(stderr, "sn_tcp_stream_create: allocation failed\n");
@@ -817,7 +829,9 @@ long sn_tcp_stream_write(RtTcpStream *stream, unsigned char *data) {
     size_t length = rt_v2_data_array_length(data);
     if (length == 0) return 0;
 
+    rt_safepoint_enter_native();
     int bytes_sent = send(stream->socket_fd, (const char *)data, (int)length, 0);
+    rt_safepoint_leave_native();
 
     if (bytes_sent < 0) {
         fprintf(stderr, "sn_tcp_stream_write: send failed (%d)\n", GET_SOCKET_ERROR());
@@ -834,7 +848,9 @@ void sn_tcp_stream_write_line(RtTcpStream *stream, const char *text) {
     if (text != NULL) {
         size_t len = strlen(text);
         if (len > 0) {
+            rt_safepoint_enter_native();
             int result = send(stream->socket_fd, text, (int)len, 0);
+            rt_safepoint_leave_native();
             if (result < 0) {
                 fprintf(stderr, "sn_tcp_stream_write_line: send failed (%d)\n", GET_SOCKET_ERROR());
                 exit(1);
@@ -843,7 +859,9 @@ void sn_tcp_stream_write_line(RtTcpStream *stream, const char *text) {
     }
 
     /* Send newline */
+    rt_safepoint_enter_native();
     int result = send(stream->socket_fd, "\r\n", 2, 0);
+    rt_safepoint_leave_native();
     if (result < 0) {
         fprintf(stderr, "sn_tcp_stream_write_line: send newline failed (%d)\n", GET_SOCKET_ERROR());
         exit(1);
@@ -888,7 +906,14 @@ void sn_tcp_stream_close(RtTcpStream *stream) {
 
 static RtHandleV2 *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, int port) {
     RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tcp_listener");
-    RtHandleV2 *h = rt_arena_v2_alloc(arena, sizeof(RtTcpListener));
+
+    /* Allocate the struct in the private arena so close() frees everything.
+     * The handle in the caller's arena uses EXTERN so GC won't double-free. */
+    RtHandleV2 *priv_h = rt_arena_v2_alloc(priv, sizeof(RtTcpListener));
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, 1); /* minimal allocation for handle wrapper */
+    h->ptr = priv_h->ptr;    /* point to data in private arena */
+    h->size = sizeof(RtTcpListener);
+    h->flags |= RT_HANDLE_FLAG_EXTERN;  /* GC: free handle struct, not data */
     RtTcpListener *listener = (RtTcpListener *)h->ptr;
     if (listener == NULL) {
         fprintf(stderr, "sn_tcp_listener_create: allocation failed\n");
@@ -998,7 +1023,11 @@ RtHandleV2 *sn_tcp_listener_accept(RtArenaV2 *arena, RtTcpListener *listener) {
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
 
+    /* Pre-park this thread before the blocking accept() syscall so that
+     * GC's stop-the-world doesn't wait for us while we're blocked in the kernel. */
+    rt_safepoint_enter_native();
     socket_t client_sock = accept(listener->socket_fd, (struct sockaddr *)&client_addr, &client_len);
+    rt_safepoint_leave_native();
 
     if (client_sock == INVALID_SOCKET_VAL) {
         fprintf(stderr, "sn_tcp_listener_accept: accept failed (%d)\n", GET_SOCKET_ERROR());
