@@ -571,14 +571,15 @@ RtHandleV2 *sn_tls_stream_connect(RtArenaV2 *arena, const char *address) {
  * ============================================================================ */
 
 /* Read up to maxBytes (may return fewer) */
-RtHandleV2 *sn_tls_stream_read(RtArenaV2 *arena, RtTlsStream *stream, long maxBytes) {
+RtHandleV2 *sn_tls_stream_read(RtArenaV2 *arena, RtHandleV2 *stream, long maxBytes) {
     if (stream == NULL || maxBytes <= 0) {
         return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
+    RtTlsStream *_stream = (RtTlsStream *)stream->ptr;
 
     /* If buffer is empty, fill it */
-    if (tls_stream_buffered(stream) == 0 && !stream->eof_reached) {
-        int n = tls_stream_fill(stream);
+    if (tls_stream_buffered(_stream) == 0 && !_stream->eof_reached) {
+        int n = tls_stream_fill(_stream);
         if (n < 0) {
             fprintf(stderr, "TlsStream.read: SSL_read failed\n");
             exit(1);
@@ -586,21 +587,22 @@ RtHandleV2 *sn_tls_stream_read(RtArenaV2 *arena, RtTlsStream *stream, long maxBy
     }
 
     /* Return what we have (up to maxBytes) */
-    size_t available = tls_stream_buffered(stream);
+    size_t available = tls_stream_buffered(_stream);
     size_t to_read = ((size_t)maxBytes < available) ? (size_t)maxBytes : available;
 
     RtHandleV2 *result = rt_array_create_generic_v2(arena, to_read, sizeof(unsigned char),
-                                              stream->read_buf + stream->read_buf_pos);
-    tls_stream_consume(stream, to_read);
+                                              _stream->read_buf + _stream->read_buf_pos);
+    tls_stream_consume(_stream, to_read);
 
     return result;
 }
 
 /* Read until connection closes */
-RtHandleV2 *sn_tls_stream_read_all(RtArenaV2 *arena, RtTlsStream *stream) {
+RtHandleV2 *sn_tls_stream_read_all(RtArenaV2 *arena, RtHandleV2 *stream) {
     if (stream == NULL) {
         return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
+    RtTlsStream *_stream = (RtTlsStream *)stream->ptr;
 
     size_t capacity = 4096;
     size_t total_read = 0;
@@ -611,20 +613,20 @@ RtHandleV2 *sn_tls_stream_read_all(RtArenaV2 *arena, RtTlsStream *stream) {
         exit(1);
     }
 
-    while (!stream->eof_reached) {
-        if (tls_stream_buffered(stream) == 0) {
-            int n = tls_stream_fill(stream);
+    while (!_stream->eof_reached) {
+        if (tls_stream_buffered(_stream) == 0) {
+            int n = tls_stream_fill(_stream);
             if (n < 0) {
                 free(temp_buffer);
                 fprintf(stderr, "TlsStream.readAll: SSL_read failed\n");
                 exit(1);
             }
-            if (n == 0 && tls_stream_buffered(stream) == 0) {
+            if (n == 0 && tls_stream_buffered(_stream) == 0) {
                 break;
             }
         }
 
-        size_t available = tls_stream_buffered(stream);
+        size_t available = tls_stream_buffered(_stream);
         if (available > 0) {
             /* Grow temp buffer if needed */
             while (total_read + available > capacity) {
@@ -639,10 +641,10 @@ RtHandleV2 *sn_tls_stream_read_all(RtArenaV2 *arena, RtTlsStream *stream) {
             }
 
             memcpy(temp_buffer + total_read,
-                   stream->read_buf + stream->read_buf_pos,
+                   _stream->read_buf + _stream->read_buf_pos,
                    available);
             total_read += available;
-            tls_stream_consume(stream, available);
+            tls_stream_consume(_stream, available);
         }
     }
 
@@ -653,10 +655,11 @@ RtHandleV2 *sn_tls_stream_read_all(RtArenaV2 *arena, RtTlsStream *stream) {
 }
 
 /* Read until newline */
-RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtTlsStream *stream) {
+RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
     if (stream == NULL) {
         return rt_arena_v2_strdup(arena, "");
     }
+    RtTlsStream *_stream = (RtTlsStream *)stream->ptr;
 
     size_t accum_capacity = 0;
     size_t accum_len = 0;
@@ -664,15 +667,15 @@ RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtTlsStream *stream) {
 
     while (1) {
         /* Scan buffer for newline */
-        for (size_t i = stream->read_buf_pos; i < stream->read_buf_end; i++) {
-            unsigned char ch = stream->read_buf[i];
+        for (size_t i = _stream->read_buf_pos; i < _stream->read_buf_end; i++) {
+            unsigned char ch = _stream->read_buf[i];
 
             if (ch == '\n') {
-                size_t chunk_len = i - stream->read_buf_pos;
+                size_t chunk_len = i - _stream->read_buf_pos;
                 size_t total_len = accum_len + chunk_len;
 
                 /* Strip trailing \r */
-                if (chunk_len > 0 && stream->read_buf[i - 1] == '\r') {
+                if (chunk_len > 0 && _stream->read_buf[i - 1] == '\r') {
                     chunk_len--;
                     total_len--;
                 } else if (chunk_len == 0 && accum_len > 0 && accum_buffer[accum_len - 1] == '\r') {
@@ -693,15 +696,15 @@ RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtTlsStream *stream) {
                 }
                 if (chunk_len > 0) {
                     memcpy(temp + accum_len,
-                           stream->read_buf + stream->read_buf_pos,
+                           _stream->read_buf + _stream->read_buf_pos,
                            chunk_len);
                 }
                 temp[total_len] = '\0';
 
-                stream->read_buf_pos = i + 1;
-                if (stream->read_buf_pos >= stream->read_buf_end) {
-                    stream->read_buf_pos = 0;
-                    stream->read_buf_end = 0;
+                _stream->read_buf_pos = i + 1;
+                if (_stream->read_buf_pos >= _stream->read_buf_end) {
+                    _stream->read_buf_pos = 0;
+                    _stream->read_buf_end = 0;
                 }
 
                 if (accum_buffer) free(accum_buffer);
@@ -710,7 +713,7 @@ RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtTlsStream *stream) {
         }
 
         /* No newline found - accumulate current buffer content */
-        size_t chunk_len = stream->read_buf_end - stream->read_buf_pos;
+        size_t chunk_len = _stream->read_buf_end - _stream->read_buf_pos;
 
         if (chunk_len > 0) {
             if (accum_buffer == NULL) {
@@ -732,25 +735,25 @@ RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtTlsStream *stream) {
             }
 
             memcpy(accum_buffer + accum_len,
-                   stream->read_buf + stream->read_buf_pos,
+                   _stream->read_buf + _stream->read_buf_pos,
                    chunk_len);
             accum_len += chunk_len;
-            stream->read_buf_pos = 0;
-            stream->read_buf_end = 0;
+            _stream->read_buf_pos = 0;
+            _stream->read_buf_end = 0;
         }
 
         /* Try to fill buffer */
-        if (stream->eof_reached) {
+        if (_stream->eof_reached) {
             break;
         }
 
-        int n = tls_stream_fill(stream);
+        int n = tls_stream_fill(_stream);
         if (n < 0) {
             if (accum_buffer) free(accum_buffer);
             fprintf(stderr, "TlsStream.readLine: SSL_read failed\n");
             exit(1);
         }
-        if (n == 0 && tls_stream_buffered(stream) == 0) {
+        if (n == 0 && tls_stream_buffered(_stream) == 0) {
             break; /* EOF */
         }
     }
@@ -783,13 +786,14 @@ RtHandleV2 *sn_tls_stream_read_line(RtArenaV2 *arena, RtTlsStream *stream) {
  * TlsStream Write Operations
  * ============================================================================ */
 
-long sn_tls_stream_write(RtTlsStream *stream, unsigned char *data) {
+long sn_tls_stream_write(RtHandleV2 *stream, unsigned char *data) {
     if (stream == NULL || data == NULL) return 0;
+    RtTlsStream *_stream = (RtTlsStream *)stream->ptr;
 
     size_t length = rt_v2_data_array_length(data);
     if (length == 0) return 0;
 
-    SSL *ssl = (SSL *)stream->ssl_ptr;
+    SSL *ssl = (SSL *)_stream->ssl_ptr;
     int bytes_sent = SSL_write(ssl, data, (int)length);
 
     if (bytes_sent <= 0) {
@@ -801,10 +805,11 @@ long sn_tls_stream_write(RtTlsStream *stream, unsigned char *data) {
     return bytes_sent;
 }
 
-void sn_tls_stream_write_line(RtTlsStream *stream, const char *text) {
+void sn_tls_stream_write_line(RtHandleV2 *stream, const char *text) {
     if (stream == NULL) return;
+    RtTlsStream *_stream = (RtTlsStream *)stream->ptr;
 
-    SSL *ssl = (SSL *)stream->ssl_ptr;
+    SSL *ssl = (SSL *)_stream->ssl_ptr;
 
     if (text != NULL) {
         size_t len = strlen(text);
@@ -829,25 +834,30 @@ void sn_tls_stream_write_line(RtTlsStream *stream, const char *text) {
  * TlsStream Getters
  * ============================================================================ */
 
-RtHandleV2 *sn_tls_stream_get_remote_address(RtArenaV2 *arena, RtTlsStream *stream) {
-    if (stream == NULL || stream->remote_addr == NULL) {
+RtHandleV2 *sn_tls_stream_get_remote_address(RtArenaV2 *arena, RtHandleV2 *stream) {
+    if (stream == NULL) {
         return rt_arena_v2_strdup(arena, "");
     }
-    return rt_arena_v2_strdup(arena, stream->remote_addr);
+    RtTlsStream *_stream = (RtTlsStream *)stream->ptr;
+    if (_stream->remote_addr == NULL) {
+        return rt_arena_v2_strdup(arena, "");
+    }
+    return rt_arena_v2_strdup(arena, _stream->remote_addr);
 }
 
 /* ============================================================================
  * TlsStream Lifecycle
  * ============================================================================ */
 
-void sn_tls_stream_close(RtTlsStream *stream) {
+void sn_tls_stream_close(RtHandleV2 *stream) {
     if (stream == NULL) return;
+    RtTlsStream *_stream = (RtTlsStream *)stream->ptr;
 
     /* Save values before destroying arena */
-    SSL *ssl = (SSL *)stream->ssl_ptr;
-    SSL_CTX *ctx = stream->ctx;
-    socket_t fd = stream->socket_fd;
-    RtArenaV2 *priv = stream->arena;
+    SSL *ssl = (SSL *)_stream->ssl_ptr;
+    SSL_CTX *ctx = _stream->ctx;
+    socket_t fd = _stream->socket_fd;
+    RtArenaV2 *priv = _stream->arena;
 
     /* Clean up SSL resources */
     if (ssl != NULL) {
@@ -1019,17 +1029,18 @@ RtHandleV2 *sn_tls_listener_bind(RtArenaV2 *arena, const char *address,
  * TlsListener Accept (blocks until a connection is available)
  * ============================================================================ */
 
-RtHandleV2 *sn_tls_listener_accept(RtArenaV2 *arena, RtTlsListener *listener) {
+RtHandleV2 *sn_tls_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
     if (listener == NULL) {
         fprintf(stderr, "TlsListener.accept: listener is NULL\n");
         exit(1);
     }
+    RtTlsListener *_listener = (RtTlsListener *)listener->ptr;
 
     /* Accept TCP connection */
     struct sockaddr_storage client_addr;
     socklen_t client_len = sizeof(client_addr);
 
-    socket_t client_sock = accept(listener->socket_fd,
+    socket_t client_sock = accept(_listener->socket_fd,
                                    (struct sockaddr *)&client_addr, &client_len);
     if (client_sock == INVALID_SOCKET_VAL) {
         fprintf(stderr, "TlsListener.accept: accept failed (errno %d)\n", GET_SOCKET_ERROR());
@@ -1037,7 +1048,7 @@ RtHandleV2 *sn_tls_listener_accept(RtArenaV2 *arena, RtTlsListener *listener) {
     }
 
     /* Create SSL object from the listener's shared context */
-    SSL *ssl = SSL_new(listener->ssl_ctx);
+    SSL *ssl = SSL_new(_listener->ssl_ctx);
     if (ssl == NULL) {
         CLOSE_SOCKET(client_sock);
         fprintf(stderr, "TlsListener.accept: SSL_new failed\n");
@@ -1095,20 +1106,23 @@ RtHandleV2 *sn_tls_listener_accept(RtArenaV2 *arena, RtTlsListener *listener) {
  * TlsListener Getters
  * ============================================================================ */
 
-int sn_tls_listener_get_port(RtTlsListener *listener) {
-    return listener ? listener->bound_port : 0;
+int sn_tls_listener_get_port(RtHandleV2 *listener) {
+    if (listener == NULL) return 0;
+    RtTlsListener *_listener = (RtTlsListener *)listener->ptr;
+    return _listener->bound_port;
 }
 
 /* ============================================================================
  * TlsListener Lifecycle
  * ============================================================================ */
 
-void sn_tls_listener_close(RtTlsListener *listener) {
+void sn_tls_listener_close(RtHandleV2 *listener) {
     if (listener == NULL) return;
+    RtTlsListener *_listener = (RtTlsListener *)listener->ptr;
 
-    socket_t fd = listener->socket_fd;
-    SSL_CTX *ctx = listener->ssl_ctx;
-    RtArenaV2 *priv = listener->arena;
+    socket_t fd = _listener->socket_fd;
+    SSL_CTX *ctx = _listener->ssl_ctx;
+    RtArenaV2 *priv = _listener->arena;
 
     if (fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(fd);

@@ -39,6 +39,9 @@ typedef struct RtSnTextFile {
     RtArenaV2 *arena;           /* Private arena — owns all internal allocations */
 } RtSnTextFile;
 
+/* Forward declaration for cleanup callback */
+static void sn_text_file_cleanup(RtHandleV2 *h);
+
 /* ============================================================================
  * Static Methods
  * ============================================================================ */
@@ -54,7 +57,6 @@ RtHandleV2 *sn_text_file_open(RtArenaV2 *arena, const char *path)
         fprintf(stderr, "SnTextFile.open: path is NULL\n");
         exit(1);
     }
-    (void)arena;
 
     FILE *fp = fopen(path, "r+b");  /* Binary mode for cross-platform consistency */
     if (fp == NULL) {
@@ -66,10 +68,15 @@ RtHandleV2 *sn_text_file_open(RtArenaV2 *arena, const char *path)
         }
     }
 
-    /* Allocate TextFile struct from private arena */
+    /* Allocate TextFile struct in a private arena so close() frees everything.
+     * The handle in the caller's arena uses EXTERN so GC won't double-free. */
     RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "text_file");
-    RtHandleV2 *_h = rt_arena_v2_alloc(priv, sizeof(RtSnTextFile));
-    RtSnTextFile *file = (RtSnTextFile *)_h->ptr;
+    RtHandleV2 *priv_h = rt_arena_v2_alloc(priv, sizeof(RtSnTextFile));
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, 1);
+    h->ptr = priv_h->ptr;
+    h->size = sizeof(RtSnTextFile);
+    h->flags |= RT_HANDLE_FLAG_EXTERN;
+    RtSnTextFile *file = (RtSnTextFile *)h->ptr;
     if (file == NULL) {
         fclose(fp);
         fprintf(stderr, "SnTextFile.open: memory allocation failed\n");
@@ -81,7 +88,11 @@ RtHandleV2 *sn_text_file_open(RtArenaV2 *arena, const char *path)
     { RtHandleV2 *_path_h = rt_arena_v2_strdup(priv, path); file->path = (char *)_path_h->ptr; }
     file->is_open = 1;
 
-    return _h;
+    /* Register cleanup callback so GC can close the file and destroy the
+     * private arena if the handle becomes unreachable without explicit .close() */
+    rt_arena_v2_on_cleanup(arena, h, sn_text_file_cleanup, 100);
+
+    return h;
 }
 
 /* Check if file exists without opening */
@@ -285,22 +296,23 @@ void sn_text_file_move(const char *src, const char *dst)
  * ============================================================================ */
 
 /* Read single character, returns -1 on EOF */
-long sn_text_file_read_char(RtSnTextFile *file)
+long sn_text_file_read_char(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.readChar: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.readChar: file is not open\n");
         exit(1);
     }
 
-    int c = fgetc((FILE *)file->fp);
+    int c = fgetc((FILE *)_file->fp);
     if (c == EOF) {
-        if (ferror((FILE *)file->fp)) {
+        if (ferror((FILE *)_file->fp)) {
             fprintf(stderr, "SnTextFile.readChar: read error on file '%s': %s\n",
-                    file->path ? file->path : "(unknown)", strerror(errno));
+                    _file->path ? _file->path : "(unknown)", strerror(errno));
             exit(1);
         }
         return -1;  /* EOF */
@@ -309,7 +321,7 @@ long sn_text_file_read_char(RtSnTextFile *file)
 }
 
 /* Read single line (strips trailing newline) */
-RtHandleV2 *sn_text_file_read_line(RtArenaV2 *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_read_line(RtArenaV2 *arena, RtHandleV2 *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.readLine: arena is NULL\n");
@@ -319,19 +331,20 @@ RtHandleV2 *sn_text_file_read_line(RtArenaV2 *arena, RtSnTextFile *file)
         fprintf(stderr, "SnTextFile.readLine: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.readLine: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
 
     /* Check for immediate EOF */
     int c = fgetc(fp);
     if (c == EOF) {
         if (ferror(fp)) {
             fprintf(stderr, "SnTextFile.readLine: read error on file '%s': %s\n",
-                    file->path ? file->path : "(unknown)", strerror(errno));
+                    _file->path ? _file->path : "(unknown)", strerror(errno));
             exit(1);
         }
         /* Return empty string on EOF */
@@ -375,7 +388,7 @@ RtHandleV2 *sn_text_file_read_line(RtArenaV2 *arena, RtSnTextFile *file)
 }
 
 /* Read all remaining content from open file */
-RtHandleV2 *sn_text_file_read_remaining(RtArenaV2 *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_read_remaining(RtArenaV2 *arena, RtHandleV2 *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.readAll: arena is NULL\n");
@@ -385,38 +398,39 @@ RtHandleV2 *sn_text_file_read_remaining(RtArenaV2 *arena, RtSnTextFile *file)
         fprintf(stderr, "SnTextFile.readAll: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.readAll: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
 
     /* Get current position and file size */
     long current_pos = ftell(fp);
     if (current_pos < 0) {
         fprintf(stderr, "SnTextFile.readAll: failed to get position in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     if (fseek(fp, 0, SEEK_END) != 0) {
         fprintf(stderr, "SnTextFile.readAll: failed to seek in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     long end_pos = ftell(fp);
     if (end_pos < 0) {
         fprintf(stderr, "SnTextFile.readAll: failed to get size of file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     /* Seek back to current position */
     if (fseek(fp, current_pos, SEEK_SET) != 0) {
         fprintf(stderr, "SnTextFile.readAll: failed to seek in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
@@ -435,7 +449,7 @@ RtHandleV2 *sn_text_file_read_remaining(RtArenaV2 *arena, RtSnTextFile *file)
     if (ferror(fp)) {
         free(content);
         fprintf(stderr, "SnTextFile.readAll: failed to read file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
@@ -446,7 +460,7 @@ RtHandleV2 *sn_text_file_read_remaining(RtArenaV2 *arena, RtSnTextFile *file)
 }
 
 /* Read all remaining lines as array of strings */
-RtHandleV2 *sn_text_file_read_lines(RtArenaV2 *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_read_lines(RtArenaV2 *arena, RtHandleV2 *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.readLines: arena is NULL\n");
@@ -456,7 +470,8 @@ RtHandleV2 *sn_text_file_read_lines(RtArenaV2 *arena, RtSnTextFile *file)
         fprintf(stderr, "SnTextFile.readLines: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.readLines: file is not open\n");
         exit(1);
     }
@@ -465,7 +480,7 @@ RtHandleV2 *sn_text_file_read_lines(RtArenaV2 *arena, RtSnTextFile *file)
     RtHandleV2 *lines = rt_array_create_string_v2(arena, 0, NULL);
 
     /* Read lines until EOF */
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     int c = fgetc(fp);
     while (c != EOF) {
         ungetc(c, fp);
@@ -478,7 +493,7 @@ RtHandleV2 *sn_text_file_read_lines(RtArenaV2 *arena, RtSnTextFile *file)
 }
 
 /* Read whitespace-delimited word */
-RtHandleV2 *sn_text_file_read_word(RtArenaV2 *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_read_word(RtArenaV2 *arena, RtHandleV2 *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.readWord: arena is NULL\n");
@@ -488,12 +503,13 @@ RtHandleV2 *sn_text_file_read_word(RtArenaV2 *arena, RtSnTextFile *file)
         fprintf(stderr, "SnTextFile.readWord: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.readWord: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
 
     /* Skip leading whitespace */
     int c;
@@ -548,33 +564,35 @@ RtHandleV2 *sn_text_file_read_word(RtArenaV2 *arena, RtSnTextFile *file)
  * ============================================================================ */
 
 /* Write single character */
-void sn_text_file_write_char(RtSnTextFile *file, long ch)
+void sn_text_file_write_char(RtHandleV2 *file, long ch)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.writeChar: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.writeChar: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     if (fputc((int)ch, fp) == EOF) {
         fprintf(stderr, "SnTextFile.writeChar: write error on file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 }
 
 /* Write string */
-void sn_text_file_write(RtSnTextFile *file, const char *text)
+void sn_text_file_write(RtHandleV2 *file, const char *text)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.write: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.write: file is not open\n");
         exit(1);
     }
@@ -582,31 +600,32 @@ void sn_text_file_write(RtSnTextFile *file, const char *text)
         return;  /* Nothing to write */
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     size_t len = strlen(text);
     if (len > 0) {
         size_t written = fwrite(text, 1, len, fp);
         if (written != len) {
             fprintf(stderr, "SnTextFile.write: write error on file '%s': %s\n",
-                    file->path ? file->path : "(unknown)", strerror(errno));
+                    _file->path ? _file->path : "(unknown)", strerror(errno));
             exit(1);
         }
     }
 }
 
 /* Write string followed by newline */
-void sn_text_file_write_line(RtSnTextFile *file, const char *text)
+void sn_text_file_write_line(RtHandleV2 *file, const char *text)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.writeLine: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.writeLine: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
 
     /* Write the text if not null */
     if (text != NULL) {
@@ -615,7 +634,7 @@ void sn_text_file_write_line(RtSnTextFile *file, const char *text)
             size_t written = fwrite(text, 1, len, fp);
             if (written != len) {
                 fprintf(stderr, "SnTextFile.writeLine: write error on file '%s': %s\n",
-                        file->path ? file->path : "(unknown)", strerror(errno));
+                        _file->path ? _file->path : "(unknown)", strerror(errno));
                 exit(1);
             }
         }
@@ -624,19 +643,19 @@ void sn_text_file_write_line(RtSnTextFile *file, const char *text)
     /* Write the newline */
     if (fputc('\n', fp) == EOF) {
         fprintf(stderr, "SnTextFile.writeLine: write error on file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 }
 
 /* Write string (alias for write) */
-void sn_text_file_print(RtSnTextFile *file, const char *text)
+void sn_text_file_print(RtHandleV2 *file, const char *text)
 {
     sn_text_file_write(file, text);
 }
 
 /* Write string followed by newline (alias for writeLine) */
-void sn_text_file_println(RtSnTextFile *file, const char *text)
+void sn_text_file_println(RtHandleV2 *file, const char *text)
 {
     sn_text_file_write_line(file, text);
 }
@@ -646,18 +665,19 @@ void sn_text_file_println(RtSnTextFile *file, const char *text)
  * ============================================================================ */
 
 /* Check if at end of file */
-int sn_text_file_is_eof(RtSnTextFile *file)
+int sn_text_file_is_eof(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.isEof: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.isEof: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     int c = fgetc(fp);
     if (c == EOF) {
         return 1;  /* At EOF */
@@ -667,18 +687,19 @@ int sn_text_file_is_eof(RtSnTextFile *file)
 }
 
 /* Check if more characters are available */
-int sn_text_file_has_chars(RtSnTextFile *file)
+int sn_text_file_has_chars(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.hasChars: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.hasChars: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     int c = fgetc(fp);
     if (c == EOF) {
         return 0;
@@ -688,18 +709,19 @@ int sn_text_file_has_chars(RtSnTextFile *file)
 }
 
 /* Check if more words are available */
-int sn_text_file_has_words(RtSnTextFile *file)
+int sn_text_file_has_words(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.hasWords: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.hasWords: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     long original_pos = ftell(fp);
 
     /* Skip whitespace */
@@ -717,18 +739,19 @@ int sn_text_file_has_words(RtSnTextFile *file)
 }
 
 /* Check if more lines are available */
-int sn_text_file_has_lines(RtSnTextFile *file)
+int sn_text_file_has_lines(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.hasLines: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.hasLines: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     int c = fgetc(fp);
     if (c == EOF) {
         return 0;
@@ -738,35 +761,37 @@ int sn_text_file_has_lines(RtSnTextFile *file)
 }
 
 /* Get current byte position */
-long sn_text_file_position(RtSnTextFile *file)
+long sn_text_file_position(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.position: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.position: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     long pos = ftell(fp);
     if (pos < 0) {
         fprintf(stderr, "SnTextFile.position: failed to get position in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
     return pos;
 }
 
 /* Seek to byte position */
-void sn_text_file_seek(RtSnTextFile *file, long pos)
+void sn_text_file_seek(RtHandleV2 *file, long pos)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.seek: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.seek: file is not open\n");
         exit(1);
     }
@@ -775,61 +800,84 @@ void sn_text_file_seek(RtSnTextFile *file, long pos)
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     if (fseek(fp, pos, SEEK_SET) != 0) {
         fprintf(stderr, "SnTextFile.seek: failed to seek in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 }
 
 /* Return to beginning of file */
-void sn_text_file_rewind(RtSnTextFile *file)
+void sn_text_file_rewind(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.rewind: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.rewind: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     rewind(fp);
 }
 
 /* Force buffered data to disk */
-void sn_text_file_flush(RtSnTextFile *file)
+void sn_text_file_flush(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.flush: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.flush: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     if (fflush(fp) != 0) {
         fprintf(stderr, "SnTextFile.flush: failed to flush file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 }
 
-/* Close the file */
-void sn_text_file_close(RtSnTextFile *file)
+/* Cleanup callback — fires when GC collects the handle or arena is destroyed */
+static void sn_text_file_cleanup(RtHandleV2 *h)
 {
-    if (file == NULL) {
-        return;
+    if (h == NULL || h->ptr == NULL) return;
+    RtSnTextFile *_file = (RtSnTextFile *)h->ptr;
+
+    FILE *fp_val = (FILE *)_file->fp;
+    RtArenaV2 *priv = _file->arena;
+
+    if (_file->is_open && fp_val != NULL) {
+        fclose(fp_val);
     }
+    if (priv != NULL) {
+        rt_arena_v2_destroy(priv, false);
+    }
+    h->ptr = NULL;
+}
 
-    FILE *fp_val = (FILE *)file->fp;
-    RtArenaV2 *priv = file->arena;
+/* Close the file */
+void sn_text_file_close(RtHandleV2 *file)
+{
+    if (file == NULL || file->ptr == NULL) return;
 
-    if (file->is_open && fp_val != NULL) {
+    /* Remove cleanup callback to prevent double-close */
+    rt_arena_v2_remove_cleanup(file->arena, file);
+
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+
+    FILE *fp_val = (FILE *)_file->fp;
+    RtArenaV2 *priv = _file->arena;
+
+    if (_file->is_open && fp_val != NULL) {
         fclose(fp_val);
     }
 
@@ -837,6 +885,7 @@ void sn_text_file_close(RtSnTextFile *file)
     if (priv != NULL) {
         rt_arena_v2_destroy(priv, false);
     }
+    file->ptr = NULL;
 }
 
 /* ============================================================================
@@ -844,7 +893,7 @@ void sn_text_file_close(RtSnTextFile *file)
  * ============================================================================ */
 
 /* Get full file path */
-RtHandleV2 *sn_text_file_get_path(RtArenaV2 *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_get_path(RtArenaV2 *arena, RtHandleV2 *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.path: arena is NULL\n");
@@ -854,16 +903,17 @@ RtHandleV2 *sn_text_file_get_path(RtArenaV2 *arena, RtSnTextFile *file)
         fprintf(stderr, "SnTextFile.path: file is NULL\n");
         exit(1);
     }
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
 
-    if (file->path == NULL) {
+    if (_file->path == NULL) {
         return rt_arena_v2_strdup(arena,"");
     }
 
-    return rt_arena_v2_strdup(arena,file->path);
+    return rt_arena_v2_strdup(arena,_file->path);
 }
 
 /* Get filename only (without directory) */
-RtHandleV2 *sn_text_file_get_name(RtArenaV2 *arena, RtSnTextFile *file)
+RtHandleV2 *sn_text_file_get_name(RtArenaV2 *arena, RtHandleV2 *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnTextFile.name: arena is NULL\n");
@@ -873,13 +923,14 @@ RtHandleV2 *sn_text_file_get_name(RtArenaV2 *arena, RtSnTextFile *file)
         fprintf(stderr, "SnTextFile.name: file is NULL\n");
         exit(1);
     }
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
 
-    if (file->path == NULL) {
+    if (_file->path == NULL) {
         return rt_arena_v2_strdup(arena,"");
     }
 
     /* Find last path separator */
-    const char *path = file->path;
+    const char *path = _file->path;
     const char *last_sep = strrchr(path, '/');
 #ifdef _WIN32
     const char *last_backslash = strrchr(path, '\\');
@@ -893,45 +944,46 @@ RtHandleV2 *sn_text_file_get_name(RtArenaV2 *arena, RtSnTextFile *file)
 }
 
 /* Get file size in bytes */
-long sn_text_file_get_size(RtSnTextFile *file)
+long sn_text_file_get_size(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnTextFile.size: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnTextFile *_file = (RtSnTextFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnTextFile.size: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
 
     /* Save current position */
     long current_pos = ftell(fp);
     if (current_pos < 0) {
         fprintf(stderr, "SnTextFile.size: failed to get position in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     /* Seek to end to get size */
     if (fseek(fp, 0, SEEK_END) != 0) {
         fprintf(stderr, "SnTextFile.size: failed to seek in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     long size = ftell(fp);
     if (size < 0) {
         fprintf(stderr, "SnTextFile.size: failed to get size of file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     /* Restore original position */
     if (fseek(fp, current_pos, SEEK_SET) != 0) {
         fprintf(stderr, "SnTextFile.size: failed to restore position in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 

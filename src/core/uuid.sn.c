@@ -416,10 +416,11 @@ RtHandleV2 *sn_uuid_v4(RtArenaV2 *arena) {
  * UUIDv5 Generation
  * ============================================================================ */
 
-RtHandleV2 *sn_uuid_v5(RtArenaV2 *arena, RtUuid *namespace_uuid, const char *name) {
+RtHandleV2 *sn_uuid_v5(RtArenaV2 *arena, RtHandleV2 *namespace_uuid, const char *name) {
     if (arena == NULL || namespace_uuid == NULL || name == NULL) {
         return NULL;
     }
+    RtUuid *_ns = (RtUuid *)namespace_uuid->ptr;
 
     RtHandleV2 *_uuid_h = rt_arena_v2_alloc(arena, sizeof(RtUuid));
     RtUuid *uuid = (RtUuid *)_uuid_h->ptr;
@@ -428,22 +429,22 @@ RtHandleV2 *sn_uuid_v5(RtArenaV2 *arena, RtUuid *namespace_uuid, const char *nam
     }
 
     uint8_t namespace_bytes[16];
-    namespace_bytes[0]  = (uint8_t)(namespace_uuid->high >> 56);
-    namespace_bytes[1]  = (uint8_t)(namespace_uuid->high >> 48);
-    namespace_bytes[2]  = (uint8_t)(namespace_uuid->high >> 40);
-    namespace_bytes[3]  = (uint8_t)(namespace_uuid->high >> 32);
-    namespace_bytes[4]  = (uint8_t)(namespace_uuid->high >> 24);
-    namespace_bytes[5]  = (uint8_t)(namespace_uuid->high >> 16);
-    namespace_bytes[6]  = (uint8_t)(namespace_uuid->high >> 8);
-    namespace_bytes[7]  = (uint8_t)(namespace_uuid->high);
-    namespace_bytes[8]  = (uint8_t)(namespace_uuid->low >> 56);
-    namespace_bytes[9]  = (uint8_t)(namespace_uuid->low >> 48);
-    namespace_bytes[10] = (uint8_t)(namespace_uuid->low >> 40);
-    namespace_bytes[11] = (uint8_t)(namespace_uuid->low >> 32);
-    namespace_bytes[12] = (uint8_t)(namespace_uuid->low >> 24);
-    namespace_bytes[13] = (uint8_t)(namespace_uuid->low >> 16);
-    namespace_bytes[14] = (uint8_t)(namespace_uuid->low >> 8);
-    namespace_bytes[15] = (uint8_t)(namespace_uuid->low);
+    namespace_bytes[0]  = (uint8_t)(_ns->high >> 56);
+    namespace_bytes[1]  = (uint8_t)(_ns->high >> 48);
+    namespace_bytes[2]  = (uint8_t)(_ns->high >> 40);
+    namespace_bytes[3]  = (uint8_t)(_ns->high >> 32);
+    namespace_bytes[4]  = (uint8_t)(_ns->high >> 24);
+    namespace_bytes[5]  = (uint8_t)(_ns->high >> 16);
+    namespace_bytes[6]  = (uint8_t)(_ns->high >> 8);
+    namespace_bytes[7]  = (uint8_t)(_ns->high);
+    namespace_bytes[8]  = (uint8_t)(_ns->low >> 56);
+    namespace_bytes[9]  = (uint8_t)(_ns->low >> 48);
+    namespace_bytes[10] = (uint8_t)(_ns->low >> 40);
+    namespace_bytes[11] = (uint8_t)(_ns->low >> 32);
+    namespace_bytes[12] = (uint8_t)(_ns->low >> 24);
+    namespace_bytes[13] = (uint8_t)(_ns->low >> 16);
+    namespace_bytes[14] = (uint8_t)(_ns->low >> 8);
+    namespace_bytes[15] = (uint8_t)(_ns->low);
 
     size_t name_len = strlen(name);
     uint8_t digest[SHA1_DIGEST_SIZE];
@@ -532,26 +533,28 @@ RtHandleV2 *sn_uuid_create(RtArenaV2 *arena) {
  * Property Getters
  * ============================================================================ */
 
-long sn_uuid_get_version(RtUuid *uuid) {
+long sn_uuid_get_version(RtHandleV2 *uuid) {
     if (uuid == NULL) {
         return 0;
     }
-    return (long)((uuid->high >> 12) & 0x0F);
+    RtUuid *_uuid = (RtUuid *)uuid->ptr;
+    return (long)((_uuid->high >> 12) & 0x0F);
 }
 
-long sn_uuid_get_variant(RtUuid *uuid) {
+long sn_uuid_get_variant(RtHandleV2 *uuid) {
     if (uuid == NULL) {
         return 0;
     }
+    RtUuid *_uuid = (RtUuid *)uuid->ptr;
 
-    uint64_t variant_bits = (uuid->low >> 62) & 0x03;
+    uint64_t variant_bits = (_uuid->low >> 62) & 0x03;
 
     if ((variant_bits & 0x02) == 0) {
         return 0;
     } else if ((variant_bits & 0x03) == 0x02) {
         return 1;
     } else if ((variant_bits & 0x03) == 0x03) {
-        uint64_t bit61 = (uuid->low >> 61) & 0x01;
+        uint64_t bit61 = (_uuid->low >> 61) & 0x01;
         if (bit61 == 0) {
             return 2;
         } else {
@@ -562,22 +565,24 @@ long sn_uuid_get_variant(RtUuid *uuid) {
     return 1;
 }
 
-int sn_uuid_is_nil(RtUuid *uuid) {
+int sn_uuid_is_nil(RtHandleV2 *uuid) {
     if (uuid == NULL) {
         return 0;
     }
-    return (uuid->high == 0 && uuid->low == 0) ? 1 : 0;
+    RtUuid *_uuid = (RtUuid *)uuid->ptr;
+    return (_uuid->high == 0 && _uuid->low == 0) ? 1 : 0;
 }
 
 /* ============================================================================
  * Time Extraction (v7 only)
  * ============================================================================ */
 
-long long sn_uuid_get_timestamp(RtUuid *uuid) {
+long long sn_uuid_get_timestamp(RtHandleV2 *uuid) {
     if (uuid == NULL) {
         fprintf(stderr, "sn_uuid_get_timestamp: NULL UUID\n");
         exit(1);
     }
+    RtUuid *_uuid = (RtUuid *)uuid->ptr;
 
     long version = sn_uuid_get_version(uuid);
     if (version != 7) {
@@ -585,23 +590,24 @@ long long sn_uuid_get_timestamp(RtUuid *uuid) {
         exit(1);
     }
 
-    return (long long)(uuid->high >> 16);
+    return (long long)(_uuid->high >> 16);
 }
 
 /* ============================================================================
  * Conversion Methods
  * ============================================================================ */
 
-RtHandleV2 *sn_uuid_to_string(RtArenaV2 *arena, RtUuid *uuid) {
+RtHandleV2 *sn_uuid_to_string(RtArenaV2 *arena, RtHandleV2 *uuid) {
     if (arena == NULL || uuid == NULL) {
         return NULL;
     }
+    RtUuid *_uuid = (RtUuid *)uuid->ptr;
 
-    uint32_t time_low = (uint32_t)(uuid->high >> 32);
-    uint16_t time_mid = (uint16_t)((uuid->high >> 16) & 0xFFFF);
-    uint16_t time_hi_version = (uint16_t)(uuid->high & 0xFFFF);
-    uint16_t clock_seq = (uint16_t)((uuid->low >> 48) & 0xFFFF);
-    uint64_t node = uuid->low & 0xFFFFFFFFFFFFULL;
+    uint32_t time_low = (uint32_t)(_uuid->high >> 32);
+    uint16_t time_mid = (uint16_t)((_uuid->high >> 16) & 0xFFFF);
+    uint16_t time_hi_version = (uint16_t)(_uuid->high & 0xFFFF);
+    uint16_t clock_seq = (uint16_t)((_uuid->low >> 48) & 0xFFFF);
+    uint64_t node = _uuid->low & 0xFFFFFFFFFFFFULL;
 
     char buf[37];
     snprintf(buf, 37, "%08x-%04x-%04x-%04x-%012llx",
@@ -611,15 +617,16 @@ RtHandleV2 *sn_uuid_to_string(RtArenaV2 *arena, RtUuid *uuid) {
     return rt_arena_v2_strdup(arena, buf);
 }
 
-RtHandleV2 *sn_uuid_to_hex(RtArenaV2 *arena, RtUuid *uuid) {
+RtHandleV2 *sn_uuid_to_hex(RtArenaV2 *arena, RtHandleV2 *uuid) {
     if (arena == NULL || uuid == NULL) {
         return NULL;
     }
+    RtUuid *_uuid = (RtUuid *)uuid->ptr;
 
     char buf[33];
     snprintf(buf, 33, "%016llx%016llx",
-             (unsigned long long)uuid->high,
-             (unsigned long long)uuid->low);
+             (unsigned long long)_uuid->high,
+             (unsigned long long)_uuid->low);
 
     return rt_arena_v2_strdup(arena, buf);
 }
@@ -628,28 +635,29 @@ RtHandleV2 *sn_uuid_to_hex(RtArenaV2 *arena, RtUuid *uuid) {
 static const char BASE64_URL_ALPHABET[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
-RtHandleV2 *sn_uuid_to_base64(RtArenaV2 *arena, RtUuid *uuid) {
+RtHandleV2 *sn_uuid_to_base64(RtArenaV2 *arena, RtHandleV2 *uuid) {
     if (arena == NULL || uuid == NULL) {
         return NULL;
     }
+    RtUuid *_uuid = (RtUuid *)uuid->ptr;
 
     unsigned char bytes[16];
-    bytes[0]  = (unsigned char)(uuid->high >> 56);
-    bytes[1]  = (unsigned char)(uuid->high >> 48);
-    bytes[2]  = (unsigned char)(uuid->high >> 40);
-    bytes[3]  = (unsigned char)(uuid->high >> 32);
-    bytes[4]  = (unsigned char)(uuid->high >> 24);
-    bytes[5]  = (unsigned char)(uuid->high >> 16);
-    bytes[6]  = (unsigned char)(uuid->high >> 8);
-    bytes[7]  = (unsigned char)(uuid->high);
-    bytes[8]  = (unsigned char)(uuid->low >> 56);
-    bytes[9]  = (unsigned char)(uuid->low >> 48);
-    bytes[10] = (unsigned char)(uuid->low >> 40);
-    bytes[11] = (unsigned char)(uuid->low >> 32);
-    bytes[12] = (unsigned char)(uuid->low >> 24);
-    bytes[13] = (unsigned char)(uuid->low >> 16);
-    bytes[14] = (unsigned char)(uuid->low >> 8);
-    bytes[15] = (unsigned char)(uuid->low);
+    bytes[0]  = (unsigned char)(_uuid->high >> 56);
+    bytes[1]  = (unsigned char)(_uuid->high >> 48);
+    bytes[2]  = (unsigned char)(_uuid->high >> 40);
+    bytes[3]  = (unsigned char)(_uuid->high >> 32);
+    bytes[4]  = (unsigned char)(_uuid->high >> 24);
+    bytes[5]  = (unsigned char)(_uuid->high >> 16);
+    bytes[6]  = (unsigned char)(_uuid->high >> 8);
+    bytes[7]  = (unsigned char)(_uuid->high);
+    bytes[8]  = (unsigned char)(_uuid->low >> 56);
+    bytes[9]  = (unsigned char)(_uuid->low >> 48);
+    bytes[10] = (unsigned char)(_uuid->low >> 40);
+    bytes[11] = (unsigned char)(_uuid->low >> 32);
+    bytes[12] = (unsigned char)(_uuid->low >> 24);
+    bytes[13] = (unsigned char)(_uuid->low >> 16);
+    bytes[14] = (unsigned char)(_uuid->low >> 8);
+    bytes[15] = (unsigned char)(_uuid->low);
 
     char buf[23];
     int out_idx = 0;
@@ -676,30 +684,34 @@ RtHandleV2 *sn_uuid_to_base64(RtArenaV2 *arena, RtUuid *uuid) {
  * Comparison Methods
  * ============================================================================ */
 
-int sn_uuid_equals(RtUuid *uuid, RtUuid *other) {
+int sn_uuid_equals(RtHandleV2 *uuid, RtHandleV2 *other) {
     if (uuid == NULL || other == NULL) {
         return (uuid == other) ? 1 : 0;
     }
-    return (uuid->high == other->high && uuid->low == other->low) ? 1 : 0;
+    RtUuid *_uuid = (RtUuid *)uuid->ptr;
+    RtUuid *_other = (RtUuid *)other->ptr;
+    return (_uuid->high == _other->high && _uuid->low == _other->low) ? 1 : 0;
 }
 
-long long sn_uuid_compare(RtUuid *uuid, RtUuid *other) {
+long long sn_uuid_compare(RtHandleV2 *uuid, RtHandleV2 *other) {
     if (uuid == NULL && other == NULL) return 0;
     if (uuid == NULL) return -1;
     if (other == NULL) return 1;
+    RtUuid *_uuid = (RtUuid *)uuid->ptr;
+    RtUuid *_other = (RtUuid *)other->ptr;
 
-    if (uuid->high < other->high) return -1;
-    if (uuid->high > other->high) return 1;
-    if (uuid->low < other->low) return -1;
-    if (uuid->low > other->low) return 1;
+    if (_uuid->high < _other->high) return -1;
+    if (_uuid->high > _other->high) return 1;
+    if (_uuid->low < _other->low) return -1;
+    if (_uuid->low > _other->low) return 1;
     return 0;
 }
 
-int sn_uuid_is_less_than(RtUuid *uuid, RtUuid *other) {
+int sn_uuid_is_less_than(RtHandleV2 *uuid, RtHandleV2 *other) {
     return sn_uuid_compare(uuid, other) < 0 ? 1 : 0;
 }
 
-int sn_uuid_is_greater_than(RtUuid *uuid, RtUuid *other) {
+int sn_uuid_is_greater_than(RtHandleV2 *uuid, RtHandleV2 *other) {
     return sn_uuid_compare(uuid, other) > 0 ? 1 : 0;
 }
 

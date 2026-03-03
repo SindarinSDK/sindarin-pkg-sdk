@@ -48,12 +48,12 @@ static RtHandleV2 *sn_time_create(RtArenaV2 *arena, long long milliseconds)
         exit(1);
     }
     RtHandleV2 *_time_h = rt_arena_v2_alloc(arena, sizeof(RtTime));
-    RtTime *time = (RtTime *)_time_h->ptr;
-    if (time == NULL) {
+    RtTime *t = (RtTime *)_time_h->ptr;
+    if (t == NULL) {
         fprintf(stderr, "sn_time_create: allocation failed\n");
         exit(1);
     }
-    time->milliseconds = milliseconds;
+    t->milliseconds = milliseconds;
     return _time_h;
 }
 
@@ -105,16 +105,16 @@ static void sn_days_to_ymd(long long days, int *year, int *month, int *day)
 }
 
 /* Decompose RtTime into struct tm components */
-static void sn_time_to_tm(RtTime *time, struct tm *tm_result)
+static void sn_time_to_tm(RtTime *t, struct tm *tm_result)
 {
-    if (time == NULL) {
+    if (t == NULL) {
         fprintf(stderr, "sn_time_to_tm: NULL time\n");
         exit(1);
     }
 
     memset(tm_result, 0, sizeof(struct tm));
 
-    long long ms = time->milliseconds;
+    long long ms = t->milliseconds;
 
     /* Convert to seconds using floor division */
     long long secs = sn_floor_div(ms, 1000);
@@ -196,83 +196,92 @@ void sn_time_sleep(long ms)
 }
 
 /* ============================================================================
- * Time Getter Functions (native methods - receive self by pointer)
+ * Time Getter Functions (native methods - receive self as RtHandleV2*)
  * ============================================================================ */
 
 /* Get milliseconds since Unix epoch */
-long long sn_time_get_millis(RtTime *time)
+long long sn_time_get_millis(RtHandleV2 *time_h)
 {
-    if (time == NULL) return 0;
-    return time->milliseconds;
+    if (time_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
+    return _time->milliseconds;
 }
 
 /* Get seconds since Unix epoch */
-long long sn_time_get_seconds(RtTime *time)
+long long sn_time_get_seconds(RtHandleV2 *time_h)
 {
-    if (time == NULL) return 0;
-    return time->milliseconds / 1000;
+    if (time_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
+    return _time->milliseconds / 1000;
 }
 
 /* Get year component */
-long sn_time_get_year(RtTime *time)
+long sn_time_get_year(RtHandleV2 *time_h)
 {
-    if (time == NULL) return 0;
+    if (time_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
     struct tm tm;
-    sn_time_to_tm(time, &tm);
+    sn_time_to_tm(_time, &tm);
     return tm.tm_year + 1900;
 }
 
 /* Get month component (1-12) */
-long sn_time_get_month(RtTime *time)
+long sn_time_get_month(RtHandleV2 *time_h)
 {
-    if (time == NULL) return 0;
+    if (time_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
     struct tm tm;
-    sn_time_to_tm(time, &tm);
+    sn_time_to_tm(_time, &tm);
     return tm.tm_mon + 1;
 }
 
 /* Get day of month (1-31) */
-long sn_time_get_day(RtTime *time)
+long sn_time_get_day(RtHandleV2 *time_h)
 {
-    if (time == NULL) return 0;
+    if (time_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
     struct tm tm;
-    sn_time_to_tm(time, &tm);
+    sn_time_to_tm(_time, &tm);
     return tm.tm_mday;
 }
 
 /* Get hour component (0-23) */
-long sn_time_get_hour(RtTime *time)
+long sn_time_get_hour(RtHandleV2 *time_h)
 {
-    if (time == NULL) return 0;
+    if (time_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
     struct tm tm;
-    sn_time_to_tm(time, &tm);
+    sn_time_to_tm(_time, &tm);
     return tm.tm_hour;
 }
 
 /* Get minute component (0-59) */
-long sn_time_get_minute(RtTime *time)
+long sn_time_get_minute(RtHandleV2 *time_h)
 {
-    if (time == NULL) return 0;
+    if (time_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
     struct tm tm;
-    sn_time_to_tm(time, &tm);
+    sn_time_to_tm(_time, &tm);
     return tm.tm_min;
 }
 
 /* Get second component (0-59) */
-long sn_time_get_second(RtTime *time)
+long sn_time_get_second(RtHandleV2 *time_h)
 {
-    if (time == NULL) return 0;
+    if (time_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
     struct tm tm;
-    sn_time_to_tm(time, &tm);
+    sn_time_to_tm(_time, &tm);
     return tm.tm_sec;
 }
 
 /* Get weekday (0=Sunday, 6=Saturday) */
-long sn_time_get_weekday(RtTime *time)
+long sn_time_get_weekday(RtHandleV2 *time_h)
 {
-    if (time == NULL) return 0;
+    if (time_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
     struct tm tm;
-    sn_time_to_tm(time, &tm);
+    sn_time_to_tm(_time, &tm);
     return tm.tm_wday;
 }
 
@@ -281,33 +290,36 @@ long sn_time_get_weekday(RtTime *time)
  * ============================================================================ */
 
 /* Format as date string (YYYY-MM-DD) */
-RtHandleV2 *sn_time_to_date(RtArenaV2 *arena, RtTime *time)
+RtHandleV2 *sn_time_to_date(RtArenaV2 *arena, RtHandleV2 *time_h)
 {
-    if (arena == NULL || time == NULL) return NULL;
+    if (arena == NULL || time_h == NULL) return NULL;
+    RtTime *_time = (RtTime *)time_h->ptr;
     struct tm tm;
-    sn_time_to_tm(time, &tm);
+    sn_time_to_tm(_time, &tm);
     char buf[16];
     sprintf(buf, "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
     return rt_arena_v2_strdup(arena,buf);
 }
 
 /* Format as time string (HH:mm:ss) */
-RtHandleV2 *sn_time_to_time(RtArenaV2 *arena, RtTime *time)
+RtHandleV2 *sn_time_to_time(RtArenaV2 *arena, RtHandleV2 *time_h)
 {
-    if (arena == NULL || time == NULL) return NULL;
+    if (arena == NULL || time_h == NULL) return NULL;
+    RtTime *_time = (RtTime *)time_h->ptr;
     struct tm tm;
-    sn_time_to_tm(time, &tm);
+    sn_time_to_tm(_time, &tm);
     char buf[16];
     sprintf(buf, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
     return rt_arena_v2_strdup(arena,buf);
 }
 
 /* Format as ISO 8601 string (YYYY-MM-DDTHH:mm:ss.SSSZ) */
-RtHandleV2 *sn_time_to_iso(RtArenaV2 *arena, RtTime *time)
+RtHandleV2 *sn_time_to_iso(RtArenaV2 *arena, RtHandleV2 *time_h)
 {
-    if (arena == NULL || time == NULL) return NULL;
-    time_t secs = time->milliseconds / 1000;
-    long millis = time->milliseconds % 1000;
+    if (arena == NULL || time_h == NULL) return NULL;
+    RtTime *_time = (RtTime *)time_h->ptr;
+    time_t secs = _time->milliseconds / 1000;
+    long millis = _time->milliseconds % 1000;
     struct tm tm;
     GMTIME_R(&secs, &tm);
     char buf[32];
@@ -318,13 +330,14 @@ RtHandleV2 *sn_time_to_iso(RtArenaV2 *arena, RtTime *time)
 }
 
 /* Format time using pattern string */
-RtHandleV2 *sn_time_format(RtArenaV2 *arena, RtTime *time, const char *pattern)
+RtHandleV2 *sn_time_format(RtArenaV2 *arena, RtHandleV2 *time_h, const char *pattern)
 {
-    if (arena == NULL || time == NULL || pattern == NULL) return NULL;
+    if (arena == NULL || time_h == NULL || pattern == NULL) return NULL;
+    RtTime *_time = (RtTime *)time_h->ptr;
 
     struct tm tm;
-    sn_time_to_tm(time, &tm);
-    long millis = time->milliseconds % 1000;
+    sn_time_to_tm(_time, &tm);
+    long millis = _time->milliseconds % 1000;
 
     /* 12-hour format */
     int hour12 = tm.tm_hour % 12;
@@ -404,64 +417,73 @@ RtHandleV2 *sn_time_format(RtArenaV2 *arena, RtTime *time, const char *pattern)
  * ============================================================================ */
 
 /* Add milliseconds to time */
-RtHandleV2 *sn_time_add(RtArenaV2 *arena, RtTime *time, long long ms)
+RtHandleV2 *sn_time_add(RtArenaV2 *arena, RtHandleV2 *time_h, long long ms)
 {
-    if (arena == NULL || time == NULL) return NULL;
-    return sn_time_create(arena, time->milliseconds + ms);
+    if (arena == NULL || time_h == NULL) return NULL;
+    RtTime *_time = (RtTime *)time_h->ptr;
+    return sn_time_create(arena, _time->milliseconds + ms);
 }
 
 /* Add seconds to time */
-RtHandleV2 *sn_time_add_seconds(RtArenaV2 *arena, RtTime *time, long seconds)
+RtHandleV2 *sn_time_add_seconds(RtArenaV2 *arena, RtHandleV2 *time_h, long seconds)
 {
-    return sn_time_add(arena, time, seconds * 1000LL);
+    return sn_time_add(arena, time_h, seconds * 1000LL);
 }
 
 /* Add minutes to time */
-RtHandleV2 *sn_time_add_minutes(RtArenaV2 *arena, RtTime *time, long minutes)
+RtHandleV2 *sn_time_add_minutes(RtArenaV2 *arena, RtHandleV2 *time_h, long minutes)
 {
-    return sn_time_add(arena, time, minutes * 60 * 1000LL);
+    return sn_time_add(arena, time_h, minutes * 60 * 1000LL);
 }
 
 /* Add hours to time */
-RtHandleV2 *sn_time_add_hours(RtArenaV2 *arena, RtTime *time, long hours)
+RtHandleV2 *sn_time_add_hours(RtArenaV2 *arena, RtHandleV2 *time_h, long hours)
 {
-    return sn_time_add(arena, time, hours * 60 * 60 * 1000LL);
+    return sn_time_add(arena, time_h, hours * 60 * 60 * 1000LL);
 }
 
 /* Add days to time */
-RtHandleV2 *sn_time_add_days(RtArenaV2 *arena, RtTime *time, long days)
+RtHandleV2 *sn_time_add_days(RtArenaV2 *arena, RtHandleV2 *time_h, long days)
 {
-    return sn_time_add(arena, time, days * 24 * 60 * 60 * 1000LL);
+    return sn_time_add(arena, time_h, days * 24 * 60 * 60 * 1000LL);
 }
 
 /* Get difference between times in milliseconds */
-long long sn_time_diff(RtTime *time, RtTime *other)
+long long sn_time_diff(RtHandleV2 *time_h, RtHandleV2 *other_h)
 {
-    if (time == NULL || other == NULL) return 0;
-    return time->milliseconds - other->milliseconds;
+    if (time_h == NULL || other_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
+    RtTime *_other = (RtTime *)other_h->ptr;
+    return _time->milliseconds - _other->milliseconds;
 }
 
 /* ============================================================================
- * Time Comparison Functions (native methods - receive self by pointer)
+ * Time Comparison Functions (native methods - receive self as RtHandleV2*)
  * ============================================================================ */
 
 /* Check if time is before other */
-int sn_time_is_before(RtTime *time, RtTime *other)
+int sn_time_is_before(RtHandleV2 *time_h, RtHandleV2 *other_h)
 {
-    if (time == NULL || other == NULL) return 0;
-    return (time->milliseconds < other->milliseconds) ? 1 : 0;
+    if (time_h == NULL || other_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
+    RtTime *_other = (RtTime *)other_h->ptr;
+    return (_time->milliseconds < _other->milliseconds) ? 1 : 0;
 }
 
 /* Check if time is after other */
-int sn_time_is_after(RtTime *time, RtTime *other)
+int sn_time_is_after(RtHandleV2 *time_h, RtHandleV2 *other_h)
 {
-    if (time == NULL || other == NULL) return 0;
-    return (time->milliseconds > other->milliseconds) ? 1 : 0;
+    if (time_h == NULL || other_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
+    RtTime *_other = (RtTime *)other_h->ptr;
+    return (_time->milliseconds > _other->milliseconds) ? 1 : 0;
 }
 
 /* Check if times are equal */
-int sn_time_equals(RtTime *time, RtTime *other)
+int sn_time_equals(RtHandleV2 *time_h, RtHandleV2 *other_h)
 {
-    if (time == NULL || other == NULL) return 0;
-    return (time->milliseconds == other->milliseconds) ? 1 : 0;
+    if (time_h == NULL || other_h == NULL) return 0;
+    RtTime *_time = (RtTime *)time_h->ptr;
+    RtTime *_other = (RtTime *)other_h->ptr;
+    return (_time->milliseconds == _other->milliseconds) ? 1 : 0;
 }

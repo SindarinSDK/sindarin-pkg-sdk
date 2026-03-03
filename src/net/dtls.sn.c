@@ -480,13 +480,14 @@ RtHandleV2 *sn_dtls_connection_connect(RtArenaV2 *arena, const char *address) {
  * ============================================================================ */
 
 /* Send an encrypted datagram, return bytes sent */
-long sn_dtls_connection_send(RtDtlsConnection *conn, unsigned char *data) {
+long sn_dtls_connection_send(RtHandleV2 *conn, unsigned char *data) {
     if (conn == NULL || data == NULL) return 0;
+    RtDtlsConnection *_conn = (RtDtlsConnection *)conn->ptr;
 
     size_t length = rt_v2_data_array_length(data);
     if (length == 0) return 0;
 
-    SSL *ssl = (SSL *)conn->ssl_ptr;
+    SSL *ssl = (SSL *)_conn->ssl_ptr;
     int bytes_sent = SSL_write(ssl, data, (int)length);
 
     if (bytes_sent <= 0) {
@@ -499,12 +500,13 @@ long sn_dtls_connection_send(RtDtlsConnection *conn, unsigned char *data) {
 }
 
 /* Receive an encrypted datagram (up to maxBytes) */
-RtHandleV2 *sn_dtls_connection_receive(RtArenaV2 *arena, RtDtlsConnection *conn, long maxBytes) {
+RtHandleV2 *sn_dtls_connection_receive(RtArenaV2 *arena, RtHandleV2 *conn, long maxBytes) {
     if (conn == NULL || maxBytes <= 0) {
         return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
+    RtDtlsConnection *_conn = (RtDtlsConnection *)conn->ptr;
 
-    SSL *ssl = (SSL *)conn->ssl_ptr;
+    SSL *ssl = (SSL *)_conn->ssl_ptr;
 
     /* Allocate a temporary buffer for receiving */
     unsigned char *temp = (unsigned char *)malloc((size_t)maxBytes);
@@ -542,24 +544,29 @@ RtHandleV2 *sn_dtls_connection_receive(RtArenaV2 *arena, RtDtlsConnection *conn,
  * DtlsConnection Getters
  * ============================================================================ */
 
-RtHandleV2 *sn_dtls_connection_get_remote_address(RtArenaV2 *arena, RtDtlsConnection *conn) {
-    if (conn == NULL || conn->remote_addr == NULL) {
+RtHandleV2 *sn_dtls_connection_get_remote_address(RtArenaV2 *arena, RtHandleV2 *conn) {
+    if (conn == NULL) {
         return rt_arena_v2_strdup(arena, "");
     }
-    return rt_arena_v2_strdup(arena, conn->remote_addr);
+    RtDtlsConnection *_conn = (RtDtlsConnection *)conn->ptr;
+    if (_conn->remote_addr == NULL) {
+        return rt_arena_v2_strdup(arena, "");
+    }
+    return rt_arena_v2_strdup(arena, _conn->remote_addr);
 }
 
 /* ============================================================================
  * DtlsConnection Lifecycle
  * ============================================================================ */
 
-void sn_dtls_connection_close(RtDtlsConnection *conn) {
+void sn_dtls_connection_close(RtHandleV2 *conn) {
     if (conn == NULL) return;
+    RtDtlsConnection *_conn = (RtDtlsConnection *)conn->ptr;
 
-    SSL *ssl = (SSL *)conn->ssl_ptr;
-    SSL_CTX *ctx = conn->ctx;
-    socket_t fd = conn->socket_fd;
-    RtArenaV2 *priv = conn->arena;
+    SSL *ssl = (SSL *)_conn->ssl_ptr;
+    SSL_CTX *ctx = _conn->ctx;
+    socket_t fd = _conn->socket_fd;
+    RtArenaV2 *priv = _conn->arena;
 
     if (ssl != NULL) {
         SSL_shutdown(ssl);
@@ -946,29 +953,34 @@ RtHandleV2 *sn_dtls_listener_bind(RtArenaV2 *arena, const char *address,
  * DtlsListener Accept (blocks until a connection is available)
  * ============================================================================ */
 
-RtHandleV2 *sn_dtls_listener_accept(RtArenaV2 *arena, RtDtlsListener *listener) {
-    if (listener == NULL || !listener->running) {
+RtHandleV2 *sn_dtls_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
+    if (listener == NULL) {
+        fprintf(stderr, "DtlsListener.accept: listener is NULL or closed\n");
+        exit(1);
+    }
+    RtDtlsListener *_listener = (RtDtlsListener *)listener->ptr;
+    if (!_listener->running) {
         fprintf(stderr, "DtlsListener.accept: listener is NULL or closed\n");
         exit(1);
     }
     (void)arena;
 
-    DTLS_MUTEX_LOCK(&listener->accept_mutex);
+    DTLS_MUTEX_LOCK(&_listener->accept_mutex);
 
-    while (listener->accept_count == 0 && listener->running) {
-        DTLS_COND_WAIT(&listener->accept_cond, &listener->accept_mutex);
+    while (_listener->accept_count == 0 && _listener->running) {
+        DTLS_COND_WAIT(&_listener->accept_cond, &_listener->accept_mutex);
     }
 
-    if (!listener->running || listener->accept_count == 0) {
-        DTLS_MUTEX_UNLOCK(&listener->accept_mutex);
+    if (!_listener->running || _listener->accept_count == 0) {
+        DTLS_MUTEX_UNLOCK(&_listener->accept_mutex);
         return NULL;
     }
 
-    RtHandleV2 *conn_h = listener->accept_queue[listener->accept_head];
-    listener->accept_head = (listener->accept_head + 1) % DTLS_MAX_ACCEPT_QUEUE;
-    listener->accept_count--;
+    RtHandleV2 *conn_h = _listener->accept_queue[_listener->accept_head];
+    _listener->accept_head = (_listener->accept_head + 1) % DTLS_MAX_ACCEPT_QUEUE;
+    _listener->accept_count--;
 
-    DTLS_MUTEX_UNLOCK(&listener->accept_mutex);
+    DTLS_MUTEX_UNLOCK(&_listener->accept_mutex);
     return conn_h;
 }
 
@@ -976,47 +988,51 @@ RtHandleV2 *sn_dtls_listener_accept(RtArenaV2 *arena, RtDtlsListener *listener) 
  * DtlsListener Getters
  * ============================================================================ */
 
-int sn_dtls_listener_get_port(RtDtlsListener *listener) {
-    return listener ? listener->bound_port : 0;
+int sn_dtls_listener_get_port(RtHandleV2 *listener) {
+    if (listener == NULL) return 0;
+    RtDtlsListener *_listener = (RtDtlsListener *)listener->ptr;
+    return _listener->bound_port;
 }
 
 /* ============================================================================
  * DtlsListener Lifecycle
  * ============================================================================ */
 
-void sn_dtls_listener_close(RtDtlsListener *listener) {
-    if (listener == NULL || !listener->running) return;
+void sn_dtls_listener_close(RtHandleV2 *listener) {
+    if (listener == NULL) return;
+    RtDtlsListener *_listener = (RtDtlsListener *)listener->ptr;
+    if (!_listener->running) return;
 
-    listener->running = false;
+    _listener->running = false;
 
     /* Signal any waiters on accept */
-    DTLS_MUTEX_LOCK(&listener->accept_mutex);
-    DTLS_COND_BROADCAST(&listener->accept_cond);
-    DTLS_MUTEX_UNLOCK(&listener->accept_mutex);
+    DTLS_MUTEX_LOCK(&_listener->accept_mutex);
+    DTLS_COND_BROADCAST(&_listener->accept_cond);
+    DTLS_MUTEX_UNLOCK(&_listener->accept_mutex);
 
     /* Close socket first to unblock DTLSv1_listen in the thread */
-    if (listener->socket_fd != INVALID_SOCKET_VAL) {
-        CLOSE_SOCKET(listener->socket_fd);
-        listener->socket_fd = INVALID_SOCKET_VAL;
+    if (_listener->socket_fd != INVALID_SOCKET_VAL) {
+        CLOSE_SOCKET(_listener->socket_fd);
+        _listener->socket_fd = INVALID_SOCKET_VAL;
     }
 
     /* Wait for listener thread */
 #ifdef _WIN32
-    WaitForSingleObject(listener->listen_thread, 5000);
-    CloseHandle(listener->listen_thread);
+    WaitForSingleObject(_listener->listen_thread, 5000);
+    CloseHandle(_listener->listen_thread);
 #else
-    pthread_join(listener->listen_thread, NULL);
+    pthread_join(_listener->listen_thread, NULL);
 #endif
 
-    SSL_CTX *ctx = listener->ssl_ctx;
-    RtArenaV2 *priv = listener->arena;
+    SSL_CTX *ctx = _listener->ssl_ctx;
+    RtArenaV2 *priv = _listener->arena;
 
     if (ctx != NULL) {
         SSL_CTX_free(ctx);
     }
 
-    DTLS_MUTEX_DESTROY(&listener->accept_mutex);
-    DTLS_COND_DESTROY(&listener->accept_cond);
+    DTLS_MUTEX_DESTROY(&_listener->accept_mutex);
+    DTLS_COND_DESTROY(&_listener->accept_cond);
 
     /* Destroy private arena — frees everything */
     if (priv != NULL) {

@@ -39,6 +39,9 @@ typedef struct RtSnBinaryFile {
     RtArenaV2 *arena;           /* Private arena — owns all internal allocations */
 } RtSnBinaryFile;
 
+/* Forward declaration for cleanup callback */
+static void sn_binary_file_cleanup(RtHandleV2 *h);
+
 /* ============================================================================
  * Static Methods
  * ============================================================================ */
@@ -54,7 +57,6 @@ RtHandleV2 *sn_binary_file_open(RtArenaV2 *arena, const char *path)
         fprintf(stderr, "SnBinaryFile.open: path is NULL\n");
         exit(1);
     }
-    (void)arena;
 
     /* Try to open in r+b (read/write binary, must exist) */
     FILE *fp = fopen(path, "r+b");
@@ -68,10 +70,15 @@ RtHandleV2 *sn_binary_file_open(RtArenaV2 *arena, const char *path)
         }
     }
 
-    /* Allocate file handle */
+    /* Allocate BinaryFile struct in a private arena so close() frees everything.
+     * The handle in the caller's arena uses EXTERN so GC won't double-free. */
     RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "binary_file");
-    RtHandleV2 *_h = rt_arena_v2_alloc(priv, sizeof(RtSnBinaryFile));
-    RtSnBinaryFile *file = (RtSnBinaryFile *)_h->ptr;
+    RtHandleV2 *priv_h = rt_arena_v2_alloc(priv, sizeof(RtSnBinaryFile));
+    RtHandleV2 *h = rt_arena_v2_alloc(arena, 1);
+    h->ptr = priv_h->ptr;
+    h->size = sizeof(RtSnBinaryFile);
+    h->flags |= RT_HANDLE_FLAG_EXTERN;
+    RtSnBinaryFile *file = (RtSnBinaryFile *)h->ptr;
     if (file == NULL) {
         fclose(fp);
         fprintf(stderr, "SnBinaryFile.open: memory allocation failed\n");
@@ -83,7 +90,11 @@ RtHandleV2 *sn_binary_file_open(RtArenaV2 *arena, const char *path)
     { RtHandleV2 *_path_h = rt_arena_v2_strdup(priv, path); file->path = (char *)_path_h->ptr; }
     file->is_open = 1;
 
-    return _h;
+    /* Register cleanup callback so GC can close the file and destroy the
+     * private arena if the handle becomes unreachable without explicit .close() */
+    rt_arena_v2_on_cleanup(arena, h, sn_binary_file_cleanup, 100);
+
+    return h;
 }
 
 /* Check if binary file exists without opening */
@@ -304,22 +315,23 @@ void sn_binary_file_move(const char *src, const char *dst)
  * ============================================================================ */
 
 /* Read single byte, returns -1 on EOF */
-long sn_binary_file_read_byte(RtSnBinaryFile *file)
+long sn_binary_file_read_byte(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.readByte: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.readByte: file is not open\n");
         exit(1);
     }
 
-    int c = fgetc((FILE *)file->fp);
+    int c = fgetc((FILE *)_file->fp);
     if (c == EOF) {
-        if (ferror((FILE *)file->fp)) {
+        if (ferror((FILE *)_file->fp)) {
             fprintf(stderr, "SnBinaryFile.readByte: read error on file '%s': %s\n",
-                    file->path ? file->path : "(unknown)", strerror(errno));
+                    _file->path ? _file->path : "(unknown)", strerror(errno));
             exit(1);
         }
         return -1;  /* EOF */
@@ -328,7 +340,7 @@ long sn_binary_file_read_byte(RtSnBinaryFile *file)
 }
 
 /* Read N bytes into new array */
-RtHandleV2 *sn_binary_file_read_bytes(RtArenaV2 *arena, RtSnBinaryFile *file, long count)
+RtHandleV2 *sn_binary_file_read_bytes(RtArenaV2 *arena, RtHandleV2 *file, long count)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.readBytes: arena is NULL\n");
@@ -338,7 +350,8 @@ RtHandleV2 *sn_binary_file_read_bytes(RtArenaV2 *arena, RtSnBinaryFile *file, lo
         fprintf(stderr, "SnBinaryFile.readBytes: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.readBytes: file is not open\n");
         exit(1);
     }
@@ -360,7 +373,7 @@ RtHandleV2 *sn_binary_file_read_bytes(RtArenaV2 *arena, RtSnBinaryFile *file, lo
     }
 
     /* Read bytes */
-    size_t bytes_read = fread(buf, 1, (size_t)count, (FILE *)file->fp);
+    size_t bytes_read = fread(buf, 1, (size_t)count, (FILE *)_file->fp);
 
     /* Create handle-based array with actual bytes read */
     RtHandleV2 *result = rt_array_create_generic_v2(arena, bytes_read, sizeof(unsigned char), buf);
@@ -369,7 +382,7 @@ RtHandleV2 *sn_binary_file_read_bytes(RtArenaV2 *arena, RtSnBinaryFile *file, lo
 }
 
 /* Read all remaining bytes from open file */
-RtHandleV2 *sn_binary_file_read_remaining(RtArenaV2 *arena, RtSnBinaryFile *file)
+RtHandleV2 *sn_binary_file_read_remaining(RtArenaV2 *arena, RtHandleV2 *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.readAll: arena is NULL\n");
@@ -379,38 +392,39 @@ RtHandleV2 *sn_binary_file_read_remaining(RtArenaV2 *arena, RtSnBinaryFile *file
         fprintf(stderr, "SnBinaryFile.readAll: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.readAll: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
 
     /* Get current position and file size */
     long current_pos = ftell(fp);
     if (current_pos < 0) {
         fprintf(stderr, "SnBinaryFile.readAll: failed to get position in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     if (fseek(fp, 0, SEEK_END) != 0) {
         fprintf(stderr, "SnBinaryFile.readAll: failed to seek in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     long end_pos = ftell(fp);
     if (end_pos < 0) {
         fprintf(stderr, "SnBinaryFile.readAll: failed to get size of file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     /* Seek back to current position */
     if (fseek(fp, current_pos, SEEK_SET) != 0) {
         fprintf(stderr, "SnBinaryFile.readAll: failed to seek in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
@@ -434,7 +448,7 @@ RtHandleV2 *sn_binary_file_read_remaining(RtArenaV2 *arena, RtSnBinaryFile *file
     if (ferror(fp)) {
         free(buf);
         fprintf(stderr, "SnBinaryFile.readAll: failed to read file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
@@ -445,13 +459,14 @@ RtHandleV2 *sn_binary_file_read_remaining(RtArenaV2 *arena, RtSnBinaryFile *file
 }
 
 /* Read into byte buffer, returns number of bytes read */
-long sn_binary_file_read_into(RtSnBinaryFile *file, unsigned char *buffer)
+long sn_binary_file_read_into(RtHandleV2 *file, unsigned char *buffer)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.readInto: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.readInto: file is not open\n");
         exit(1);
     }
@@ -466,13 +481,13 @@ long sn_binary_file_read_into(RtSnBinaryFile *file, unsigned char *buffer)
         return 0;  /* Empty buffer, nothing to read */
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
 
     /* Read up to buf_len bytes */
     size_t bytes_read = fread(buffer, 1, buf_len, fp);
     if (ferror(fp)) {
         fprintf(stderr, "SnBinaryFile.readInto: read error on file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
@@ -484,33 +499,35 @@ long sn_binary_file_read_into(RtSnBinaryFile *file, unsigned char *buffer)
  * ============================================================================ */
 
 /* Write single byte */
-void sn_binary_file_write_byte(RtSnBinaryFile *file, long b)
+void sn_binary_file_write_byte(RtHandleV2 *file, long b)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.writeByte: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.writeByte: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     if (fputc((unsigned char)b, fp) == EOF) {
         fprintf(stderr, "SnBinaryFile.writeByte: write error on file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 }
 
 /* Write byte array */
-void sn_binary_file_write_bytes(RtSnBinaryFile *file, unsigned char *data)
+void sn_binary_file_write_bytes(RtHandleV2 *file, unsigned char *data)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.writeBytes: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.writeBytes: file is not open\n");
         exit(1);
     }
@@ -518,13 +535,13 @@ void sn_binary_file_write_bytes(RtSnBinaryFile *file, unsigned char *data)
         return;  /* Nothing to write */
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     size_t len = rt_v2_data_array_length(data);
     if (len > 0) {
         size_t written = fwrite(data, 1, len, fp);
         if (written != len) {
             fprintf(stderr, "SnBinaryFile.writeBytes: write error on file '%s': %s\n",
-                    file->path ? file->path : "(unknown)", strerror(errno));
+                    _file->path ? _file->path : "(unknown)", strerror(errno));
             exit(1);
         }
     }
@@ -535,18 +552,19 @@ void sn_binary_file_write_bytes(RtSnBinaryFile *file, unsigned char *data)
  * ============================================================================ */
 
 /* Check if at end of file */
-int sn_binary_file_is_eof(RtSnBinaryFile *file)
+int sn_binary_file_is_eof(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.isEof: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.isEof: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     int c = fgetc(fp);
     if (c == EOF) {
         return 1;  /* At EOF */
@@ -556,18 +574,19 @@ int sn_binary_file_is_eof(RtSnBinaryFile *file)
 }
 
 /* Check if more bytes are available */
-int sn_binary_file_has_bytes(RtSnBinaryFile *file)
+int sn_binary_file_has_bytes(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.hasBytes: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.hasBytes: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     int c = fgetc(fp);
     if (c == EOF) {
         return 0;  /* No more bytes */
@@ -577,35 +596,37 @@ int sn_binary_file_has_bytes(RtSnBinaryFile *file)
 }
 
 /* Get current byte position */
-long sn_binary_file_position(RtSnBinaryFile *file)
+long sn_binary_file_position(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.position: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.position: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     long pos = ftell(fp);
     if (pos < 0) {
         fprintf(stderr, "SnBinaryFile.position: failed to get position in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
     return pos;
 }
 
 /* Seek to byte position */
-void sn_binary_file_seek(RtSnBinaryFile *file, long pos)
+void sn_binary_file_seek(RtHandleV2 *file, long pos)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.seek: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.seek: file is not open\n");
         exit(1);
     }
@@ -614,61 +635,84 @@ void sn_binary_file_seek(RtSnBinaryFile *file, long pos)
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     if (fseek(fp, pos, SEEK_SET) != 0) {
         fprintf(stderr, "SnBinaryFile.seek: failed to seek in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 }
 
 /* Return to beginning of file */
-void sn_binary_file_rewind(RtSnBinaryFile *file)
+void sn_binary_file_rewind(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.rewind: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.rewind: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     rewind(fp);
 }
 
 /* Force buffered data to disk */
-void sn_binary_file_flush(RtSnBinaryFile *file)
+void sn_binary_file_flush(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.flush: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.flush: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
     if (fflush(fp) != 0) {
         fprintf(stderr, "SnBinaryFile.flush: failed to flush file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 }
 
-/* Close the file */
-void sn_binary_file_close(RtSnBinaryFile *file)
+/* Cleanup callback — fires when GC collects the handle or arena is destroyed */
+static void sn_binary_file_cleanup(RtHandleV2 *h)
 {
-    if (file == NULL) {
-        return;
+    if (h == NULL || h->ptr == NULL) return;
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)h->ptr;
+
+    FILE *fp_val = (FILE *)_file->fp;
+    RtArenaV2 *priv = _file->arena;
+
+    if (_file->is_open && fp_val != NULL) {
+        fclose(fp_val);
     }
+    if (priv != NULL) {
+        rt_arena_v2_destroy(priv, false);
+    }
+    h->ptr = NULL;
+}
 
-    FILE *fp_val = (FILE *)file->fp;
-    RtArenaV2 *priv = file->arena;
+/* Close the file */
+void sn_binary_file_close(RtHandleV2 *file)
+{
+    if (file == NULL || file->ptr == NULL) return;
 
-    if (file->is_open && fp_val != NULL) {
+    /* Remove cleanup callback to prevent double-close */
+    rt_arena_v2_remove_cleanup(file->arena, file);
+
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+
+    FILE *fp_val = (FILE *)_file->fp;
+    RtArenaV2 *priv = _file->arena;
+
+    if (_file->is_open && fp_val != NULL) {
         fclose(fp_val);
     }
 
@@ -676,6 +720,7 @@ void sn_binary_file_close(RtSnBinaryFile *file)
     if (priv != NULL) {
         rt_arena_v2_destroy(priv, false);
     }
+    file->ptr = NULL;
 }
 
 /* ============================================================================
@@ -683,7 +728,7 @@ void sn_binary_file_close(RtSnBinaryFile *file)
  * ============================================================================ */
 
 /* Get full file path */
-RtHandleV2 *sn_binary_file_get_path(RtArenaV2 *arena, RtSnBinaryFile *file)
+RtHandleV2 *sn_binary_file_get_path(RtArenaV2 *arena, RtHandleV2 *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.path: arena is NULL\n");
@@ -693,16 +738,17 @@ RtHandleV2 *sn_binary_file_get_path(RtArenaV2 *arena, RtSnBinaryFile *file)
         fprintf(stderr, "SnBinaryFile.path: file is NULL\n");
         exit(1);
     }
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
 
-    if (file->path == NULL) {
+    if (_file->path == NULL) {
         return rt_arena_v2_strdup(arena,"");
     }
 
-    return rt_arena_v2_strdup(arena,file->path);
+    return rt_arena_v2_strdup(arena,_file->path);
 }
 
 /* Get filename only (without directory) */
-RtHandleV2 *sn_binary_file_get_name(RtArenaV2 *arena, RtSnBinaryFile *file)
+RtHandleV2 *sn_binary_file_get_name(RtArenaV2 *arena, RtHandleV2 *file)
 {
     if (arena == NULL) {
         fprintf(stderr, "SnBinaryFile.name: arena is NULL\n");
@@ -712,13 +758,14 @@ RtHandleV2 *sn_binary_file_get_name(RtArenaV2 *arena, RtSnBinaryFile *file)
         fprintf(stderr, "SnBinaryFile.name: file is NULL\n");
         exit(1);
     }
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
 
-    if (file->path == NULL) {
+    if (_file->path == NULL) {
         return rt_arena_v2_strdup(arena,"");
     }
 
     /* Find last path separator */
-    const char *path = file->path;
+    const char *path = _file->path;
     const char *last_sep = strrchr(path, '/');
 #ifdef _WIN32
     const char *last_backslash = strrchr(path, '\\');
@@ -732,45 +779,46 @@ RtHandleV2 *sn_binary_file_get_name(RtArenaV2 *arena, RtSnBinaryFile *file)
 }
 
 /* Get file size in bytes */
-long sn_binary_file_get_size(RtSnBinaryFile *file)
+long sn_binary_file_get_size(RtHandleV2 *file)
 {
     if (file == NULL) {
         fprintf(stderr, "SnBinaryFile.size: file is NULL\n");
         exit(1);
     }
-    if (!file->is_open || file->fp == NULL) {
+    RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
+    if (!_file->is_open || _file->fp == NULL) {
         fprintf(stderr, "SnBinaryFile.size: file is not open\n");
         exit(1);
     }
 
-    FILE *fp = (FILE *)file->fp;
+    FILE *fp = (FILE *)_file->fp;
 
     /* Save current position */
     long current_pos = ftell(fp);
     if (current_pos < 0) {
         fprintf(stderr, "SnBinaryFile.size: failed to get position in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     /* Seek to end to get size */
     if (fseek(fp, 0, SEEK_END) != 0) {
         fprintf(stderr, "SnBinaryFile.size: failed to seek in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     long size = ftell(fp);
     if (size < 0) {
         fprintf(stderr, "SnBinaryFile.size: failed to get size of file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 
     /* Restore original position */
     if (fseek(fp, current_pos, SEEK_SET) != 0) {
         fprintf(stderr, "SnBinaryFile.size: failed to restore position in file '%s': %s\n",
-                file->path ? file->path : "(unknown)", strerror(errno));
+                _file->path ? _file->path : "(unknown)", strerror(errno));
         exit(1);
     }
 

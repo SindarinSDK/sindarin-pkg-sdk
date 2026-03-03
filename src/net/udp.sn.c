@@ -317,8 +317,9 @@ RtHandleV2 *sn_udp_socket_bind(RtArenaV2 *arena, const char *address) {
  * ============================================================================ */
 
 /* Send datagram to address, return bytes sent */
-long sn_udp_socket_send_to(RtUdpSocket *socket_obj, unsigned char *data, const char *address) {
+long sn_udp_socket_send_to(RtHandleV2 *socket_obj, unsigned char *data, const char *address) {
     if (socket_obj == NULL || data == NULL || address == NULL) return 0;
+    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
 
     struct sockaddr_in dest_addr;
     if (!parse_dest_address(address, &dest_addr)) {
@@ -329,7 +330,7 @@ long sn_udp_socket_send_to(RtUdpSocket *socket_obj, unsigned char *data, const c
     size_t length = rt_v2_data_array_length(data);
     if (length == 0) return 0;
 
-    int bytes_sent = sendto(socket_obj->socket_fd, (const char *)data, (int)length, 0,
+    int bytes_sent = sendto(_socket_obj->socket_fd, (const char *)data, (int)length, 0,
                             (struct sockaddr *)&dest_addr, sizeof(dest_addr));
 
     if (bytes_sent < 0) {
@@ -341,7 +342,7 @@ long sn_udp_socket_send_to(RtUdpSocket *socket_obj, unsigned char *data, const c
 }
 
 /* Receive datagram and sender address */
-RtHandleV2 *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *socket_obj, long maxBytes) {
+RtHandleV2 *sn_udp_socket_receive_from(RtArenaV2 *arena, RtHandleV2 *socket_obj, long maxBytes) {
     RtHandleV2 *_result_h = rt_arena_v2_alloc(arena, sizeof(RtUdpReceiveResult));
     RtUdpReceiveResult *result = (RtUdpReceiveResult *)_result_h->ptr;
     if (result == NULL) {
@@ -356,9 +357,11 @@ RtHandleV2 *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *socket_obj
         return _result_h;
     }
 
+    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
+
     /* Wait for data with timeout if configured */
-    if (socket_obj->recv_timeout_ms >= 0) {
-        int wait_result = udp_wait_readable(socket_obj);
+    if (_socket_obj->recv_timeout_ms >= 0) {
+        int wait_result = udp_wait_readable(_socket_obj);
         if (wait_result == 0) {
             result->data = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
             RtHandleV2 *_sender_h = rt_arena_v2_strdup(arena, "");
@@ -381,7 +384,7 @@ RtHandleV2 *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *socket_obj
     struct sockaddr_in sender_addr;
     socklen_t sender_len = sizeof(sender_addr);
 
-    int bytes_received = recvfrom(socket_obj->socket_fd, (char *)temp,
+    int bytes_received = recvfrom(_socket_obj->socket_fd, (char *)temp,
                                    (int)maxBytes, 0, (struct sockaddr *)&sender_addr, &sender_len);
 
     if (bytes_received < 0) {
@@ -412,9 +415,10 @@ RtHandleV2 *sn_udp_socket_receive_from(RtArenaV2 *arena, RtUdpSocket *socket_obj
  * UdpSocket Getters
  * ============================================================================ */
 
-long sn_udp_socket_get_port(RtUdpSocket *socket_obj) {
+long sn_udp_socket_get_port(RtHandleV2 *socket_obj) {
     if (socket_obj == NULL) return 0;
-    return socket_obj->bound_port;
+    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
+    return _socket_obj->bound_port;
 }
 
 /* ============================================================================
@@ -422,26 +426,29 @@ long sn_udp_socket_get_port(RtUdpSocket *socket_obj) {
  * ============================================================================ */
 
 /* Set receive timeout in milliseconds (-1 = blocking, 0 = non-blocking) */
-void sn_udp_socket_set_timeout(RtUdpSocket *socket_obj, long timeout_ms) {
+void sn_udp_socket_set_timeout(RtHandleV2 *socket_obj, long timeout_ms) {
     if (socket_obj == NULL) return;
-    socket_obj->recv_timeout_ms = (int)timeout_ms;
+    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
+    _socket_obj->recv_timeout_ms = (int)timeout_ms;
 }
 
 /* Get current receive timeout */
-long sn_udp_socket_get_timeout(RtUdpSocket *socket_obj) {
+long sn_udp_socket_get_timeout(RtHandleV2 *socket_obj) {
     if (socket_obj == NULL) return -1;
-    return socket_obj->recv_timeout_ms;
+    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
+    return _socket_obj->recv_timeout_ms;
 }
 
 /* ============================================================================
  * UdpSocket Lifecycle
  * ============================================================================ */
 
-void sn_udp_socket_close(RtUdpSocket *socket_obj) {
+void sn_udp_socket_close(RtHandleV2 *socket_obj) {
     if (socket_obj == NULL) return;
+    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
 
-    socket_t fd = socket_obj->socket_fd;
-    RtArenaV2 *priv = socket_obj->arena;
+    socket_t fd = _socket_obj->socket_fd;
+    RtArenaV2 *priv = _socket_obj->arena;
 
     if (fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(fd);
@@ -457,16 +464,24 @@ void sn_udp_socket_close(RtUdpSocket *socket_obj) {
  * UdpReceiveResult Getters
  * ============================================================================ */
 
-RtHandleV2 *sn_udp_result_get_data(RtArenaV2 *arena, RtUdpReceiveResult *result) {
-    if (result == NULL || result->data == NULL) {
+RtHandleV2 *sn_udp_result_get_data(RtArenaV2 *arena, RtHandleV2 *result) {
+    if (result == NULL) {
         return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
-    return result->data;
+    RtUdpReceiveResult *_result = (RtUdpReceiveResult *)result->ptr;
+    if (_result->data == NULL) {
+        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+    }
+    return _result->data;
 }
 
-RtHandleV2 *sn_udp_result_get_sender(RtArenaV2 *arena, RtUdpReceiveResult *result) {
-    if (result == NULL || result->sender == NULL) {
+RtHandleV2 *sn_udp_result_get_sender(RtArenaV2 *arena, RtHandleV2 *result) {
+    if (result == NULL) {
         return rt_arena_v2_strdup(arena, "");
     }
-    return rt_arena_v2_strdup(arena, result->sender);
+    RtUdpReceiveResult *_result = (RtUdpReceiveResult *)result->ptr;
+    if (_result->sender == NULL) {
+        return rt_arena_v2_strdup(arena, "");
+    }
+    return rt_arena_v2_strdup(arena, _result->sender);
 }

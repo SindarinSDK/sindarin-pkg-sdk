@@ -1536,38 +1536,48 @@ RtHandleV2 *sn_quic_config_defaults(RtArenaV2 *arena) {
     return _h;
 }
 
-RtHandleV2 *sn_quic_config_set_max_bidi_streams(RtArenaV2 *arena, RtQuicConfig *config, int n) {
-    config->max_bidi_streams = n;
+RtHandleV2 *sn_quic_config_set_max_bidi_streams(RtArenaV2 *arena, RtHandleV2 *config, int n) {
+    if (config == NULL) return NULL;
+    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    _config->max_bidi_streams = n;
     RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, config, sizeof(RtQuicConfig));
+    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
     return _ret_h;
 }
 
-RtHandleV2 *sn_quic_config_set_max_uni_streams(RtArenaV2 *arena, RtQuicConfig *config, int n) {
-    config->max_uni_streams = n;
+RtHandleV2 *sn_quic_config_set_max_uni_streams(RtArenaV2 *arena, RtHandleV2 *config, int n) {
+    if (config == NULL) return NULL;
+    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    _config->max_uni_streams = n;
     RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, config, sizeof(RtQuicConfig));
+    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
     return _ret_h;
 }
 
-RtHandleV2 *sn_quic_config_set_max_stream_window(RtArenaV2 *arena, RtQuicConfig *config, int bytes) {
-    config->max_stream_window = bytes;
+RtHandleV2 *sn_quic_config_set_max_stream_window(RtArenaV2 *arena, RtHandleV2 *config, int bytes) {
+    if (config == NULL) return NULL;
+    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    _config->max_stream_window = bytes;
     RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, config, sizeof(RtQuicConfig));
+    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
     return _ret_h;
 }
 
-RtHandleV2 *sn_quic_config_set_max_conn_window(RtArenaV2 *arena, RtQuicConfig *config, int bytes) {
-    config->max_conn_window = bytes;
+RtHandleV2 *sn_quic_config_set_max_conn_window(RtArenaV2 *arena, RtHandleV2 *config, int bytes) {
+    if (config == NULL) return NULL;
+    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    _config->max_conn_window = bytes;
     RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, config, sizeof(RtQuicConfig));
+    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
     return _ret_h;
 }
 
-RtHandleV2 *sn_quic_config_set_idle_timeout(RtArenaV2 *arena, RtQuicConfig *config, int ms) {
-    config->idle_timeout_ms = ms;
+RtHandleV2 *sn_quic_config_set_idle_timeout(RtArenaV2 *arena, RtHandleV2 *config, int ms) {
+    if (config == NULL) return NULL;
+    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    _config->idle_timeout_ms = ms;
     RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, config, sizeof(RtQuicConfig));
+    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
     return _ret_h;
 }
 
@@ -1575,71 +1585,74 @@ RtHandleV2 *sn_quic_config_set_idle_timeout(RtArenaV2 *arena, RtQuicConfig *conf
  * QuicStream API
  * ============================================================================ */
 
-RtHandleV2 *sn_quic_stream_read(RtArenaV2 *arena, RtQuicStream *stream, long maxBytes) {
+RtHandleV2 *sn_quic_stream_read(RtArenaV2 *arena, RtHandleV2 *stream, long maxBytes) {
     if (!stream || maxBytes <= 0) {
         return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
+    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
 
-    MUTEX_LOCK(&stream->stream_mutex);
+    MUTEX_LOCK(&_stream->stream_mutex);
 
     /* Wait for data or FIN */
-    while (stream_buf_available(&stream->recv_buf) == 0 &&
-           !stream->recv_buf.fin_received && !stream->closed) {
-        COND_WAIT(&stream->read_cond, &stream->stream_mutex);
+    while (stream_buf_available(&_stream->recv_buf) == 0 &&
+           !_stream->recv_buf.fin_received && !_stream->closed) {
+        COND_WAIT(&_stream->read_cond, &_stream->stream_mutex);
     }
 
-    size_t avail = stream_buf_available(&stream->recv_buf);
+    size_t avail = stream_buf_available(&_stream->recv_buf);
     if (avail == 0) {
-        MUTEX_UNLOCK(&stream->stream_mutex);
+        MUTEX_UNLOCK(&_stream->stream_mutex);
         return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
     size_t to_read = avail < (size_t)maxBytes ? avail : (size_t)maxBytes;
     RtHandleV2 *result = rt_array_create_generic_v2(arena, to_read, sizeof(unsigned char),
-        stream->recv_buf.data + stream->recv_buf.read_pos);
-    stream->recv_buf.read_pos += to_read;
+        _stream->recv_buf.data + _stream->recv_buf.read_pos);
+    _stream->recv_buf.read_pos += to_read;
 
-    MUTEX_UNLOCK(&stream->stream_mutex);
+    MUTEX_UNLOCK(&_stream->stream_mutex);
     return result;
 }
 
-RtHandleV2 *sn_quic_stream_read_all(RtArenaV2 *arena, RtQuicStream *stream) {
+RtHandleV2 *sn_quic_stream_read_all(RtArenaV2 *arena, RtHandleV2 *stream) {
     if (!stream) {
         return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
+    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
 
-    MUTEX_LOCK(&stream->stream_mutex);
+    MUTEX_LOCK(&_stream->stream_mutex);
 
     /* Wait for FIN or close */
-    while (!stream->recv_buf.fin_received && !stream->closed) {
-        COND_WAIT(&stream->read_cond, &stream->stream_mutex);
+    while (!_stream->recv_buf.fin_received && !_stream->closed) {
+        COND_WAIT(&_stream->read_cond, &_stream->stream_mutex);
     }
 
-    size_t avail = stream_buf_available(&stream->recv_buf);
+    size_t avail = stream_buf_available(&_stream->recv_buf);
     RtHandleV2 *result;
     if (avail > 0) {
         result = rt_array_create_generic_v2(arena, avail, sizeof(unsigned char),
-            stream->recv_buf.data + stream->recv_buf.read_pos);
-        stream->recv_buf.read_pos += avail;
+            _stream->recv_buf.data + _stream->recv_buf.read_pos);
+        _stream->recv_buf.read_pos += avail;
     } else {
         result = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
-    MUTEX_UNLOCK(&stream->stream_mutex);
+    MUTEX_UNLOCK(&_stream->stream_mutex);
     return result;
 }
 
-RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtQuicStream *stream) {
+RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
     if (!stream) {
         return rt_arena_v2_strdup(arena, "");
     }
+    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
 
-    MUTEX_LOCK(&stream->stream_mutex);
+    MUTEX_LOCK(&_stream->stream_mutex);
 
     /* Wait for newline, FIN, or close */
     for (;;) {
-        size_t avail = stream_buf_available(&stream->recv_buf);
-        uint8_t *start = stream->recv_buf.data + stream->recv_buf.read_pos;
+        size_t avail = stream_buf_available(&_stream->recv_buf);
+        uint8_t *start = _stream->recv_buf.data + _stream->recv_buf.read_pos;
 
         /* Search for newline */
         for (size_t i = 0; i < avail; i++) {
@@ -1653,37 +1666,38 @@ RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtQuicStream *stream) {
                 char *temp = (char *)_line_h->ptr;
                 memcpy(temp, start, line_len);
                 temp[line_len] = '\0';
-                stream->recv_buf.read_pos += i + 1;
-                MUTEX_UNLOCK(&stream->stream_mutex);
+                _stream->recv_buf.read_pos += i + 1;
+                MUTEX_UNLOCK(&_stream->stream_mutex);
                 return rt_arena_v2_strdup(arena, temp);
             }
         }
 
-        if (stream->recv_buf.fin_received || stream->closed) {
+        if (_stream->recv_buf.fin_received || _stream->closed) {
             /* Return remaining data as last line */
             RtHandleV2 *_rem_h = rt_arena_v2_alloc(arena, avail + 1);
             char *temp = (char *)_rem_h->ptr;
             if (avail > 0) memcpy(temp, start, avail);
             temp[avail] = '\0';
-            stream->recv_buf.read_pos += avail;
-            MUTEX_UNLOCK(&stream->stream_mutex);
+            _stream->recv_buf.read_pos += avail;
+            MUTEX_UNLOCK(&_stream->stream_mutex);
             return rt_arena_v2_strdup(arena, temp);
         }
 
-        COND_WAIT(&stream->read_cond, &stream->stream_mutex);
+        COND_WAIT(&_stream->read_cond, &_stream->stream_mutex);
     }
 }
 
-long sn_quic_stream_write(RtQuicStream *stream, unsigned char *data) {
+long sn_quic_stream_write(RtHandleV2 *stream, unsigned char *data) {
     if (!stream || !data) return 0;
+    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
     size_t data_len = rt_v2_data_array_length(data);
     if (data_len == 0) return 0;
 
-    RtQuicConnection *conn = (RtQuicConnection *)stream->conn_ptr;
+    RtQuicConnection *conn = (RtQuicConnection *)_stream->conn_ptr;
 
     MUTEX_LOCK(&conn->conn_mutex);
 
-    if (conn->closed || stream->write_closed) {
+    if (conn->closed || _stream->write_closed) {
         MUTEX_UNLOCK(&conn->conn_mutex);
         return 0;
     }
@@ -1706,7 +1720,7 @@ long sn_quic_stream_write(RtQuicStream *stream, unsigned char *data) {
             buf, sizeof(buf),
             &ndatalen,
             NGTCP2_WRITE_STREAM_FLAG_NONE,
-            stream->stream_id, &v, 1, quic_timestamp());
+            _stream->stream_id, &v, 1, quic_timestamp());
 
         if (nwrite < 0) {
             if (nwrite == NGTCP2_ERR_WRITE_MORE) {
@@ -1729,8 +1743,9 @@ long sn_quic_stream_write(RtQuicStream *stream, unsigned char *data) {
     return (long)total_written;
 }
 
-void sn_quic_stream_write_line(RtQuicStream *stream, const char *text) {
+void sn_quic_stream_write_line(RtHandleV2 *stream, const char *text) {
     if (!stream || !text) return;
+    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
 
     size_t text_len = strlen(text);
     size_t total_len = text_len + 1; /* text + \n */
@@ -1739,10 +1754,10 @@ void sn_quic_stream_write_line(RtQuicStream *stream, const char *text) {
     memcpy(buf, text, text_len);
     buf[text_len] = '\n';
 
-    RtQuicConnection *conn = (RtQuicConnection *)stream->conn_ptr;
+    RtQuicConnection *conn = (RtQuicConnection *)_stream->conn_ptr;
     MUTEX_LOCK(&conn->conn_mutex);
 
-    if (conn->closed || stream->write_closed) {
+    if (conn->closed || _stream->write_closed) {
         MUTEX_UNLOCK(&conn->conn_mutex);
         free(buf);
         return;
@@ -1766,7 +1781,7 @@ void sn_quic_stream_write_line(RtQuicStream *stream, const char *text) {
             pkt, sizeof(pkt),
             &ndatalen,
             NGTCP2_WRITE_STREAM_FLAG_NONE,
-            stream->stream_id, &v, 1, quic_timestamp());
+            _stream->stream_id, &v, 1, quic_timestamp());
 
         if (nwrite < 0) {
             if (nwrite == NGTCP2_ERR_WRITE_MORE) {
@@ -1789,18 +1804,24 @@ void sn_quic_stream_write_line(RtQuicStream *stream, const char *text) {
     free(buf);
 }
 
-int64_t sn_quic_stream_get_id(RtQuicStream *stream) {
-    return stream ? stream->stream_id : -1;
+int64_t sn_quic_stream_get_id(RtHandleV2 *stream) {
+    if (!stream) return -1;
+    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    return _stream->stream_id;
 }
 
-bool sn_quic_stream_is_unidirectional(RtQuicStream *stream) {
-    return stream ? stream->is_uni : false;
+bool sn_quic_stream_is_unidirectional(RtHandleV2 *stream) {
+    if (!stream) return false;
+    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    return _stream->is_uni;
 }
 
-void sn_quic_stream_close(RtQuicStream *stream) {
-    if (!stream || stream->closed) return;
+void sn_quic_stream_close(RtHandleV2 *stream) {
+    if (!stream) return;
+    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    if (_stream->closed) return;
 
-    RtQuicConnection *conn = (RtQuicConnection *)stream->conn_ptr;
+    RtQuicConnection *conn = (RtQuicConnection *)_stream->conn_ptr;
 
     MUTEX_LOCK(&conn->conn_mutex);
 
@@ -1817,7 +1838,7 @@ void sn_quic_stream_close(RtQuicStream *stream) {
             buf, sizeof(buf),
             &ndatalen,
             NGTCP2_WRITE_STREAM_FLAG_FIN,
-            stream->stream_id, NULL, 0, quic_timestamp());
+            _stream->stream_id, NULL, 0, quic_timestamp());
 
         if (nwrite > 0) {
             quic_send_packet(conn, buf, (size_t)nwrite);
@@ -1826,11 +1847,11 @@ void sn_quic_stream_close(RtQuicStream *stream) {
 
     MUTEX_UNLOCK(&conn->conn_mutex);
 
-    MUTEX_LOCK(&stream->stream_mutex);
-    stream->write_closed = true;
-    stream->closed = true;
-    COND_BROADCAST(&stream->read_cond);
-    MUTEX_UNLOCK(&stream->stream_mutex);
+    MUTEX_LOCK(&_stream->stream_mutex);
+    _stream->write_closed = true;
+    _stream->closed = true;
+    COND_BROADCAST(&_stream->read_cond);
+    MUTEX_UNLOCK(&_stream->stream_mutex);
 }
 
 /* ============================================================================
@@ -1842,8 +1863,10 @@ RtHandleV2 *sn_quic_connection_connect(RtArenaV2 *arena, const char *address) {
 }
 
 RtHandleV2 *sn_quic_connection_connect_with(RtArenaV2 *arena, const char *address,
-                                              RtQuicConfig *config) {
-    return quic_connection_create(arena, address, config, false, NULL, 0);
+                                              RtHandleV2 *config) {
+    if (config == NULL) return NULL;
+    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    return quic_connection_create(arena, address, _config, false, NULL, 0);
 }
 
 RtHandleV2 *sn_quic_connection_connect_early(RtArenaV2 *arena, const char *address,
@@ -1855,79 +1878,88 @@ RtHandleV2 *sn_quic_connection_connect_early(RtArenaV2 *arena, const char *addre
                                    (const uint8_t *)token, rt_v2_data_array_length(token));
 }
 
-RtHandleV2 *sn_quic_connection_open_stream(RtArenaV2 *arena, RtQuicConnection *conn) {
-    if (!conn || conn->closed) return NULL;
+RtHandleV2 *sn_quic_connection_open_stream(RtArenaV2 *arena, RtHandleV2 *conn) {
+    if (conn == NULL) return NULL;
+    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    if (_conn->closed) return NULL;
     (void)arena;
 
-    MUTEX_LOCK(&conn->conn_mutex);
+    MUTEX_LOCK(&_conn->conn_mutex);
 
     int64_t stream_id;
-    int rv = ngtcp2_conn_open_bidi_stream(conn->qconn, &stream_id, NULL);
+    int rv = ngtcp2_conn_open_bidi_stream(_conn->qconn, &stream_id, NULL);
     if (rv != 0) {
-        MUTEX_UNLOCK(&conn->conn_mutex);
+        MUTEX_UNLOCK(&_conn->conn_mutex);
         fprintf(stderr, "QUIC: Failed to open bidi stream: %s\n", ngtcp2_strerror(rv));
         return NULL;
     }
 
-    RtQuicStream *stream = quic_find_or_create_stream(conn, stream_id);
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
+    MUTEX_UNLOCK(&_conn->conn_mutex);
     return stream ? stream->_handle : NULL;
 }
 
-RtHandleV2 *sn_quic_connection_open_uni_stream(RtArenaV2 *arena, RtQuicConnection *conn) {
-    if (!conn || conn->closed) return NULL;
+RtHandleV2 *sn_quic_connection_open_uni_stream(RtArenaV2 *arena, RtHandleV2 *conn) {
+    if (conn == NULL) return NULL;
+    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    if (_conn->closed) return NULL;
     (void)arena;
 
-    MUTEX_LOCK(&conn->conn_mutex);
+    MUTEX_LOCK(&_conn->conn_mutex);
 
     int64_t stream_id;
-    int rv = ngtcp2_conn_open_uni_stream(conn->qconn, &stream_id, NULL);
+    int rv = ngtcp2_conn_open_uni_stream(_conn->qconn, &stream_id, NULL);
     if (rv != 0) {
-        MUTEX_UNLOCK(&conn->conn_mutex);
+        MUTEX_UNLOCK(&_conn->conn_mutex);
         fprintf(stderr, "QUIC: Failed to open uni stream: %s\n", ngtcp2_strerror(rv));
         return NULL;
     }
 
-    RtQuicStream *stream = quic_find_or_create_stream(conn, stream_id);
+    RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
     if (stream) stream->is_uni = true;
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    MUTEX_UNLOCK(&_conn->conn_mutex);
     return stream ? stream->_handle : NULL;
 }
 
-RtHandleV2 *sn_quic_connection_accept_stream(RtArenaV2 *arena, RtQuicConnection *conn) {
-    if (!conn) return NULL;
+RtHandleV2 *sn_quic_connection_accept_stream(RtArenaV2 *arena, RtHandleV2 *conn) {
+    if (conn == NULL) return NULL;
+    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
     (void)arena;
 
-    MUTEX_LOCK(&conn->conn_mutex);
+    MUTEX_LOCK(&_conn->conn_mutex);
 
-    while (conn->incoming_count == 0 && !conn->closed) {
-        COND_WAIT(&conn->accept_stream_cond, &conn->conn_mutex);
+    while (_conn->incoming_count == 0 && !_conn->closed) {
+        COND_WAIT(&_conn->accept_stream_cond, &_conn->conn_mutex);
     }
 
-    if (conn->closed || conn->incoming_count == 0) {
-        MUTEX_UNLOCK(&conn->conn_mutex);
+    if (_conn->closed || _conn->incoming_count == 0) {
+        MUTEX_UNLOCK(&_conn->conn_mutex);
         return NULL;
     }
 
-    int64_t stream_id = conn->incoming_streams[conn->incoming_head];
-    conn->incoming_head = (conn->incoming_head + 1) % QUIC_MAX_INCOMING_STREAMS;
-    conn->incoming_count--;
+    int64_t stream_id = _conn->incoming_streams[_conn->incoming_head];
+    _conn->incoming_head = (_conn->incoming_head + 1) % QUIC_MAX_INCOMING_STREAMS;
+    _conn->incoming_count--;
 
-    RtQuicStream *stream = quic_find_or_create_stream(conn, stream_id);
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
+    MUTEX_UNLOCK(&_conn->conn_mutex);
     return stream ? stream->_handle : NULL;
 }
 
-RtHandleV2 *sn_quic_connection_resumption_token(RtArenaV2 *arena, RtQuicConnection *conn) {
-    if (!conn || !conn->resumption_token || conn->resumption_token_len == 0) {
+RtHandleV2 *sn_quic_connection_resumption_token(RtArenaV2 *arena, RtHandleV2 *conn) {
+    if (conn == NULL) return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    if (!_conn->resumption_token || _conn->resumption_token_len == 0) {
         return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
     }
 
-    return rt_array_create_generic_v2(arena, conn->resumption_token_len, sizeof(unsigned char), conn->resumption_token);
+    return rt_array_create_generic_v2(arena, _conn->resumption_token_len, sizeof(unsigned char), _conn->resumption_token);
 }
 
-void sn_quic_connection_migrate(RtQuicConnection *conn, const char *newLocalAddress) {
-    if (!conn || conn->closed || !newLocalAddress) return;
+void sn_quic_connection_migrate(RtHandleV2 *conn, const char *newLocalAddress) {
+    if (conn == NULL) return;
+    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    if (_conn->closed || !newLocalAddress) return;
 
     char host[256], port[16];
     if (parse_address(newLocalAddress, host, sizeof(host), port, sizeof(port)) != 0) {
@@ -1958,7 +1990,7 @@ void sn_quic_connection_migrate(RtQuicConnection *conn, const char *newLocalAddr
     }
 
     /* Connect to remote */
-    if (connect(new_sock, (struct sockaddr *)&conn->remote_addr, conn->remote_addrlen) != 0) {
+    if (connect(new_sock, (struct sockaddr *)&_conn->remote_addr, _conn->remote_addrlen) != 0) {
         CLOSE_SOCKET(new_sock);
         freeaddrinfo(res);
         return;
@@ -1971,52 +2003,56 @@ void sn_quic_connection_migrate(RtQuicConnection *conn, const char *newLocalAddr
     socklen_t new_local_len = sizeof(new_local);
     getsockname(new_sock, (struct sockaddr *)&new_local, &new_local_len);
 
-    MUTEX_LOCK(&conn->conn_mutex);
+    MUTEX_LOCK(&_conn->conn_mutex);
 
     /* Tell ngtcp2 about migration */
     ngtcp2_path new_path;
     memset(&new_path, 0, sizeof(new_path));
     new_path.local.addr = (struct sockaddr *)&new_local;
     new_path.local.addrlen = new_local_len;
-    new_path.remote.addr = (struct sockaddr *)&conn->remote_addr;
-    new_path.remote.addrlen = conn->remote_addrlen;
+    new_path.remote.addr = (struct sockaddr *)&_conn->remote_addr;
+    new_path.remote.addrlen = _conn->remote_addrlen;
 
     ngtcp2_addr addr;
     addr.addr = (struct sockaddr *)&new_local;
     addr.addrlen = new_local_len;
 
-    int rv = ngtcp2_conn_initiate_immediate_migration(conn->qconn, &new_path, quic_timestamp());
+    int rv = ngtcp2_conn_initiate_immediate_migration(_conn->qconn, &new_path, quic_timestamp());
     if (rv == 0) {
         /* Swap sockets */
-        socket_t old_sock = conn->socket_fd;
-        conn->socket_fd = new_sock;
-        memcpy(&conn->local_addr, &new_local, new_local_len);
-        conn->local_addrlen = new_local_len;
+        socket_t old_sock = _conn->socket_fd;
+        _conn->socket_fd = new_sock;
+        memcpy(&_conn->local_addr, &new_local, new_local_len);
+        _conn->local_addrlen = new_local_len;
         CLOSE_SOCKET(old_sock);
 
-        quic_flush_tx(conn);
+        quic_flush_tx(_conn);
     } else {
         CLOSE_SOCKET(new_sock);
     }
 
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    MUTEX_UNLOCK(&_conn->conn_mutex);
     freeaddrinfo(res);
 }
 
-RtHandleV2 *sn_quic_connection_remote_address(RtArenaV2 *arena, RtQuicConnection *conn) {
-    if (!conn || !conn->remote_addr_str) {
+RtHandleV2 *sn_quic_connection_remote_address(RtArenaV2 *arena, RtHandleV2 *conn) {
+    if (conn == NULL) return rt_arena_v2_strdup(arena, "");
+    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    if (!_conn->remote_addr_str) {
         return rt_arena_v2_strdup(arena, "");
     }
-    return rt_arena_v2_strdup(arena, conn->remote_addr_str);
+    return rt_arena_v2_strdup(arena, _conn->remote_addr_str);
 }
 
-void sn_quic_connection_close(RtQuicConnection *conn) {
-    if (!conn || conn->closed) return;
+void sn_quic_connection_close(RtHandleV2 *conn) {
+    if (conn == NULL) return;
+    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    if (_conn->closed) return;
 
-    MUTEX_LOCK(&conn->conn_mutex);
-    conn->closed = true;
+    MUTEX_LOCK(&_conn->conn_mutex);
+    _conn->closed = true;
 
-    if (conn->qconn) {
+    if (_conn->qconn) {
         /* Send connection close frame */
         uint8_t buf[QUIC_MAX_PACKET_SIZE];
         ngtcp2_path_storage ps;
@@ -2026,27 +2062,27 @@ void sn_quic_connection_close(RtQuicConnection *conn) {
         ngtcp2_ccerr_default(&ccerr);
 
         ngtcp2_ssize nwrite = ngtcp2_conn_write_connection_close(
-            conn->qconn, &ps.path, &pi,
+            _conn->qconn, &ps.path, &pi,
             buf, sizeof(buf), &ccerr, quic_timestamp());
 
         if (nwrite > 0) {
-            quic_send_packet(conn, buf, (size_t)nwrite);
+            quic_send_packet(_conn, buf, (size_t)nwrite);
         }
     }
 
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    MUTEX_UNLOCK(&_conn->conn_mutex);
 
     /* Signal all waiting threads */
-    COND_BROADCAST(&conn->handshake_cond);
-    COND_BROADCAST(&conn->accept_stream_cond);
+    COND_BROADCAST(&_conn->handshake_cond);
+    COND_BROADCAST(&_conn->accept_stream_cond);
 
     /* Signal all streams */
-    for (int i = 0; i < conn->stream_count; i++) {
-        if (conn->streams[i]) {
-            MUTEX_LOCK(&conn->streams[i]->stream_mutex);
-            conn->streams[i]->closed = true;
-            COND_BROADCAST(&conn->streams[i]->read_cond);
-            MUTEX_UNLOCK(&conn->streams[i]->stream_mutex);
+    for (int i = 0; i < _conn->stream_count; i++) {
+        if (_conn->streams[i]) {
+            MUTEX_LOCK(&_conn->streams[i]->stream_mutex);
+            _conn->streams[i]->closed = true;
+            COND_BROADCAST(&_conn->streams[i]->read_cond);
+            MUTEX_UNLOCK(&_conn->streams[i]->stream_mutex);
         }
     }
 
@@ -2054,27 +2090,27 @@ void sn_quic_connection_close(RtQuicConnection *conn) {
      * The listener thread may still be using qconn, SSL, and streams,
      * so cleanup is deferred to sn_quic_listener_close() after the
      * listener thread is joined. */
-    if (conn->is_server) {
+    if (_conn->is_server) {
         return;
     }
 
     /* Save OS resources and arena pointer before destroying */
-    RtArenaV2 *priv = conn->arena;
-    SSL *ssl = conn->ssl;
-    ngtcp2_crypto_ossl_ctx *ossl_ctx = conn->ossl_ctx;
-    SSL_CTX *ssl_ctx = conn->ssl_ctx;
-    ngtcp2_conn *qconn = conn->qconn;
-    socket_t sock = conn->socket_fd;
-    uint8_t *token = conn->resumption_token;
-    bool io_was_running = conn->io_running;
-    sn_thread_t io_thread = conn->io_thread;
-    int stream_count = conn->stream_count;
+    RtArenaV2 *priv = _conn->arena;
+    SSL *ssl = _conn->ssl;
+    ngtcp2_crypto_ossl_ctx *ossl_ctx = _conn->ossl_ctx;
+    SSL_CTX *ssl_ctx = _conn->ssl_ctx;
+    ngtcp2_conn *qconn = _conn->qconn;
+    socket_t sock = _conn->socket_fd;
+    uint8_t *token = _conn->resumption_token;
+    bool io_was_running = _conn->io_running;
+    sn_thread_t io_thread = _conn->io_thread;
+    int stream_count = _conn->stream_count;
     RtQuicStream *streams_copy[QUIC_MAX_STREAMS];
-    for (int i = 0; i < stream_count; i++) streams_copy[i] = conn->streams[i];
+    for (int i = 0; i < stream_count; i++) streams_copy[i] = _conn->streams[i];
 
     /* Stop and join I/O thread (client connections only) */
     if (io_was_running) {
-        conn->io_running = false;
+        _conn->io_running = false;
 #ifdef _WIN32
         WaitForSingleObject(io_thread, 5000);
         CloseHandle(io_thread);
@@ -2111,9 +2147,9 @@ void sn_quic_connection_close(RtQuicConnection *conn) {
         free(token);
     }
 
-    MUTEX_DESTROY(&conn->conn_mutex);
-    COND_DESTROY(&conn->handshake_cond);
-    COND_DESTROY(&conn->accept_stream_cond);
+    MUTEX_DESTROY(&_conn->conn_mutex);
+    COND_DESTROY(&_conn->handshake_cond);
+    COND_DESTROY(&_conn->accept_stream_cond);
 
     /* Destroy private arena — frees connection struct and all internal allocations */
     if (priv != NULL) {
@@ -2238,70 +2274,77 @@ RtHandleV2 *sn_quic_listener_bind(RtArenaV2 *arena, const char *address,
 
 RtHandleV2 *sn_quic_listener_bind_with(RtArenaV2 *arena, const char *address,
                                          const char *certFile, const char *keyFile,
-                                         RtQuicConfig *config) {
-    return quic_listener_create(arena, address, certFile, keyFile, config);
+                                         RtHandleV2 *config) {
+    if (config == NULL) return NULL;
+    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    return quic_listener_create(arena, address, certFile, keyFile, _config);
 }
 
-RtHandleV2 *sn_quic_listener_accept(RtArenaV2 *arena, RtQuicListener *listener) {
-    if (!listener) return NULL;
+RtHandleV2 *sn_quic_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
+    if (listener == NULL) return NULL;
+    RtQuicListener *_listener = (RtQuicListener *)listener->ptr;
     (void)arena;
 
-    MUTEX_LOCK(&listener->accept_mutex);
+    MUTEX_LOCK(&_listener->accept_mutex);
 
-    while (listener->accept_count == 0 && listener->running) {
-        COND_WAIT(&listener->accept_cond, &listener->accept_mutex);
+    while (_listener->accept_count == 0 && _listener->running) {
+        COND_WAIT(&_listener->accept_cond, &_listener->accept_mutex);
     }
 
-    if (!listener->running || listener->accept_count == 0) {
-        MUTEX_UNLOCK(&listener->accept_mutex);
+    if (!_listener->running || _listener->accept_count == 0) {
+        MUTEX_UNLOCK(&_listener->accept_mutex);
         return NULL;
     }
 
-    RtHandleV2 *conn_h = listener->accept_queue[listener->accept_head];
-    listener->accept_head = (listener->accept_head + 1) % QUIC_MAX_INCOMING_STREAMS;
-    listener->accept_count--;
+    RtHandleV2 *conn_h = _listener->accept_queue[_listener->accept_head];
+    _listener->accept_head = (_listener->accept_head + 1) % QUIC_MAX_INCOMING_STREAMS;
+    _listener->accept_count--;
 
-    MUTEX_UNLOCK(&listener->accept_mutex);
+    MUTEX_UNLOCK(&_listener->accept_mutex);
     return conn_h;
 }
 
-int sn_quic_listener_get_port(RtQuicListener *listener) {
-    return listener ? listener->bound_port : 0;
+int sn_quic_listener_get_port(RtHandleV2 *listener) {
+    if (listener == NULL) return 0;
+    RtQuicListener *_listener = (RtQuicListener *)listener->ptr;
+    return _listener->bound_port;
 }
 
-void sn_quic_listener_close(RtQuicListener *listener) {
-    if (!listener || !listener->running) return;
+void sn_quic_listener_close(RtHandleV2 *listener) {
+    if (listener == NULL) return;
+    RtQuicListener *_listener = (RtQuicListener *)listener->ptr;
+    if (!_listener->running) return;
 
-    listener->running = false;
+    _listener->running = false;
 
     /* Signal accept waiters */
-    MUTEX_LOCK(&listener->accept_mutex);
-    COND_BROADCAST(&listener->accept_cond);
-    MUTEX_UNLOCK(&listener->accept_mutex);
+    MUTEX_LOCK(&_listener->accept_mutex);
+    COND_BROADCAST(&_listener->accept_cond);
+    MUTEX_UNLOCK(&_listener->accept_mutex);
 
     /* Wait for listener thread */
 #ifdef _WIN32
-    WaitForSingleObject(listener->listen_thread, 5000);
-    CloseHandle(listener->listen_thread);
+    WaitForSingleObject(_listener->listen_thread, 5000);
+    CloseHandle(_listener->listen_thread);
 #else
-    pthread_join(listener->listen_thread, NULL);
+    pthread_join(_listener->listen_thread, NULL);
 #endif
 
     /* Mark all server connections as closed (sn_quic_connection_close for
      * server connections just sets closed=true and signals waiters). */
-    MUTEX_LOCK(&listener->conn_list_mutex);
-    for (int i = 0; i < listener->connection_count; i++) {
-        if (listener->connections[i] && !listener->connections[i]->closed) {
-            sn_quic_connection_close(listener->connections[i]);
+    MUTEX_LOCK(&_listener->conn_list_mutex);
+    for (int i = 0; i < _listener->connection_count; i++) {
+        if (_listener->connections[i] && !_listener->connections[i]->closed) {
+            sn_quic_connection_close(_listener->connections[i]->_handle);
         }
     }
-    MUTEX_UNLOCK(&listener->conn_list_mutex);
+    MUTEX_UNLOCK(&_listener->conn_list_mutex);
 
     /* Now that listener thread is stopped, do full cleanup for all server
      * connections. This was deferred because the listener thread was using
      * these resources (qconn, SSL, streams). */
-    for (int i = 0; i < listener->connection_count; i++) {
-        RtQuicConnection *conn = listener->connections[i];
+    for (int i = 0; i < _listener->connection_count; i++) {
+        RtQuicConnection *conn = _listener->connections[i];
         if (!conn) continue;
 
         /* Save OS resources and arena before destroying */
@@ -2350,9 +2393,9 @@ void sn_quic_listener_close(RtQuicListener *listener) {
     }
 
     /* Save listener OS resources and arena before destroying */
-    RtArenaV2 *priv = listener->arena;
-    SSL_CTX *ssl_ctx = listener->ssl_ctx;
-    socket_t sock = listener->socket_fd;
+    RtArenaV2 *priv = _listener->arena;
+    SSL_CTX *ssl_ctx = _listener->ssl_ctx;
+    socket_t sock = _listener->socket_fd;
 
     /* Cleanup OS resources */
     if (ssl_ctx) {
@@ -2362,9 +2405,9 @@ void sn_quic_listener_close(RtQuicListener *listener) {
         CLOSE_SOCKET(sock);
     }
 
-    MUTEX_DESTROY(&listener->accept_mutex);
-    COND_DESTROY(&listener->accept_cond);
-    MUTEX_DESTROY(&listener->conn_list_mutex);
+    MUTEX_DESTROY(&_listener->accept_mutex);
+    COND_DESTROY(&_listener->accept_cond);
+    MUTEX_DESTROY(&_listener->conn_list_mutex);
 
     /* Destroy listener's private arena — frees listener struct and all internal allocs */
     if (priv != NULL) {

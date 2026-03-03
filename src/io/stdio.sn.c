@@ -93,13 +93,14 @@ int sn_stdin_is_eof(void)
 /* Write text to standard output */
 void sn_stdout_write(const char *text)
 {
-    rt_stdout_write(text);
+    if (text) fputs(text, stdout);
 }
 
 /* Write text with newline to standard output */
 void sn_stdout_write_line(const char *text)
 {
-    rt_stdout_write_line(text);
+    if (text) fputs(text, stdout);
+    fputc('\n', stdout);
 }
 
 /* Flush standard output */
@@ -115,13 +116,14 @@ void sn_stdout_flush(void)
 /* Write text to standard error */
 void sn_stderr_write(const char *text)
 {
-    rt_stderr_write(text);
+    if (text) fputs(text, stderr);
 }
 
 /* Write text with newline to standard error */
 void sn_stderr_write_line(const char *text)
 {
-    rt_stderr_write_line(text);
+    if (text) fputs(text, stderr);
+    fputc('\n', stderr);
 }
 
 /* Flush standard error */

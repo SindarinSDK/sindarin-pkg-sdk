@@ -549,19 +549,25 @@ RtHandleV2 *sn_process_run_args(RtArenaV2 *arena, const char *cmd, char **args)
  * ============================================================================ */
 
 /* Get exit code */
-long sn_process_get_exit_code(RtProcess *proc)
+long sn_process_get_exit_code(RtHandleV2 *proc)
 {
-    return proc ? proc->exit_code : 127;
+    if (proc == NULL) return 127;
+    RtProcess *_proc = (RtProcess *)proc->ptr;
+    return _proc->exit_code;
 }
 
 /* Get captured stdout */
-RtHandleV2 *sn_process_get_stdout(RtProcess *proc)
+RtHandleV2 *sn_process_get_stdout(RtHandleV2 *proc)
 {
-    return proc ? proc->stdout_h : NULL;
+    if (proc == NULL) return NULL;
+    RtProcess *_proc = (RtProcess *)proc->ptr;
+    return _proc->stdout_h;
 }
 
 /* Get captured stderr */
-RtHandleV2 *sn_process_get_stderr(RtProcess *proc)
+RtHandleV2 *sn_process_get_stderr(RtHandleV2 *proc)
 {
-    return proc ? proc->stderr_h : NULL;
+    if (proc == NULL) return NULL;
+    RtProcess *_proc = (RtProcess *)proc->ptr;
+    return _proc->stderr_h;
 }
