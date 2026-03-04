@@ -103,7 +103,7 @@ fn errorMessage(code: int): str =>
 # Returns number of bytes written, or -1 on error
 native fn compressTo(source: byte[], dest: byte[]): int =>
     var destLen: uint = dest.length as uint
-    var result: int = compress(dest as ref, destLen, source as ref, source.length as uint)
+    var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length as uint)
     if result != 0 =>
         return -1
     return destLen as int
@@ -112,7 +112,7 @@ native fn compressTo(source: byte[], dest: byte[]): int =>
 # Returns number of bytes written, or -1 on error
 native fn compressToLevel(source: byte[], dest: byte[], level: int): int =>
     var destLen: uint = dest.length as uint
-    var result: int = compress2(dest as ref, destLen, source as ref, source.length as uint, level)
+    var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length as uint, level)
     if result != 0 =>
         return -1
     return destLen as int
@@ -121,7 +121,7 @@ native fn compressToLevel(source: byte[], dest: byte[], level: int): int =>
 # Returns number of bytes written, or -1 on error
 native fn decompressTo(source: byte[], dest: byte[]): int =>
     var destLen: uint = dest.length as uint
-    var result: int = uncompress(dest as ref, destLen, source as ref, source.length as uint)
+    var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length as uint)
     if result != 0 =>
         return -1
     return destLen as int
@@ -143,12 +143,12 @@ native fn compressData(source: byte[]): byte[] =>
     var dest: byte[bound]
     var destLen: uint = bound as uint
 
-    var result: int = compress(dest as ref, destLen, source as ref, source.length as uint)
+    var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length as uint)
     if result != 0 =>
         var empty: byte[0]
         return empty
 
-    return dest[0..(destLen as int)] as val
+    return valueOf(dest[0..(destLen as int)])
 
 # compressDataLevel - Compress data with specified level
 # Returns compressed data, or empty array on error
@@ -160,12 +160,12 @@ native fn compressDataLevel(source: byte[], level: int): byte[] =>
     var dest: byte[bound]
     var destLen: uint = bound as uint
 
-    var result: int = compress2(dest as ref, destLen, source as ref, source.length as uint, level)
+    var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length as uint, level)
     if result != 0 =>
         var empty: byte[0]
         return empty
 
-    return dest[0..(destLen as int)] as val
+    return valueOf(dest[0..(destLen as int)])
 
 # decompressData - Decompress data
 # expectedSize: the size of the original uncompressed data
@@ -177,12 +177,12 @@ native fn decompressData(source: byte[], expectedSize: int): byte[] =>
     var dest: byte[expectedSize]
     var destLen: uint = expectedSize as uint
 
-    var result: int = uncompress(dest as ref, destLen, source as ref, source.length as uint)
+    var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length as uint)
     if result != 0 =>
         var empty: byte[0]
         return empty
 
-    return dest[0..(destLen as int)] as val
+    return valueOf(dest[0..(destLen as int)])
 
 # ==============================================================================
 # Utility Functions
