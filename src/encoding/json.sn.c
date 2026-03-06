@@ -56,11 +56,12 @@ static void sn_json_cleanup(RtHandleV2 *data)
  * 3. Register cleanup on the destination arena for the new handle */
 static void sn_json_copy_callback(RtArenaV2 *dest, RtHandleV2 *new_handle)
 {
+    (void)dest;
     SnJson *j = (SnJson *)new_handle->ptr;
-    /* Increment json-c refcount so the object survives old handle's cleanup */
+    /* Increment json-c refcount so the object survives old handle's cleanup.
+     * cleanup_fn is inherited from the source handle by rt_arena_v2_clone. */
     if (j->obj != NULL) {
         json_object_get(j->obj);
-        rt_arena_v2_on_cleanup(dest, new_handle, sn_json_cleanup, 100);
     }
     /* Update back-reference to point to the new handle */
     j->handle = new_handle;
@@ -85,11 +86,10 @@ static RtHandleV2 *sn_json_wrap(RtArenaV2 *arena, json_object *obj, int is_root)
     /* Set copy callback for handle promotion */
     rt_handle_set_copy_callback(_h, sn_json_copy_callback);
 
-    /* Register cleanup callback to release json-c reference when arena is
-     * destroyed. This prevents memory leaks when Json objects go out of scope.
-     * Priority 100 ensures Json cleanup happens after user cleanup callbacks. */
+    /* Register per-handle cleanup to release json-c reference when GC collects
+     * the handle or the arena is destroyed. O(1) — stored on the handle. */
     if (obj != NULL) {
-        rt_arena_v2_on_cleanup(arena, _h, sn_json_cleanup, 100);
+        rt_handle_set_cleanup(_h, sn_json_cleanup);
     }
 
     return _h;
@@ -837,8 +837,8 @@ void sn_json_dispose(RtHandleV2 *j)
     if (_j->handle != NULL) {
         RtHandleV2 *h = _j->handle;
         _j->handle = NULL;
-        /* Remove cleanup callback to avoid redundant no-op during arena destruction */
-        rt_arena_v2_remove_cleanup(h->arena, h);
+        /* Clear per-handle cleanup (already ran above) */
+        h->cleanup_fn = NULL;
         rt_arena_v2_free(h);
     }
 }

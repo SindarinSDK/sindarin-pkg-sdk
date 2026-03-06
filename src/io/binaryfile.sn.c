@@ -90,9 +90,9 @@ RtHandleV2 *sn_binary_file_open(RtArenaV2 *arena, const char *path)
     { RtHandleV2 *_path_h = rt_arena_v2_strdup(priv, path); file->path = (char *)_path_h->ptr; }
     file->is_open = 1;
 
-    /* Register cleanup callback so GC can close the file and destroy the
+    /* Register per-handle cleanup so GC can close the file and destroy the
      * private arena if the handle becomes unreachable without explicit .close() */
-    rt_arena_v2_on_cleanup(arena, h, sn_binary_file_cleanup, 100);
+    rt_handle_set_cleanup(h, sn_binary_file_cleanup);
 
     return h;
 }
@@ -704,8 +704,8 @@ void sn_binary_file_close(RtHandleV2 *file)
 {
     if (file == NULL || file->ptr == NULL) return;
 
-    /* Remove cleanup callback to prevent double-close */
-    rt_arena_v2_remove_cleanup(file->arena, file);
+    /* Clear per-handle cleanup to prevent double-close */
+    file->cleanup_fn = NULL;
 
     RtSnBinaryFile *_file = (RtSnBinaryFile *)file->ptr;
 

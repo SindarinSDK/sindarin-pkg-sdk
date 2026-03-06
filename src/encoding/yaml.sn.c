@@ -218,7 +218,7 @@ static RtHandleV2 *sn_yaml_wrap(RtArenaV2 *arena, SnYamlNode *root, SnYamlNode *
      * This prevents memory leaks when Yaml objects go out of scope.
      * Priority 100 ensures Yaml cleanup happens after user cleanup callbacks. */
     if (is_root && root != NULL) {
-        rt_arena_v2_on_cleanup(arena, _h, sn_yaml_tree_cleanup, 100);
+        rt_handle_set_cleanup(_h, sn_yaml_tree_cleanup);
     }
 
     return _h;
@@ -250,7 +250,7 @@ void sn_yaml_dispose(RtHandleV2 *y)
     if (_y->handle != NULL) {
         RtHandleV2 *h = _y->handle;
         _y->handle = NULL;
-        rt_arena_v2_remove_cleanup(h->arena, h);
+        h->cleanup_fn = NULL;
         rt_arena_v2_free(h);
     }
 }

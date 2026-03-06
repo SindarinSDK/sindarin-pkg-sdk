@@ -93,7 +93,7 @@ void sn_xml_dispose(RtHandleV2 *x)
     if (_x->handle != NULL) {
         RtHandleV2 *h = _x->handle;
         _x->handle = NULL;
-        rt_arena_v2_remove_cleanup(h->arena, h);
+        h->cleanup_fn = NULL;
         rt_arena_v2_free(h);
     }
 }
@@ -114,11 +114,10 @@ static RtHandleV2 *sn_xml_wrap(RtArenaV2 *arena, xmlDocPtr doc, xmlNodePtr node,
     x->is_root = is_root;
     x->handle = _h;
 
-    /* Register cleanup callback to free the xmlDoc when arena is destroyed.
-     * This prevents memory leaks when Xml objects go out of scope.
-     * Priority 100 ensures Xml cleanup happens after user cleanup callbacks. */
+    /* Register per-handle cleanup to free the xmlDoc when GC collects
+     * the handle or the arena is destroyed. */
     if (is_root && doc != NULL) {
-        rt_arena_v2_on_cleanup(arena, _h, sn_xml_doc_cleanup, 100);
+        rt_handle_set_cleanup(_h, sn_xml_doc_cleanup);
     }
 
     return _h;

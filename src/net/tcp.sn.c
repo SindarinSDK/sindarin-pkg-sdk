@@ -283,9 +283,9 @@ static RtHandleV2 *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const c
         stream->remote_addr = NULL;
     }
 
-    /* Register cleanup callback so GC can close the socket and destroy the
+    /* Register per-handle cleanup so GC can close the socket and destroy the
      * private arena if the handle becomes unreachable without explicit .close() */
-    rt_arena_v2_on_cleanup(arena, h, sn_tcp_stream_cleanup, 100);
+    rt_handle_set_cleanup(h, sn_tcp_stream_cleanup);
 
     return h;
 }
@@ -927,8 +927,8 @@ static void sn_tcp_stream_cleanup(RtHandleV2 *h) {
 void sn_tcp_stream_close(RtHandleV2 *stream) {
     if (stream == NULL || stream->ptr == NULL) return;
 
-    /* Remove cleanup callback to prevent double-close */
-    rt_arena_v2_remove_cleanup(stream->arena, stream);
+    /* Clear per-handle cleanup to prevent double-close */
+    stream->cleanup_fn = NULL;
 
     RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
 
@@ -970,9 +970,9 @@ static RtHandleV2 *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, int p
     listener->bound_port = port;
     listener->arena = priv;
 
-    /* Register cleanup callback so GC can close the socket and destroy the
+    /* Register per-handle cleanup so GC can close the socket and destroy the
      * private arena if the handle becomes unreachable without explicit .close() */
-    rt_arena_v2_on_cleanup(arena, h, sn_tcp_listener_cleanup, 100);
+    rt_handle_set_cleanup(h, sn_tcp_listener_cleanup);
 
     return h;
 }
@@ -1130,8 +1130,8 @@ static void sn_tcp_listener_cleanup(RtHandleV2 *h) {
 void sn_tcp_listener_close(RtHandleV2 *listener) {
     if (listener == NULL || listener->ptr == NULL) return;
 
-    /* Remove cleanup callback to prevent double-close */
-    rt_arena_v2_remove_cleanup(listener->arena, listener);
+    /* Clear per-handle cleanup to prevent double-close */
+    listener->cleanup_fn = NULL;
 
     RtTcpListener *_listener = (RtTcpListener *)listener->ptr;
 
