@@ -233,7 +233,7 @@ fn _strToInt(s: str): int =>
     var result: int = 0
     var i: int = 0
     while i < s.length =>
-        var code: int = s.charAt(i) as int
+        var code: int = s.charAt(i).toInt()
         if code < 48 || code > 57 =>
             return result
         result = result * 10 + (code - 48)
@@ -247,7 +247,7 @@ fn _isNumeric(s: str): bool =>
     var i: int = 0
     while i < s.length =>
         var ch: char = s.charAt(i)
-        var code: int = ch as int
+        var code: int = ch.toInt()
         if code < 48 =>
             return false
         if code > 57 =>
@@ -262,8 +262,8 @@ fn _strcmp(a: str, b: str): int =>
         minLen = b.length
     var i: int = 0
     while i < minLen =>
-        var ca: int = a.charAt(i) as int
-        var cb: int = b.charAt(i) as int
+        var ca: int = a.charAt(i).toInt()
+        var cb: int = b.charAt(i).toInt()
         if ca < cb =>
             return -1
         if ca > cb =>

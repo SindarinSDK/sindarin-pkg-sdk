@@ -102,32 +102,32 @@ fn errorMessage(code: int): str =>
 # compressTo - Compress data into provided buffer
 # Returns number of bytes written, or -1 on error
 native fn compressTo(source: byte[], dest: byte[]): int =>
-    var destLen: uint = dest.length as uint
-    var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length as uint)
+    var destLen: uint = dest.length.toUint()
+    var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
     if result != 0 =>
         return -1
-    return destLen as int
+    return destLen.toInt()
 
 # compressToLevel - Compress with specific level into provided buffer
 # Returns number of bytes written, or -1 on error
 native fn compressToLevel(source: byte[], dest: byte[], level: int): int =>
-    var destLen: uint = dest.length as uint
-    var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length as uint, level)
+    var destLen: uint = dest.length.toUint()
+    var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length.toUint(), level)
     if result != 0 =>
         return -1
-    return destLen as int
+    return destLen.toInt()
 
 # decompressTo - Decompress data into provided buffer
 # Returns number of bytes written, or -1 on error
 native fn decompressTo(source: byte[], dest: byte[]): int =>
-    var destLen: uint = dest.length as uint
-    var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length as uint)
+    var destLen: uint = dest.length.toUint()
+    var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
     if result != 0 =>
         return -1
-    return destLen as int
+    return destLen.toInt()
 
 # maxCompressedSize - Calculate maximum possible compressed size
-fn maxCompressedSize(sourceLen: int): int => compressBound(sourceLen as uint) as int
+fn maxCompressedSize(sourceLen: int): int => compressBound(sourceLen.toUint()).toInt()
 
 # ==============================================================================
 # Convenience Wrappers (allocate output buffer automatically)
@@ -141,14 +141,14 @@ native fn compressData(source: byte[]): byte[] =>
 
     var bound: int = maxCompressedSize(source.length)
     var dest: byte[bound]
-    var destLen: uint = bound as uint
+    var destLen: uint = bound.toUint()
 
-    var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length as uint)
+    var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
     if result != 0 =>
         var empty: byte[0]
         return empty
 
-    return valueOf(dest[0..(destLen as int)])
+    return valueOf(dest[0..(destLen.toInt())])
 
 # compressDataLevel - Compress data with specified level
 # Returns compressed data, or empty array on error
@@ -158,14 +158,14 @@ native fn compressDataLevel(source: byte[], level: int): byte[] =>
 
     var bound: int = maxCompressedSize(source.length)
     var dest: byte[bound]
-    var destLen: uint = bound as uint
+    var destLen: uint = bound.toUint()
 
-    var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length as uint, level)
+    var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length.toUint(), level)
     if result != 0 =>
         var empty: byte[0]
         return empty
 
-    return valueOf(dest[0..(destLen as int)])
+    return valueOf(dest[0..(destLen.toInt())])
 
 # decompressData - Decompress data
 # expectedSize: the size of the original uncompressed data
@@ -175,14 +175,14 @@ native fn decompressData(source: byte[], expectedSize: int): byte[] =>
         return source
 
     var dest: byte[expectedSize]
-    var destLen: uint = expectedSize as uint
+    var destLen: uint = expectedSize.toUint()
 
-    var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length as uint)
+    var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
     if result != 0 =>
         var empty: byte[0]
         return empty
 
-    return valueOf(dest[0..(destLen as int)])
+    return valueOf(dest[0..(destLen.toInt())])
 
 # ==============================================================================
 # Utility Functions
@@ -209,7 +209,7 @@ fn isCompressed(data: byte[]): bool =>
 fn compressionRatio(originalSize: int, compressedSize: int): double =>
     if originalSize == 0 =>
         return 0.0
-    return (compressedSize as double * 100.0) / (originalSize as double)
+    return (compressedSize.toDouble() * 100.0) / originalSize.toDouble()
 
 # spaceSaved - Calculate space saved by compression
 # Returns percentage saved (e.g., 24.5 means saved 24.5% of original size)
