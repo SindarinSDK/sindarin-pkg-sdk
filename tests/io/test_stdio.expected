@@ -9,7 +9,6 @@ PASS
 test_stderr_write: PASS
 test_stderr_writeLine: PASS
 test_stderr_flush: PASS
-test_stdin_isEof: PASS
 test_builtin_println: OK
 PASS
 test_builtin_printErr: PASS

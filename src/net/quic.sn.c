@@ -1693,7 +1693,7 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
     size_t data_len = (size_t)data->len;
     if (data_len == 0) return 0;
 
-    RtQuicConnection *conn = (RtQuicConnection *)_stream->conn_ptr;
+    RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
 
     MUTEX_LOCK(&conn->conn_mutex);
 
@@ -1755,7 +1755,7 @@ void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
     memcpy(buf, text, text_len);
     buf[text_len] = '\n';
 
-    RtQuicConnection *conn = (RtQuicConnection *)_stream->conn_ptr;
+    RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
     MUTEX_LOCK(&conn->conn_mutex);
 
     if (conn->closed || _stream->write_closed) {
@@ -1825,7 +1825,7 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
     RtQuicStream *_stream = (RtQuicStream *)stream;
     if (_stream->closed) return;
 
-    RtQuicConnection *conn = (RtQuicConnection *)_stream->conn_ptr;
+    RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
 
     MUTEX_LOCK(&conn->conn_mutex);
 
@@ -2399,8 +2399,7 @@ void sn_quic_listener_close(__sn__QuicListener *listener) {
         COND_DESTROY(&conn->handshake_cond);
         COND_DESTROY(&conn->accept_stream_cond);
 
-        /* Free server connection struct */
-        free(conn);
+        /* Don't free conn here — sn_auto_QuicConnection cleanup handles that */
     }
 
     /* Save listener OS resources and arena before destroying */

@@ -104,7 +104,7 @@ native struct QuicStream as ref =>
     _stream_id: long
 
     @alias "conn_ptr"
-    _conn_ptr: *byte
+    _conn_ptr: long
 
     # ==========================================================================
     # Read Methods
@@ -162,7 +162,7 @@ native struct QuicStream as ref =>
 @alias "RtQuicConnection"
 native struct QuicConnection as ref =>
     @alias "conn_ptr"
-    _conn_ptr: *byte
+    _conn_ptr: long
 
     @alias "socket_fd"
     _socket_fd: int
