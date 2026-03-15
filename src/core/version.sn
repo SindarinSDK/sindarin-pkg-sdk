@@ -128,7 +128,7 @@ struct VersionConstraint =>
     static fn parse(s: str): VersionConstraint =>
         var input: str = s.trim()
         var op: int = OP_EQ()
-        var versionStr: str = input
+        var versionStr: str = copyOf(input)
 
         # Detect operator prefix
         if input.startsWith(">=") =>
@@ -348,7 +348,7 @@ fn _parseVersionString(s: str): Version =>
 
     # Find the prerelease separator '-'
     var dashIdx: int = corePre.indexOf("-")
-    var core: str = corePre
+    var core: str = copyOf(corePre)
     if dashIdx >= 0 =>
         prerelease = corePre.substring(dashIdx + 1, corePre.length)
         core = corePre.substring(0, dashIdx)
@@ -362,13 +362,13 @@ fn _parseVersionString(s: str): Version =>
     if parts.length >= 3 =>
         patch = _strToInt(parts[2])
 
-    var result: Version = Version { major: major, minor: minor, patch: patch, prerelease: prerelease, build: build }
+    var result: Version = Version { major: major, minor: minor, patch: patch, prerelease: copyOf(prerelease), build: copyOf(build) }
     return result
 
 # Parse a constraint version string
 fn _parseConstraintVersion(s: str): Version =>
     var prerelease: str = ""
-    var core: str = s
+    var core: str = copyOf(s)
 
     # Check for prerelease
     var dashIdx: int = s.indexOf("-")
@@ -387,7 +387,7 @@ fn _parseConstraintVersion(s: str): Version =>
     if parts.length >= 3 =>
         patch = _strToInt(parts[2])
 
-    var result: Version = Version { major: major, minor: minor, patch: patch, prerelease: prerelease, build: "" }
+    var result: Version = Version { major: major, minor: minor, patch: patch, prerelease: copyOf(prerelease), build: "" }
     return result
 
 # ==============================================================================
