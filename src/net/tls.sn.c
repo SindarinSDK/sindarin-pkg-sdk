@@ -85,6 +85,10 @@
 typedef __sn__TlsStream RtTlsStream;
 typedef __sn__TlsListener RtTlsListener;
 
+/* Cast macros for ssl_ptr stored as long to avoid auto-cleanup freeing it */
+#define SSL_PTR(s) ((SSL*)(uintptr_t)(s)->ssl_ptr)
+#define SET_SSL_PTR(s, v) ((s)->ssl_ptr = (long long)(uintptr_t)(v))
+
 /* Internal TLS stream state (not exposed to Sindarin) */
 typedef struct TlsStreamInternal {
     SSL *ssl;
@@ -490,7 +494,7 @@ static __sn__TlsStream *sn_tls_stream_create(socket_t sock,
     }
 
     stream->socket_fd = (long long)sock;
-    stream->ssl_ptr = (void *)ssl;
+    SET_SSL_PTR(stream, ssl);
     stream->remote_addr = remote_addr ? strdup(remote_addr) : NULL;
 
     /* Create internal state */

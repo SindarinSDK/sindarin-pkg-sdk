@@ -38,7 +38,7 @@ native struct TlsStream as ref =>
     _socket_fd: int
 
     @alias "ssl_ptr"
-    _ssl_ptr: *byte
+    _ssl_ptr: long
 
     @alias "remote_addr"
     _remote_addr: *byte

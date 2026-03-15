@@ -1522,7 +1522,7 @@ __sn__QuicConfig *sn_quic_config_defaults(void) {
     config->max_stream_window = QUIC_DEFAULT_MAX_STREAM_WINDOW;
     config->max_conn_window = QUIC_DEFAULT_MAX_CONN_WINDOW;
     config->idle_timeout_ms = QUIC_DEFAULT_IDLE_TIMEOUT_MS;
-    return _h;
+    return (__sn__QuicConfig *)config;
 }
 
 __sn__QuicConfig *sn_quic_config_set_max_bidi_streams(__sn__QuicConfig *config, int n) {

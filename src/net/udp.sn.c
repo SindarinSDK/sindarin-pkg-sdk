@@ -509,7 +509,9 @@ SnArray *sn_udp_result_get_data(__sn__UdpReceiveResult *result) {
         arr->elem_tag = SN_TAG_BYTE;
         return arr;
     }
-    return (SnArray *)result->data;
+    /* Return a copy — the caller gets its own sn_auto_arr cleanup,
+     * and UdpReceiveResult_release will clean up the original. */
+    return sn_array_copy((SnArray *)result->data);
 }
 
 char *sn_udp_result_get_sender(__sn__UdpReceiveResult *result) {

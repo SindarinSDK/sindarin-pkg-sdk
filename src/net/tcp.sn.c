@@ -56,6 +56,10 @@
 typedef __sn__TcpStream RtTcpStream;
 typedef __sn__TcpListener RtTcpListener;
 
+/* Cast macros for socket fd stored as long long */
+#define SOCK_FD(s) ((socket_t)(s)->socket_fd)
+#define SET_SOCK_FD(s, v) ((s)->socket_fd = (long long)(v))
+
 /* Internal stream state (not exposed to Sindarin) */
 typedef struct TcpStreamInternal {
     unsigned char *read_buf;
@@ -257,7 +261,7 @@ static __sn__TcpStream *sn_tcp_stream_create(socket_t sock, char *remote_addr) {
         fprintf(stderr, "sn_tcp_stream_create: allocation failed\n");
         exit(1);
     }
-    stream->socket_fd = (long long)sock;
+    SET_SOCK_FD(stream, sock);
     stream->remote_addr = remote_addr ? strdup(remote_addr) : NULL;
 
     /* Create internal state */
@@ -408,7 +412,7 @@ SnArray *sn_tcp_stream_read(__sn__TcpStream *stream, long long maxBytes) {
         return arr;
     }
 
-    socket_t sock = (socket_t)stream->socket_fd;
+    socket_t sock = SOCK_FD(stream);
 
     /* If buffer is empty, fill it */
     if (stream_buffered(internal) == 0 && !internal->eof_reached) {
@@ -449,7 +453,7 @@ SnArray *sn_tcp_stream_read_all(__sn__TcpStream *stream) {
         return arr;
     }
 
-    socket_t sock = (socket_t)stream->socket_fd;
+    socket_t sock = SOCK_FD(stream);
 
     /* We still need a growing buffer for accumulating all data,
      * but we read through our internal buffer for efficiency */
@@ -523,7 +527,7 @@ char *sn_tcp_stream_read_line(__sn__TcpStream *stream) {
         return strdup("");
     }
 
-    socket_t sock = (socket_t)stream->socket_fd;
+    socket_t sock = SOCK_FD(stream);
 
     /* For lines that fit in buffer, we can avoid extra malloc.
      * For longer lines, we accumulate in a temp buffer. */
@@ -680,7 +684,7 @@ long long sn_tcp_stream_write(__sn__TcpStream *stream, SnArray *data) {
     long long length = sn_array_length(data);
     if (length == 0) return 0;
 
-    socket_t sock = (socket_t)stream->socket_fd;
+    socket_t sock = SOCK_FD(stream);
     int bytes_sent = send(sock, (const char *)data->data, (int)length, 0);
 
     if (bytes_sent < 0) {
@@ -695,7 +699,7 @@ long long sn_tcp_stream_write(__sn__TcpStream *stream, SnArray *data) {
 void sn_tcp_stream_write_line(__sn__TcpStream *stream, char *text) {
     if (stream == NULL) return;
 
-    socket_t sock = (socket_t)stream->socket_fd;
+    socket_t sock = SOCK_FD(stream);
 
     if (text != NULL) {
         size_t len = strlen(text);
@@ -737,12 +741,12 @@ char *sn_tcp_stream_get_remote_address(__sn__TcpStream *stream) {
 void sn_tcp_stream_dispose(__sn__TcpStream *stream) {
     if (stream == NULL) return;
 
-    socket_t fd = (socket_t)stream->socket_fd;
+    socket_t fd = SOCK_FD(stream);
 
     /* Close socket */
     if (fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(fd);
-        stream->socket_fd = (long long)INVALID_SOCKET_VAL;
+        SET_SOCK_FD(stream, INVALID_SOCKET_VAL);
     }
 
     /* Free internal state */
@@ -849,7 +853,7 @@ __sn__TcpListener *sn_tcp_listener_bind(char *address) {
         fprintf(stderr, "sn_tcp_listener_bind: allocation failed\n");
         exit(1);
     }
-    listener->socket_fd = (long long)sock;
+    SET_SOCK_FD(listener, sock);
     listener->bound_port = (long long)actual_port;
 
     return listener;
@@ -865,7 +869,7 @@ __sn__TcpStream *sn_tcp_listener_accept(__sn__TcpListener *listener) {
         exit(1);
     }
 
-    socket_t listener_fd = (socket_t)listener->socket_fd;
+    socket_t listener_fd = SOCK_FD(listener);
 
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -902,10 +906,10 @@ long long sn_tcp_listener_get_port(__sn__TcpListener *listener) {
 void sn_tcp_listener_dispose(__sn__TcpListener *listener) {
     if (listener == NULL) return;
 
-    socket_t fd = (socket_t)listener->socket_fd;
+    socket_t fd = SOCK_FD(listener);
 
     if (fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(fd);
-        listener->socket_fd = (long long)INVALID_SOCKET_VAL;
+        SET_SOCK_FD(listener, INVALID_SOCKET_VAL);
     }
 }

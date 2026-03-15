@@ -37,7 +37,7 @@
 # Immutable snapshot of a Git commit's metadata.
 
 @alias "RtGitCommit"
-native struct GitCommit as ref =>
+native struct GitCommit =>
     @alias "id_str"
     _id: *byte
 
@@ -54,20 +54,20 @@ native struct GitCommit as ref =>
     _timestamp: long
 
     # Get commit SHA (full 40-char hex)
-    fn id(): str =>
-        return sn_git_commit_get_id(self)
+    @alias "sn_git_commit_get_id"
+    native fn id(): str
 
     # Get commit message
-    fn message(): str =>
-        return sn_git_commit_get_message(self)
+    @alias "sn_git_commit_get_message"
+    native fn message(): str
 
     # Get author name
-    fn author(): str =>
-        return sn_git_commit_get_author(self)
+    @alias "sn_git_commit_get_author"
+    native fn author(): str
 
     # Get author email
-    fn email(): str =>
-        return sn_git_commit_get_email(self)
+    @alias "sn_git_commit_get_email"
+    native fn email(): str
 
     # Get commit timestamp (Unix epoch seconds)
     @alias "sn_git_commit_get_timestamp"
@@ -78,7 +78,7 @@ native struct GitCommit as ref =>
 # ==============================================================================
 
 @alias "RtGitBranch"
-native struct GitBranch as ref =>
+native struct GitBranch =>
     @alias "name_str"
     _name: *byte
 
@@ -89,8 +89,8 @@ native struct GitBranch as ref =>
     _isRemote: int
 
     # Get branch name
-    fn name(): str =>
-        return sn_git_branch_get_name(self)
+    @alias "sn_git_branch_get_name"
+    native fn name(): str
 
     # Check if this is the current HEAD branch
     @alias "sn_git_branch_is_head"
@@ -105,7 +105,7 @@ native struct GitBranch as ref =>
 # ==============================================================================
 
 @alias "RtGitRemote"
-native struct GitRemote as ref =>
+native struct GitRemote =>
     @alias "name_str"
     _name: *byte
 
@@ -113,19 +113,19 @@ native struct GitRemote as ref =>
     _url: *byte
 
     # Get remote name (e.g., "origin")
-    fn name(): str =>
-        return sn_git_remote_get_name(self)
+    @alias "sn_git_remote_get_name"
+    native fn name(): str
 
     # Get remote URL
-    fn url(): str =>
-        return sn_git_remote_get_url(self)
+    @alias "sn_git_remote_get_url"
+    native fn url(): str
 
 # ==============================================================================
 # GitDiff - Diff Entry Information
 # ==============================================================================
 
 @alias "RtGitDiff"
-native struct GitDiff as ref =>
+native struct GitDiff =>
     @alias "path_str"
     _path: *byte
 
@@ -136,23 +136,23 @@ native struct GitDiff as ref =>
     _oldPath: *byte
 
     # Get file path
-    fn path(): str =>
-        return sn_git_diff_get_path(self)
+    @alias "sn_git_diff_get_path"
+    native fn path(): str
 
     # Get status string: "added", "modified", "deleted", "renamed", "copied"
-    fn status(): str =>
-        return sn_git_diff_get_status(self)
+    @alias "sn_git_diff_get_status"
+    native fn status(): str
 
     # Get old path (for renames/copies, empty otherwise)
-    fn oldPath(): str =>
-        return sn_git_diff_get_old_path(self)
+    @alias "sn_git_diff_get_old_path"
+    native fn oldPath(): str
 
 # ==============================================================================
 # GitStatus - Working Tree Status Entry
 # ==============================================================================
 
 @alias "RtGitStatus"
-native struct GitStatus as ref =>
+native struct GitStatus =>
     @alias "path_str"
     _path: *byte
 
@@ -163,12 +163,12 @@ native struct GitStatus as ref =>
     _isStaged: int
 
     # Get file path
-    fn path(): str =>
-        return sn_git_status_get_path(self)
+    @alias "sn_git_status_get_path"
+    native fn path(): str
 
     # Get status: "new", "modified", "deleted", "renamed", "typechange"
-    fn status(): str =>
-        return sn_git_status_get_status(self)
+    @alias "sn_git_status_get_status"
+    native fn status(): str
 
     # Check if the change is staged (in index)
     @alias "sn_git_status_is_staged"
@@ -179,7 +179,7 @@ native struct GitStatus as ref =>
 # ==============================================================================
 
 @alias "RtGitTag"
-native struct GitTag as ref =>
+native struct GitTag =>
     @alias "name_str"
     _name: *byte
 
@@ -193,16 +193,16 @@ native struct GitTag as ref =>
     _isLightweight: int
 
     # Get tag name
-    fn name(): str =>
-        return sn_git_tag_get_name(self)
+    @alias "sn_git_tag_get_name"
+    native fn name(): str
 
     # Get target commit SHA
-    fn targetId(): str =>
-        return sn_git_tag_get_target_id(self)
+    @alias "sn_git_tag_get_target_id"
+    native fn targetId(): str
 
     # Get tag message (empty for lightweight tags)
-    fn message(): str =>
-        return sn_git_tag_get_message(self)
+    @alias "sn_git_tag_get_message"
+    native fn message(): str
 
     # Check if this is a lightweight tag (vs annotated)
     @alias "sn_git_tag_is_lightweight"
@@ -215,7 +215,7 @@ native struct GitTag as ref =>
 @alias "RtGitRepo"
 native struct GitRepo as ref =>
     @alias "repo_ptr"
-    _repoPtr: *byte
+    _repoPtr: long
 
     @alias "path_str"
     _path: *byte
@@ -440,30 +440,3 @@ native fn sn_git_repo_delete_tag(repo: GitRepo, name: str): void
 # GitRepo getters
 native fn sn_git_repo_get_path(repo: GitRepo): str
 native fn sn_git_repo_is_bare(repo: GitRepo): bool
-
-# GitCommit getters
-native fn sn_git_commit_get_id(commit: GitCommit): str
-native fn sn_git_commit_get_message(commit: GitCommit): str
-native fn sn_git_commit_get_author(commit: GitCommit): str
-native fn sn_git_commit_get_email(commit: GitCommit): str
-
-# GitBranch getters
-native fn sn_git_branch_get_name(branch: GitBranch): str
-
-# GitRemote getters
-native fn sn_git_remote_get_name(remote: GitRemote): str
-native fn sn_git_remote_get_url(remote: GitRemote): str
-
-# GitDiff getters
-native fn sn_git_diff_get_path(diff: GitDiff): str
-native fn sn_git_diff_get_status(diff: GitDiff): str
-native fn sn_git_diff_get_old_path(diff: GitDiff): str
-
-# GitStatus getters
-native fn sn_git_status_get_path(status: GitStatus): str
-native fn sn_git_status_get_status(status: GitStatus): str
-
-# GitTag getters
-native fn sn_git_tag_get_name(tag: GitTag): str
-native fn sn_git_tag_get_target_id(tag: GitTag): str
-native fn sn_git_tag_get_message(tag: GitTag): str

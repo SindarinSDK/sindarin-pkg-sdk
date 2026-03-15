@@ -137,7 +137,8 @@ fn maxCompressedSize(sourceLen: int): int => compressBound(sourceLen.toUint()).t
 # Returns compressed data, or empty array on error
 native fn compressData(source: byte[]): byte[] =>
     if source.length == 0 =>
-        return source
+        var empty: byte[0]
+        return empty
 
     var bound: int = maxCompressedSize(source.length)
     var dest: byte[bound]
@@ -154,7 +155,8 @@ native fn compressData(source: byte[]): byte[] =>
 # Returns compressed data, or empty array on error
 native fn compressDataLevel(source: byte[], level: int): byte[] =>
     if source.length == 0 =>
-        return source
+        var empty: byte[0]
+        return empty
 
     var bound: int = maxCompressedSize(source.length)
     var dest: byte[bound]
@@ -172,7 +174,8 @@ native fn compressDataLevel(source: byte[], level: int): byte[] =>
 # Returns decompressed data, or empty array on error
 native fn decompressData(source: byte[], expectedSize: int): byte[] =>
     if source.length == 0 =>
-        return source
+        var empty: byte[0]
+        return empty
 
     var dest: byte[expectedSize]
     var destLen: uint = expectedSize.toUint()

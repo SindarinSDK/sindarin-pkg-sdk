@@ -1206,5 +1206,4 @@ void sn_ssh_channel_close(__sn__SshChannel *channel) {
         ssh_channel_free(ch);
     }
     channel->channel_ptr = NULL;
-    }
 }
