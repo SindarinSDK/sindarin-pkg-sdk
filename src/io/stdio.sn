@@ -116,9 +116,9 @@ native struct Stderr =>
 # These declare the C functions implemented in stdio.sn.c
 
 # Stdin functions
-native fn sn_stdin_read_line(arena): str
+native fn sn_stdin_read_line(): str
 native fn sn_stdin_read_char(): int
-native fn sn_stdin_read_word(arena): str
+native fn sn_stdin_read_word(): str
 native fn sn_stdin_has_chars(): int
 native fn sn_stdin_has_lines(): int
 native fn sn_stdin_is_eof(): int

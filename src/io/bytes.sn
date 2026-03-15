@@ -48,5 +48,5 @@ native struct Bytes =>
 # ==============================================================================
 
 # Decoding functions
-native fn sn_bytes_from_hex(arena, hex: str): byte[]
-native fn sn_bytes_from_base64(arena, b64: str): byte[]
+native fn sn_bytes_from_hex(hex: str): byte[]
+native fn sn_bytes_from_base64(b64: str): byte[]

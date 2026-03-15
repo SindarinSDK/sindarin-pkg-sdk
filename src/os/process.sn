@@ -34,10 +34,10 @@ native struct Process as ref =>
     @alias "exit_code"
     _exitCode: int32
 
-    @alias "stdout_h"
+    @alias "stdout_str"
     _stdout: str
 
-    @alias "stderr_h"
+    @alias "stderr_str"
     _stderr: str
 
     # ==========================================================================
@@ -91,5 +91,5 @@ native struct Process as ref =>
 # Process is an opaque handle type that generates as RtProcess* in C.
 
 # Factory functions - return Process (which is RtProcess*)
-native fn sn_process_run(arena, cmd: str): Process
-native fn sn_process_run_args(arena, cmd: str, args: str[]): Process
+native fn sn_process_run(cmd: str): Process
+native fn sn_process_run_args(cmd: str, args: str[]): Process

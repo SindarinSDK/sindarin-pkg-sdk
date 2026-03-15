@@ -9,11 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <math.h>
 #include <errno.h>
-
-/* Include runtime headers for arena and array only */
-#include "runtime/array/runtime_array_v2.h"
 
 /* Platform-specific includes for entropy sources */
 #if defined(__linux__)
@@ -30,10 +28,7 @@
  * RtRandom Type Definition
  * ============================================================================ */
 
-typedef struct RtRandom {
-    int is_seeded;          /* 0 = OS entropy, 1 = seeded PRNG */
-    uint64_t state[4];      /* PRNG state (xoshiro256** algorithm) */
-} RtRandom;
+typedef __sn__Random RtRandom;
 
 /* ============================================================================
  * Core Entropy Function
@@ -158,7 +153,7 @@ static void xoshiro256_seed(uint64_t *state, uint64_t seed) {
 
 static uint64_t sn_random_next_u64(RtRandom *rng) {
     if (rng->is_seeded) {
-        return xoshiro256_next(rng->state);
+        return xoshiro256_next((uint64_t *)rng->state);
     } else {
         uint64_t result;
         sn_random_fill_entropy((uint8_t *)&result, sizeof(result));
@@ -176,75 +171,41 @@ static uint64_t sn_random_static_next_u64(void) {
  * Factory Functions
  * ============================================================================ */
 
-RtHandleV2 *sn_random_create(RtArenaV2 *arena)
+RtRandom *sn_random_create(void)
 {
-    if (arena == NULL) {
+    RtRandom *rng = (RtRandom *)calloc(1, sizeof(RtRandom));
+    if (rng == NULL) {
         return NULL;
     }
-
-    RtHandleV2 *_rng_h = rt_arena_v2_alloc(arena, sizeof(RtRandom));
-    RtRandom *rng = (RtRandom *)_rng_h->ptr;
     rng->is_seeded = 0;
+    rng->state = (unsigned char *)calloc(4, sizeof(uint64_t));
 
-    sn_random_fill_entropy((uint8_t *)rng->state, sizeof(rng->state));
+    sn_random_fill_entropy((uint8_t *)rng->state, 4 * sizeof(uint64_t));
 
-    return _rng_h;
+    return rng;
 }
 
-RtHandleV2 *sn_random_create_with_seed(RtArenaV2 *arena, long long seed)
+RtRandom *sn_random_create_with_seed(long long seed)
 {
-    if (arena == NULL) {
+    RtRandom *rng = (RtRandom *)calloc(1, sizeof(RtRandom));
+    if (rng == NULL) {
         return NULL;
     }
-
-    RtHandleV2 *_rng_h = rt_arena_v2_alloc(arena, sizeof(RtRandom));
-    RtRandom *rng = (RtRandom *)_rng_h->ptr;
     rng->is_seeded = 1;
+    rng->state = (unsigned char *)calloc(4, sizeof(uint64_t));
 
-    xoshiro256_seed(rng->state, (uint64_t)seed);
+    xoshiro256_seed((uint64_t *)rng->state, (uint64_t)seed);
 
-    return _rng_h;
+    return rng;
 }
 
 /* ============================================================================
  * Instance Value Generation (Seeded PRNG)
  * ============================================================================ */
 
-long sn_random_int(RtHandleV2 *rng, long min, long max)
+long long sn_random_int(RtRandom *rng, long long min, long long max)
 {
     if (rng == NULL) return 0;
-    RtRandom *_rng = (RtRandom *)rng->ptr;
-
-    if (min > max) {
-        long tmp = min;
-        min = max;
-        max = tmp;
-    }
-    if (min == max) {
-        return min;
-    }
-
-    uint64_t range = (uint64_t)(max - min) + 1;
-
-    if ((range & (range - 1)) == 0) {
-        uint64_t val = sn_random_next_u64(_rng);
-        return min + (long)(val & (range - 1));
-    }
-
-    uint64_t threshold = (uint64_t)(-(int64_t)range) % range;
-    uint64_t val;
-
-    do {
-        val = sn_random_next_u64(_rng);
-    } while (val < threshold);
-
-    return min + (long)(val % range);
-}
-
-long long sn_random_long(RtHandleV2 *rng, long long min, long long max)
-{
-    if (rng == NULL) return 0;
-    RtRandom *_rng = (RtRandom *)rng->ptr;
 
     if (min > max) {
         long long tmp = min;
@@ -258,7 +219,7 @@ long long sn_random_long(RtHandleV2 *rng, long long min, long long max)
     uint64_t range = (uint64_t)(max - min) + 1;
 
     if ((range & (range - 1)) == 0) {
-        uint64_t val = sn_random_next_u64(_rng);
+        uint64_t val = sn_random_next_u64(rng);
         return min + (long long)(val & (range - 1));
     }
 
@@ -266,16 +227,45 @@ long long sn_random_long(RtHandleV2 *rng, long long min, long long max)
     uint64_t val;
 
     do {
-        val = sn_random_next_u64(_rng);
+        val = sn_random_next_u64(rng);
     } while (val < threshold);
 
     return min + (long long)(val % range);
 }
 
-double sn_random_double(RtHandleV2 *rng, double min, double max)
+long long sn_random_long(RtRandom *rng, long long min, long long max)
+{
+    if (rng == NULL) return 0;
+
+    if (min > max) {
+        long long tmp = min;
+        min = max;
+        max = tmp;
+    }
+    if (min == max) {
+        return min;
+    }
+
+    uint64_t range = (uint64_t)(max - min) + 1;
+
+    if ((range & (range - 1)) == 0) {
+        uint64_t val = sn_random_next_u64(rng);
+        return min + (long long)(val & (range - 1));
+    }
+
+    uint64_t threshold = (uint64_t)(-(int64_t)range) % range;
+    uint64_t val;
+
+    do {
+        val = sn_random_next_u64(rng);
+    } while (val < threshold);
+
+    return min + (long long)(val % range);
+}
+
+double sn_random_double(RtRandom *rng, double min, double max)
 {
     if (rng == NULL) return 0.0;
-    RtRandom *_rng = (RtRandom *)rng->ptr;
 
     if (min > max) {
         double tmp = min;
@@ -286,56 +276,57 @@ double sn_random_double(RtHandleV2 *rng, double min, double max)
         return min;
     }
 
-    uint64_t val = sn_random_next_u64(_rng) >> 11;
+    uint64_t val = sn_random_next_u64(rng) >> 11;
     double normalized = (double)val / (double)(1ULL << 53);
 
     return min + normalized * (max - min);
 }
 
-int sn_random_bool(RtHandleV2 *rng)
+long long sn_random_bool(RtRandom *rng)
 {
     if (rng == NULL) return 0;
-    RtRandom *_rng = (RtRandom *)rng->ptr;
-    return (sn_random_next_u64(_rng) & 1) ? 1 : 0;
+    return (sn_random_next_u64(rng) & 1) ? 1 : 0;
 }
 
-unsigned char sn_random_byte(RtHandleV2 *rng)
+unsigned char sn_random_byte(RtRandom *rng)
 {
     if (rng == NULL) return 0;
-    RtRandom *_rng = (RtRandom *)rng->ptr;
-    return (unsigned char)(sn_random_next_u64(_rng) & 0xFF);
+    return (unsigned char)(sn_random_next_u64(rng) & 0xFF);
 }
 
-RtHandleV2 *sn_random_bytes(RtArenaV2 *arena, RtHandleV2 *rng, long count)
+SnArray *sn_random_bytes(RtRandom *rng, long long count)
 {
-    if (rng == NULL) return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-    RtRandom *_rng = (RtRandom *)rng->ptr;
-
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+    if (count <= 0) {
+        SnArray *empty = sn_array_new(sizeof(unsigned char), 0);
+        empty->elem_tag = SN_TAG_BYTE;
+        return empty;
     }
 
-    /* Allocate temporary buffer for byte data */
-    unsigned char *buf = (unsigned char *)malloc((size_t)count);
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-    }
+    SnArray *result = sn_array_new(sizeof(unsigned char), (size_t)count);
+    result->elem_tag = SN_TAG_BYTE;
 
-    if (_rng->is_seeded) {
-        for (long i = 0; i < count; i++) {
-            buf[i] = sn_random_byte(rng);
+    if (rng != NULL && rng->is_seeded) {
+        for (long long i = 0; i < count; i++) {
+            unsigned char b = sn_random_byte(rng);
+            sn_array_push(result, &b);
         }
     } else {
+        /* Fill with OS entropy directly */
+        unsigned char *buf = (unsigned char *)malloc((size_t)count);
+        if (buf == NULL) {
+            return result;
+        }
         sn_random_fill_entropy(buf, (size_t)count);
+        for (long long i = 0; i < count; i++) {
+            sn_array_push(result, &buf[i]);
+        }
+        free(buf);
     }
 
-    /* Create handle-based array from temporary buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(unsigned char), buf);
-    free(buf);
     return result;
 }
 
-double sn_random_gaussian(RtHandleV2 *rng, double mean, double stddev)
+double sn_random_gaussian(RtRandom *rng, double mean, double stddev)
 {
     if (rng == NULL) return 0.0;
 
@@ -357,10 +348,10 @@ double sn_random_gaussian(RtHandleV2 *rng, double mean, double stddev)
  * Static Value Generation (OS Entropy)
  * ============================================================================ */
 
-long sn_random_static_int(long min, long max)
+long long sn_random_static_int(long long min, long long max)
 {
     if (min > max) {
-        long tmp = min;
+        long long tmp = min;
         min = max;
         max = tmp;
     }
@@ -372,7 +363,7 @@ long sn_random_static_int(long min, long max)
 
     if ((range & (range - 1)) == 0) {
         uint64_t val = sn_random_static_next_u64();
-        return min + (long)(val & (range - 1));
+        return min + (long long)(val & (range - 1));
     }
 
     uint64_t threshold = (uint64_t)(-(int64_t)range) % range;
@@ -382,7 +373,7 @@ long sn_random_static_int(long min, long max)
         val = sn_random_static_next_u64();
     } while (val < threshold);
 
-    return min + (long)(val % range);
+    return min + (long long)(val % range);
 }
 
 long long sn_random_static_long(long long min, long long max)
@@ -430,7 +421,7 @@ double sn_random_static_double(double min, double max)
     return min + normalized * (max - min);
 }
 
-int sn_random_static_bool(void)
+long long sn_random_static_bool(void)
 {
     return (sn_random_static_next_u64() & 1) ? 1 : 0;
 }
@@ -442,22 +433,27 @@ unsigned char sn_random_static_byte(void)
     return result;
 }
 
-RtHandleV2 *sn_random_static_bytes(RtArenaV2 *arena, long count)
+SnArray *sn_random_static_bytes(long long count)
 {
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+    if (count <= 0) {
+        SnArray *empty = sn_array_new(sizeof(unsigned char), 0);
+        empty->elem_tag = SN_TAG_BYTE;
+        return empty;
     }
 
-    /* Allocate temporary buffer for byte data */
+    SnArray *result = sn_array_new(sizeof(unsigned char), (size_t)count);
+    result->elem_tag = SN_TAG_BYTE;
+
     unsigned char *buf = (unsigned char *)malloc((size_t)count);
     if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        return result;
     }
 
     sn_random_fill_entropy(buf, (size_t)count);
+    for (long long i = 0; i < count; i++) {
+        sn_array_push(result, &buf[i]);
+    }
 
-    /* Create handle-based array from temporary buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(unsigned char), buf);
     free(buf);
     return result;
 }
@@ -482,113 +478,98 @@ double sn_random_static_gaussian(double mean, double stddev)
  * Static Batch Generation (OS Entropy)
  * ============================================================================ */
 
-RtHandleV2 *sn_random_static_int_many(RtArenaV2 *arena, long min, long max, long count)
+SnArray *sn_random_static_int_many(long long min, long long max, long long count)
 {
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
+    if (count <= 0) {
+        SnArray *empty = sn_array_new(sizeof(long long), 0);
+        empty->elem_tag = SN_TAG_INT;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    long long *buf = (long long *)malloc((size_t)count * sizeof(long long));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
+    SnArray *result = sn_array_new(sizeof(long long), (size_t)count);
+    result->elem_tag = SN_TAG_INT;
+
+    for (long long i = 0; i < count; i++) {
+        long long val = sn_random_static_int(min, max);
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_static_int(min, max);
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(long long), buf);
-    free(buf);
     return result;
 }
 
-RtHandleV2 *sn_random_static_long_many(RtArenaV2 *arena, long long min, long long max, long count)
+SnArray *sn_random_static_long_many(long long min, long long max, long long count)
 {
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
+    if (count <= 0) {
+        SnArray *empty = sn_array_new(sizeof(long long), 0);
+        empty->elem_tag = SN_TAG_INT;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    long long *buf = (long long *)malloc((size_t)count * sizeof(long long));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
+    SnArray *result = sn_array_new(sizeof(long long), (size_t)count);
+    result->elem_tag = SN_TAG_INT;
+
+    for (long long i = 0; i < count; i++) {
+        long long val = sn_random_static_long(min, max);
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_static_long(min, max);
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(long long), buf);
-    free(buf);
     return result;
 }
 
-RtHandleV2 *sn_random_static_double_many(RtArenaV2 *arena, double min, double max, long count)
+SnArray *sn_random_static_double_many(double min, double max, long long count)
 {
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
+    if (count <= 0) {
+        SnArray *empty = sn_array_new(sizeof(double), 0);
+        empty->elem_tag = SN_TAG_DOUBLE;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    double *buf = (double *)malloc((size_t)count * sizeof(double));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
+    SnArray *result = sn_array_new(sizeof(double), (size_t)count);
+    result->elem_tag = SN_TAG_DOUBLE;
+
+    for (long long i = 0; i < count; i++) {
+        double val = sn_random_static_double(min, max);
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_static_double(min, max);
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(double), buf);
-    free(buf);
     return result;
 }
 
-RtHandleV2 *sn_random_static_bool_many(RtArenaV2 *arena, long count)
+SnArray *sn_random_static_bool_many(long long count)
 {
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(int), NULL);
+    if (count <= 0) {
+        SnArray *empty = sn_array_new(sizeof(bool), 0);
+        empty->elem_tag = SN_TAG_BOOL;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    int *buf = (int *)malloc((size_t)count * sizeof(int));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(int), NULL);
+    SnArray *result = sn_array_new(sizeof(bool), (size_t)count);
+    result->elem_tag = SN_TAG_BOOL;
+
+    for (long long i = 0; i < count; i++) {
+        bool val = sn_random_static_bool() != 0;
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_static_bool();
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(int), buf);
-    free(buf);
     return result;
 }
 
-RtHandleV2 *sn_random_static_gaussian_many(RtArenaV2 *arena, double mean, double stddev, long count)
+SnArray *sn_random_static_gaussian_many(double mean, double stddev, long long count)
 {
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
+    if (count <= 0) {
+        SnArray *empty = sn_array_new(sizeof(double), 0);
+        empty->elem_tag = SN_TAG_DOUBLE;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    double *buf = (double *)malloc((size_t)count * sizeof(double));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
+    SnArray *result = sn_array_new(sizeof(double), (size_t)count);
+    result->elem_tag = SN_TAG_DOUBLE;
+
+    for (long long i = 0; i < count; i++) {
+        double val = sn_random_static_gaussian(mean, stddev);
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_static_gaussian(mean, stddev);
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(double), buf);
-    free(buf);
     return result;
 }
 
@@ -596,123 +577,98 @@ RtHandleV2 *sn_random_static_gaussian_many(RtArenaV2 *arena, double mean, double
  * Instance Batch Generation (Seeded PRNG)
  * ============================================================================ */
 
-RtHandleV2 *sn_random_int_many(RtArenaV2 *arena, RtHandleV2 *rng, long min, long max, long count)
+SnArray *sn_random_int_many(RtRandom *rng, long long min, long long max, long long count)
 {
-    if (rng == NULL) return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
-
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
+    if (count <= 0 || rng == NULL) {
+        SnArray *empty = sn_array_new(sizeof(long long), 0);
+        empty->elem_tag = SN_TAG_INT;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    long long *buf = (long long *)malloc((size_t)count * sizeof(long long));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
+    SnArray *result = sn_array_new(sizeof(long long), (size_t)count);
+    result->elem_tag = SN_TAG_INT;
+
+    for (long long i = 0; i < count; i++) {
+        long long val = sn_random_int(rng, min, max);
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_int(rng, min, max);
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(long long), buf);
-    free(buf);
     return result;
 }
 
-RtHandleV2 *sn_random_long_many(RtArenaV2 *arena, RtHandleV2 *rng, long long min, long long max, long count)
+SnArray *sn_random_long_many(RtRandom *rng, long long min, long long max, long long count)
 {
-    if (rng == NULL) return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
-
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
+    if (count <= 0 || rng == NULL) {
+        SnArray *empty = sn_array_new(sizeof(long long), 0);
+        empty->elem_tag = SN_TAG_INT;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    long long *buf = (long long *)malloc((size_t)count * sizeof(long long));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(long long), NULL);
+    SnArray *result = sn_array_new(sizeof(long long), (size_t)count);
+    result->elem_tag = SN_TAG_INT;
+
+    for (long long i = 0; i < count; i++) {
+        long long val = sn_random_long(rng, min, max);
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_long(rng, min, max);
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(long long), buf);
-    free(buf);
     return result;
 }
 
-RtHandleV2 *sn_random_double_many(RtArenaV2 *arena, RtHandleV2 *rng, double min, double max, long count)
+SnArray *sn_random_double_many(RtRandom *rng, double min, double max, long long count)
 {
-    if (rng == NULL) return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
-
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
+    if (count <= 0 || rng == NULL) {
+        SnArray *empty = sn_array_new(sizeof(double), 0);
+        empty->elem_tag = SN_TAG_DOUBLE;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    double *buf = (double *)malloc((size_t)count * sizeof(double));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
+    SnArray *result = sn_array_new(sizeof(double), (size_t)count);
+    result->elem_tag = SN_TAG_DOUBLE;
+
+    for (long long i = 0; i < count; i++) {
+        double val = sn_random_double(rng, min, max);
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_double(rng, min, max);
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(double), buf);
-    free(buf);
     return result;
 }
 
-RtHandleV2 *sn_random_bool_many(RtArenaV2 *arena, RtHandleV2 *rng, long count)
+SnArray *sn_random_bool_many(RtRandom *rng, long long count)
 {
-    if (rng == NULL) return rt_array_create_generic_v2(arena, 0, sizeof(int), NULL);
-
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(int), NULL);
+    if (count <= 0 || rng == NULL) {
+        SnArray *empty = sn_array_new(sizeof(bool), 0);
+        empty->elem_tag = SN_TAG_BOOL;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    int *buf = (int *)malloc((size_t)count * sizeof(int));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(int), NULL);
+    SnArray *result = sn_array_new(sizeof(bool), (size_t)count);
+    result->elem_tag = SN_TAG_BOOL;
+
+    for (long long i = 0; i < count; i++) {
+        bool val = sn_random_bool(rng) != 0;
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_bool(rng);
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(int), buf);
-    free(buf);
     return result;
 }
 
-RtHandleV2 *sn_random_gaussian_many(RtArenaV2 *arena, RtHandleV2 *rng, double mean, double stddev, long count)
+SnArray *sn_random_gaussian_many(RtRandom *rng, double mean, double stddev, long long count)
 {
-    if (rng == NULL) return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
-
-    if (arena == NULL || count <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
+    if (count <= 0 || rng == NULL) {
+        SnArray *empty = sn_array_new(sizeof(double), 0);
+        empty->elem_tag = SN_TAG_DOUBLE;
+        return empty;
     }
 
-    /* Allocate temporary buffer */
-    double *buf = (double *)malloc((size_t)count * sizeof(double));
-    if (buf == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(double), NULL);
+    SnArray *result = sn_array_new(sizeof(double), (size_t)count);
+    result->elem_tag = SN_TAG_DOUBLE;
+
+    for (long long i = 0; i < count; i++) {
+        double val = sn_random_gaussian(rng, mean, stddev);
+        sn_array_push(result, &val);
     }
 
-    for (long i = 0; i < count; i++) {
-        buf[i] = sn_random_gaussian(rng, mean, stddev);
-    }
-
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(double), buf);
-    free(buf);
     return result;
 }
 
@@ -720,78 +676,84 @@ RtHandleV2 *sn_random_gaussian_many(RtArenaV2 *arena, RtHandleV2 *rng, double me
  * Static Collection Operations (OS Entropy) - Choice
  * ============================================================================ */
 
-long long sn_random_static_choice_int(long long *arr)
+long long sn_random_static_choice_int(SnArray *arr)
 {
     if (arr == NULL) return 0;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return 0;
 
-    long index = sn_random_static_int(0, len - 1);
-    return arr[index];
+    long long *data = (long long *)arr->data;
+    long long index = sn_random_static_int(0, len - 1);
+    return data[index];
 }
 
-long long sn_random_static_choice_long(long long *arr)
+long long sn_random_static_choice_long(SnArray *arr)
 {
     if (arr == NULL) return 0;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return 0;
 
-    long index = sn_random_static_int(0, len - 1);
-    return arr[index];
+    long long *data = (long long *)arr->data;
+    long long index = sn_random_static_int(0, len - 1);
+    return data[index];
 }
 
-double sn_random_static_choice_double(double *arr)
+double sn_random_static_choice_double(SnArray *arr)
 {
     if (arr == NULL) return 0.0;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return 0.0;
 
-    long index = sn_random_static_int(0, len - 1);
-    return arr[index];
+    double *data = (double *)arr->data;
+    long long index = sn_random_static_int(0, len - 1);
+    return data[index];
 }
 
-RtHandleV2 *sn_random_static_choice_str(RtArenaV2 *arena, char **arr)
+char *sn_random_static_choice_str(SnArray *arr)
 {
     if (arr == NULL) return NULL;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return NULL;
 
-    long index = sn_random_static_int(0, len - 1);
-    return rt_arena_v2_strdup(arena, arr[index]);
+    char **data = (char **)arr->data;
+    long long index = sn_random_static_int(0, len - 1);
+    return strdup(data[index]);
 }
 
-int sn_random_static_choice_bool(int *arr)
+long long sn_random_static_choice_bool(SnArray *arr)
 {
     if (arr == NULL) return 0;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return 0;
 
-    long index = sn_random_static_int(0, len - 1);
-    return arr[index];
+    bool *data = (bool *)arr->data;
+    long long index = sn_random_static_int(0, len - 1);
+    return data[index] ? 1 : 0;
 }
 
-unsigned char sn_random_static_choice_byte(unsigned char *arr)
+unsigned char sn_random_static_choice_byte(SnArray *arr)
 {
     if (arr == NULL) return 0;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return 0;
 
-    long index = sn_random_static_int(0, len - 1);
-    return arr[index];
+    unsigned char *data = (unsigned char *)arr->data;
+    long long index = sn_random_static_int(0, len - 1);
+    return data[index];
 }
 
 /* ============================================================================
  * Weight Validation Helper
  * ============================================================================ */
 
-static int sn_random_validate_weights(double *weights, long len)
+static int sn_random_validate_weights(double *weights, long long len)
 {
     if (weights == NULL || len <= 0) {
         return 0;
     }
 
     double sum = 0.0;
-    for (long i = 0; i < len; i++) {
+    for (long long i = 0; i < len; i++) {
         if (weights[i] <= 0.0) {
             return 0;
         }
@@ -805,14 +767,14 @@ static int sn_random_validate_weights(double *weights, long len)
     return 1;
 }
 
-static double *sn_random_build_cumulative(RtArenaV2 *arena, double *weights, long len)
+static double *sn_random_build_cumulative(double *weights, long long len)
 {
-    if (arena == NULL || weights == NULL || len <= 0) {
+    if (weights == NULL || len <= 0) {
         return NULL;
     }
 
     double sum = 0.0;
-    for (long i = 0; i < len; i++) {
+    for (long long i = 0; i < len; i++) {
         sum += weights[i];
     }
 
@@ -820,11 +782,13 @@ static double *sn_random_build_cumulative(RtArenaV2 *arena, double *weights, lon
         return NULL;
     }
 
-    RtHandleV2 *_cumul_h = rt_arena_v2_alloc(arena, (size_t)len * sizeof(double));
-    double *cumulative = (double *)_cumul_h->ptr;
+    double *cumulative = (double *)malloc((size_t)len * sizeof(double));
+    if (cumulative == NULL) {
+        return NULL;
+    }
 
     double running_sum = 0.0;
-    for (long i = 0; i < len; i++) {
+    for (long long i = 0; i < len; i++) {
         running_sum += weights[i] / sum;
         cumulative[i] = running_sum;
     }
@@ -834,7 +798,7 @@ static double *sn_random_build_cumulative(RtArenaV2 *arena, double *weights, lon
     return cumulative;
 }
 
-static long sn_random_select_weighted_index(double random_val, double *cumulative, long len)
+static long long sn_random_select_weighted_index(double random_val, double *cumulative, long long len)
 {
     if (cumulative == NULL || len <= 0) {
         return 0;
@@ -852,11 +816,11 @@ static long sn_random_select_weighted_index(double random_val, double *cumulativ
         return 0;
     }
 
-    long left = 0;
-    long right = len - 1;
+    long long left = 0;
+    long long right = len - 1;
 
     while (left < right) {
-        long mid = left + (right - left) / 2;
+        long long mid = left + (right - left) / 2;
 
         if (cumulative[mid] > random_val) {
             right = mid;
@@ -872,222 +836,218 @@ static long sn_random_select_weighted_index(double random_val, double *cumulativ
  * Static Collection Operations (OS Entropy) - Weighted Choice
  * ============================================================================ */
 
-long long sn_random_static_weighted_choice_int(long long *arr, double *weights)
+long long sn_random_static_weighted_choice_int(SnArray *arr, SnArray *weights_arr)
 {
-    if (arr == NULL || weights == NULL) {
+    if (arr == NULL || weights_arr == NULL) {
         return 0;
     }
 
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) {
         return 0;
     }
+
+    long long *data = (long long *)arr->data;
+    double *weights = (double *)weights_arr->data;
 
     if (!sn_random_validate_weights(weights, len)) {
         return 0;
     }
 
-    RtArenaV2 *temp_arena = rt_arena_create(NULL);
-    if (temp_arena == NULL) {
-        return 0;
-    }
-
-    double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
+    double *cumulative = sn_random_build_cumulative(weights, len);
     if (cumulative == NULL) {
-        rt_arena_v2_destroy(temp_arena, false);
         return 0;
     }
 
     double random_val = sn_random_static_double(0.0, 1.0);
-    long index = sn_random_select_weighted_index(random_val, cumulative, len);
-    long long result = arr[index];
+    long long index = sn_random_select_weighted_index(random_val, cumulative, len);
+    long long result = data[index];
 
-    rt_arena_v2_destroy(temp_arena, false);
+    free(cumulative);
 
     return result;
 }
 
-long long sn_random_static_weighted_choice_long(long long *arr, double *weights)
+long long sn_random_static_weighted_choice_long(SnArray *arr, SnArray *weights_arr)
 {
-    return sn_random_static_weighted_choice_int(arr, weights);
+    return sn_random_static_weighted_choice_int(arr, weights_arr);
 }
 
-double sn_random_static_weighted_choice_double(double *arr, double *weights)
+double sn_random_static_weighted_choice_double(SnArray *arr, SnArray *weights_arr)
 {
-    if (arr == NULL || weights == NULL) {
+    if (arr == NULL || weights_arr == NULL) {
         return 0.0;
     }
 
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) {
         return 0.0;
     }
+
+    double *data = (double *)arr->data;
+    double *weights = (double *)weights_arr->data;
 
     if (!sn_random_validate_weights(weights, len)) {
         return 0.0;
     }
 
-    RtArenaV2 *temp_arena = rt_arena_create(NULL);
-    if (temp_arena == NULL) {
-        return 0.0;
-    }
-
-    double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
+    double *cumulative = sn_random_build_cumulative(weights, len);
     if (cumulative == NULL) {
-        rt_arena_v2_destroy(temp_arena, false);
         return 0.0;
     }
 
     double random_val = sn_random_static_double(0.0, 1.0);
-    long index = sn_random_select_weighted_index(random_val, cumulative, len);
-    double result = arr[index];
+    long long index = sn_random_select_weighted_index(random_val, cumulative, len);
+    double result = data[index];
 
-    rt_arena_v2_destroy(temp_arena, false);
+    free(cumulative);
 
     return result;
 }
 
-RtHandleV2 *sn_random_static_weighted_choice_str(RtArenaV2 *arena, char **arr, double *weights)
+char *sn_random_static_weighted_choice_str(SnArray *arr, SnArray *weights_arr)
 {
-    if (arr == NULL || weights == NULL) {
+    if (arr == NULL || weights_arr == NULL) {
         return NULL;
     }
 
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) {
         return NULL;
     }
+
+    char **data = (char **)arr->data;
+    double *weights = (double *)weights_arr->data;
 
     if (!sn_random_validate_weights(weights, len)) {
         return NULL;
     }
 
-    RtArenaV2 *temp_arena = rt_arena_v2_create(arena, RT_ARENA_MODE_DEFAULT, NULL);
-    if (temp_arena == NULL) {
-        return NULL;
-    }
-
-    double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
+    double *cumulative = sn_random_build_cumulative(weights, len);
     if (cumulative == NULL) {
-        rt_arena_v2_condemn(temp_arena);
         return NULL;
     }
 
     double random_val = sn_random_static_double(0.0, 1.0);
-    long index = sn_random_select_weighted_index(random_val, cumulative, len);
-    char *str_result = arr[index];
+    long long index = sn_random_select_weighted_index(random_val, cumulative, len);
+    char *result = strdup(data[index]);
 
-    rt_arena_v2_condemn(temp_arena);
+    free(cumulative);
 
-    return rt_arena_v2_strdup(arena, str_result);
+    return result;
 }
 
 /* ============================================================================
  * Static Collection Operations (OS Entropy) - Shuffle
  * ============================================================================ */
 
-void sn_random_static_shuffle_int(long long *arr)
+void sn_random_static_shuffle_int(SnArray *arr)
 {
     if (arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    long long *data = (long long *)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_static_int(0, (long)i);
+        size_t j = (size_t)sn_random_static_int(0, (long long)i);
 
-        long long temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        long long temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
-void sn_random_static_shuffle_long(long long *arr)
+void sn_random_static_shuffle_long(SnArray *arr)
 {
     sn_random_static_shuffle_int(arr);
 }
 
-void sn_random_static_shuffle_double(double *arr)
+void sn_random_static_shuffle_double(SnArray *arr)
 {
     if (arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    double *data = (double *)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_static_int(0, (long)i);
+        size_t j = (size_t)sn_random_static_int(0, (long long)i);
 
-        double temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        double temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
-void sn_random_static_shuffle_str(char **arr)
+void sn_random_static_shuffle_str(SnArray *arr)
 {
     if (arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    char **data = (char **)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_static_int(0, (long)i);
+        size_t j = (size_t)sn_random_static_int(0, (long long)i);
 
-        char *temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        char *temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
-void sn_random_static_shuffle_bool(int *arr)
+void sn_random_static_shuffle_bool(SnArray *arr)
 {
     if (arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    bool *data = (bool *)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_static_int(0, (long)i);
+        size_t j = (size_t)sn_random_static_int(0, (long long)i);
 
-        int temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        bool temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
-void sn_random_static_shuffle_byte(unsigned char *arr)
+void sn_random_static_shuffle_byte(SnArray *arr)
 {
     if (arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    unsigned char *data = (unsigned char *)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_static_int(0, (long)i);
+        size_t j = (size_t)sn_random_static_int(0, (long long)i);
 
-        unsigned char temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        unsigned char temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
@@ -1095,9 +1055,9 @@ void sn_random_static_shuffle_byte(unsigned char *arr)
  * Static Collection Operations (OS Entropy) - Sample
  * ============================================================================ */
 
-RtHandleV2 *sn_random_static_sample_int(RtArenaV2 *arena, long long *arr, long count)
+SnArray *sn_random_static_sample_int(SnArray *arr, long long count)
 {
-    if (arena == NULL || arr == NULL) {
+    if (arr == NULL) {
         return NULL;
     }
 
@@ -1105,53 +1065,47 @@ RtHandleV2 *sn_random_static_sample_int(RtArenaV2 *arena, long long *arr, long c
         return NULL;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
 
-    if (count > (long)n) {
+    if (count > (long long)n) {
         return NULL;
     }
+
+    long long *src = (long long *)arr->data;
 
     /* Allocate temporary buffer for shuffle */
     long long *temp = (long long *)malloc(n * sizeof(long long));
     if (temp == NULL) {
         return NULL;
     }
-    memcpy(temp, arr, n * sizeof(long long));
+    memcpy(temp, src, n * sizeof(long long));
 
-    /* Allocate buffer for result */
-    long long *result_buf = (long long *)malloc((size_t)count * sizeof(long long));
-    if (result_buf == NULL) {
-        free(temp);
-        return NULL;
-    }
+    SnArray *result = sn_array_new(sizeof(long long), (size_t)count);
+    result->elem_tag = SN_TAG_INT;
 
-    for (long i = 0; i < count; i++) {
-        size_t j = (size_t)sn_random_static_int((long)i, (long)(n - 1));
+    for (long long i = 0; i < count; i++) {
+        size_t j = (size_t)sn_random_static_int(i, (long long)(n - 1));
 
         long long swap = temp[i];
         temp[i] = temp[j];
         temp[j] = swap;
 
-        result_buf[i] = temp[i];
+        sn_array_push(result, &temp[i]);
     }
 
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(long long), result_buf);
-
     free(temp);
-    free(result_buf);
 
     return result;
 }
 
-RtHandleV2 *sn_random_static_sample_long(RtArenaV2 *arena, long long *arr, long count)
+SnArray *sn_random_static_sample_long(SnArray *arr, long long count)
 {
-    return sn_random_static_sample_int(arena, arr, count);
+    return sn_random_static_sample_int(arr, count);
 }
 
-RtHandleV2 *sn_random_static_sample_double(RtArenaV2 *arena, double *arr, long count)
+SnArray *sn_random_static_sample_double(SnArray *arr, long long count)
 {
-    if (arena == NULL || arr == NULL) {
+    if (arr == NULL) {
         return NULL;
     }
 
@@ -1159,48 +1113,42 @@ RtHandleV2 *sn_random_static_sample_double(RtArenaV2 *arena, double *arr, long c
         return NULL;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
 
-    if (count > (long)n) {
+    if (count > (long long)n) {
         return NULL;
     }
+
+    double *src = (double *)arr->data;
 
     /* Allocate temporary buffer for shuffle */
     double *temp = (double *)malloc(n * sizeof(double));
     if (temp == NULL) {
         return NULL;
     }
-    memcpy(temp, arr, n * sizeof(double));
+    memcpy(temp, src, n * sizeof(double));
 
-    /* Allocate buffer for result */
-    double *result_buf = (double *)malloc((size_t)count * sizeof(double));
-    if (result_buf == NULL) {
-        free(temp);
-        return NULL;
-    }
+    SnArray *result = sn_array_new(sizeof(double), (size_t)count);
+    result->elem_tag = SN_TAG_DOUBLE;
 
-    for (long i = 0; i < count; i++) {
-        size_t j = (size_t)sn_random_static_int((long)i, (long)(n - 1));
+    for (long long i = 0; i < count; i++) {
+        size_t j = (size_t)sn_random_static_int(i, (long long)(n - 1));
 
         double swap = temp[i];
         temp[i] = temp[j];
         temp[j] = swap;
 
-        result_buf[i] = temp[i];
+        sn_array_push(result, &temp[i]);
     }
 
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(double), result_buf);
-
     free(temp);
-    free(result_buf);
 
     return result;
 }
 
-RtHandleV2 *sn_random_static_sample_str(RtArenaV2 *arena, char **arr, long count)
+SnArray *sn_random_static_sample_str(SnArray *arr, long long count)
 {
-    if (arena == NULL || arr == NULL) {
+    if (arr == NULL) {
         return NULL;
     }
 
@@ -1208,41 +1156,38 @@ RtHandleV2 *sn_random_static_sample_str(RtArenaV2 *arena, char **arr, long count
         return NULL;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
 
-    if (count > (long)n) {
+    if (count > (long long)n) {
         return NULL;
     }
 
-    /* Allocate temporary buffer for shuffle */
+    char **src = (char **)arr->data;
+
+    /* Allocate temporary buffer for shuffle (pointers only, no strdup yet) */
     char **temp = (char **)malloc(n * sizeof(char *));
     if (temp == NULL) {
         return NULL;
     }
-    memcpy(temp, arr, n * sizeof(char *));
+    memcpy(temp, src, n * sizeof(char *));
 
-    /* Allocate buffer for result string pointers */
-    const char **result_buf = (const char **)malloc((size_t)count * sizeof(const char *));
-    if (result_buf == NULL) {
-        free(temp);
-        return NULL;
-    }
+    SnArray *result = sn_array_new(sizeof(char *), (size_t)count);
+    result->elem_tag = SN_TAG_STRING;
+    result->elem_release = (void (*)(void *))sn_cleanup_str;
+    result->elem_copy = sn_copy_str;
 
-    for (long i = 0; i < count; i++) {
-        size_t j = (size_t)sn_random_static_int((long)i, (long)(n - 1));
+    for (long long i = 0; i < count; i++) {
+        size_t j = (size_t)sn_random_static_int(i, (long long)(n - 1));
 
         char *swap = temp[i];
         temp[i] = temp[j];
         temp[j] = swap;
 
-        result_buf[i] = temp[i];
+        char *dup = strdup(temp[i]);
+        sn_array_push(result, &dup);
     }
 
-    /* Create handle-based string array from buffer */
-    RtHandleV2 *result = rt_array_create_string_v2(arena, (size_t)count, result_buf);
-
     free(temp);
-    free(result_buf);
 
     return result;
 }
@@ -1251,284 +1196,285 @@ RtHandleV2 *sn_random_static_sample_str(RtArenaV2 *arena, char **arr, long count
  * Instance Collection Operations (Seeded PRNG) - Choice
  * ============================================================================ */
 
-long long sn_random_choice_int(RtHandleV2 *rng, long long *arr)
+long long sn_random_choice_int(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) return 0;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return 0;
 
-    long index = sn_random_int(rng, 0, len - 1);
-    return arr[index];
+    long long *data = (long long *)arr->data;
+    long long index = sn_random_int(rng, 0, len - 1);
+    return data[index];
 }
 
-long long sn_random_choice_long(RtHandleV2 *rng, long long *arr)
+long long sn_random_choice_long(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL) return 0;
     return sn_random_choice_int(rng, arr);
 }
 
-double sn_random_choice_double(RtHandleV2 *rng, double *arr)
+double sn_random_choice_double(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) return 0.0;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return 0.0;
 
-    long index = sn_random_int(rng, 0, len - 1);
-    return arr[index];
+    double *data = (double *)arr->data;
+    long long index = sn_random_int(rng, 0, len - 1);
+    return data[index];
 }
 
-RtHandleV2 *sn_random_choice_str(RtArenaV2 *arena, RtHandleV2 *rng, char **arr)
+char *sn_random_choice_str(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) return NULL;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return NULL;
 
-    long index = sn_random_int(rng, 0, len - 1);
-    return rt_arena_v2_strdup(arena, arr[index]);
+    char **data = (char **)arr->data;
+    long long index = sn_random_int(rng, 0, len - 1);
+    return strdup(data[index]);
 }
 
-int sn_random_choice_bool(RtHandleV2 *rng, int *arr)
+long long sn_random_choice_bool(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) return 0;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return 0;
 
-    long index = sn_random_int(rng, 0, len - 1);
-    return arr[index];
+    bool *data = (bool *)arr->data;
+    long long index = sn_random_int(rng, 0, len - 1);
+    return data[index] ? 1 : 0;
 }
 
-unsigned char sn_random_choice_byte(RtHandleV2 *rng, unsigned char *arr)
+unsigned char sn_random_choice_byte(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) return 0;
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) return 0;
 
-    long index = sn_random_int(rng, 0, len - 1);
-    return arr[index];
+    unsigned char *data = (unsigned char *)arr->data;
+    long long index = sn_random_int(rng, 0, len - 1);
+    return data[index];
 }
 
 /* ============================================================================
  * Instance Collection Operations (Seeded PRNG) - Weighted Choice
  * ============================================================================ */
 
-long long sn_random_weighted_choice_int(RtHandleV2 *rng, long long *arr, double *weights)
+long long sn_random_weighted_choice_int(RtRandom *rng, SnArray *arr, SnArray *weights_arr)
 {
-    if (rng == NULL || arr == NULL || weights == NULL) {
+    if (rng == NULL || arr == NULL || weights_arr == NULL) {
         return 0;
     }
 
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) {
         return 0;
     }
+
+    long long *data = (long long *)arr->data;
+    double *weights = (double *)weights_arr->data;
 
     if (!sn_random_validate_weights(weights, len)) {
         return 0;
     }
 
-    RtArenaV2 *temp_arena = rt_arena_create(NULL);
-    if (temp_arena == NULL) {
-        return 0;
-    }
-
-    double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
+    double *cumulative = sn_random_build_cumulative(weights, len);
     if (cumulative == NULL) {
-        rt_arena_v2_destroy(temp_arena, false);
         return 0;
     }
 
     double random_val = sn_random_double(rng, 0.0, 1.0);
-    long index = sn_random_select_weighted_index(random_val, cumulative, len);
-    long long result = arr[index];
+    long long index = sn_random_select_weighted_index(random_val, cumulative, len);
+    long long result = data[index];
 
-    rt_arena_v2_destroy(temp_arena, false);
+    free(cumulative);
 
     return result;
 }
 
-long long sn_random_weighted_choice_long(RtHandleV2 *rng, long long *arr, double *weights)
+long long sn_random_weighted_choice_long(RtRandom *rng, SnArray *arr, SnArray *weights_arr)
 {
     if (rng == NULL) return 0;
-    return sn_random_weighted_choice_int(rng, arr, weights);
+    return sn_random_weighted_choice_int(rng, arr, weights_arr);
 }
 
-double sn_random_weighted_choice_double(RtHandleV2 *rng, double *arr, double *weights)
+double sn_random_weighted_choice_double(RtRandom *rng, SnArray *arr, SnArray *weights_arr)
 {
-    if (rng == NULL || arr == NULL || weights == NULL) {
+    if (rng == NULL || arr == NULL || weights_arr == NULL) {
         return 0.0;
     }
 
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) {
         return 0.0;
     }
+
+    double *data = (double *)arr->data;
+    double *weights = (double *)weights_arr->data;
 
     if (!sn_random_validate_weights(weights, len)) {
         return 0.0;
     }
 
-    RtArenaV2 *temp_arena = rt_arena_create(NULL);
-    if (temp_arena == NULL) {
-        return 0.0;
-    }
-
-    double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
+    double *cumulative = sn_random_build_cumulative(weights, len);
     if (cumulative == NULL) {
-        rt_arena_v2_destroy(temp_arena, false);
         return 0.0;
     }
 
     double random_val = sn_random_double(rng, 0.0, 1.0);
-    long index = sn_random_select_weighted_index(random_val, cumulative, len);
-    double result = arr[index];
+    long long index = sn_random_select_weighted_index(random_val, cumulative, len);
+    double result = data[index];
 
-    rt_arena_v2_destroy(temp_arena, false);
+    free(cumulative);
 
     return result;
 }
 
-RtHandleV2 *sn_random_weighted_choice_str(RtArenaV2 *arena, RtHandleV2 *rng, char **arr, double *weights)
+char *sn_random_weighted_choice_str(RtRandom *rng, SnArray *arr, SnArray *weights_arr)
 {
-    if (rng == NULL || arr == NULL || weights == NULL) {
+    if (rng == NULL || arr == NULL || weights_arr == NULL) {
         return NULL;
     }
 
-    long len = (long)rt_v2_data_array_length(arr);
+    long long len = (long long)sn_array_length(arr);
     if (len <= 0) {
         return NULL;
     }
+
+    char **data = (char **)arr->data;
+    double *weights = (double *)weights_arr->data;
 
     if (!sn_random_validate_weights(weights, len)) {
         return NULL;
     }
 
-    RtArenaV2 *temp_arena = rt_arena_v2_create(arena, RT_ARENA_MODE_DEFAULT, NULL);
-    if (temp_arena == NULL) {
-        return NULL;
-    }
-
-    double *cumulative = sn_random_build_cumulative(temp_arena, weights, len);
+    double *cumulative = sn_random_build_cumulative(weights, len);
     if (cumulative == NULL) {
-        rt_arena_v2_condemn(temp_arena);
         return NULL;
     }
 
     double random_val = sn_random_double(rng, 0.0, 1.0);
-    long index = sn_random_select_weighted_index(random_val, cumulative, len);
-    char *str_result = arr[index];
+    long long index = sn_random_select_weighted_index(random_val, cumulative, len);
+    char *result = strdup(data[index]);
 
-    rt_arena_v2_condemn(temp_arena);
+    free(cumulative);
 
-    return rt_arena_v2_strdup(arena, str_result);
+    return result;
 }
 
 /* ============================================================================
  * Instance Collection Operations (Seeded PRNG) - Shuffle
  * ============================================================================ */
 
-void sn_random_shuffle_int(RtHandleV2 *rng, long long *arr)
+void sn_random_shuffle_int(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    long long *data = (long long *)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_int(rng, 0, (long)i);
+        size_t j = (size_t)sn_random_int(rng, 0, (long long)i);
 
-        long long temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        long long temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
-void sn_random_shuffle_long(RtHandleV2 *rng, long long *arr)
+void sn_random_shuffle_long(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL) return;
     sn_random_shuffle_int(rng, arr);
 }
 
-void sn_random_shuffle_double(RtHandleV2 *rng, double *arr)
+void sn_random_shuffle_double(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    double *data = (double *)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_int(rng, 0, (long)i);
+        size_t j = (size_t)sn_random_int(rng, 0, (long long)i);
 
-        double temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        double temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
-void sn_random_shuffle_str(RtHandleV2 *rng, char **arr)
+void sn_random_shuffle_str(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    char **data = (char **)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_int(rng, 0, (long)i);
+        size_t j = (size_t)sn_random_int(rng, 0, (long long)i);
 
-        char *temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        char *temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
-void sn_random_shuffle_bool(RtHandleV2 *rng, int *arr)
+void sn_random_shuffle_bool(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    bool *data = (bool *)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_int(rng, 0, (long)i);
+        size_t j = (size_t)sn_random_int(rng, 0, (long long)i);
 
-        int temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        bool temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
-void sn_random_shuffle_byte(RtHandleV2 *rng, unsigned char *arr)
+void sn_random_shuffle_byte(RtRandom *rng, SnArray *arr)
 {
     if (rng == NULL || arr == NULL) {
         return;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
     if (n <= 1) {
         return;
     }
 
+    unsigned char *data = (unsigned char *)arr->data;
     for (size_t i = n - 1; i > 0; i--) {
-        size_t j = (size_t)sn_random_int(rng, 0, (long)i);
+        size_t j = (size_t)sn_random_int(rng, 0, (long long)i);
 
-        unsigned char temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        unsigned char temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
     }
 }
 
@@ -1536,9 +1482,9 @@ void sn_random_shuffle_byte(RtHandleV2 *rng, unsigned char *arr)
  * Instance Collection Operations (Seeded PRNG) - Sample
  * ============================================================================ */
 
-RtHandleV2 *sn_random_sample_int(RtArenaV2 *arena, RtHandleV2 *rng, long long *arr, long count)
+SnArray *sn_random_sample_int(RtRandom *rng, SnArray *arr, long long count)
 {
-    if (arena == NULL || rng == NULL || arr == NULL) {
+    if (rng == NULL || arr == NULL) {
         return NULL;
     }
 
@@ -1546,54 +1492,48 @@ RtHandleV2 *sn_random_sample_int(RtArenaV2 *arena, RtHandleV2 *rng, long long *a
         return NULL;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
 
-    if (count > (long)n) {
+    if (count > (long long)n) {
         return NULL;
     }
+
+    long long *src = (long long *)arr->data;
 
     /* Allocate temporary buffer for shuffle */
     long long *temp = (long long *)malloc(n * sizeof(long long));
     if (temp == NULL) {
         return NULL;
     }
-    memcpy(temp, arr, n * sizeof(long long));
+    memcpy(temp, src, n * sizeof(long long));
 
-    /* Allocate buffer for result */
-    long long *result_buf = (long long *)malloc((size_t)count * sizeof(long long));
-    if (result_buf == NULL) {
-        free(temp);
-        return NULL;
-    }
+    SnArray *result = sn_array_new(sizeof(long long), (size_t)count);
+    result->elem_tag = SN_TAG_INT;
 
-    for (long i = 0; i < count; i++) {
-        size_t j = (size_t)sn_random_int(rng, (long)i, (long)(n - 1));
+    for (long long i = 0; i < count; i++) {
+        size_t j = (size_t)sn_random_int(rng, i, (long long)(n - 1));
 
         long long swap = temp[i];
         temp[i] = temp[j];
         temp[j] = swap;
 
-        result_buf[i] = temp[i];
+        sn_array_push(result, &temp[i]);
     }
 
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(long long), result_buf);
-
     free(temp);
-    free(result_buf);
 
     return result;
 }
 
-RtHandleV2 *sn_random_sample_long(RtArenaV2 *arena, RtHandleV2 *rng, long long *arr, long count)
+SnArray *sn_random_sample_long(RtRandom *rng, SnArray *arr, long long count)
 {
     if (rng == NULL) return NULL;
-    return sn_random_sample_int(arena, rng, arr, count);
+    return sn_random_sample_int(rng, arr, count);
 }
 
-RtHandleV2 *sn_random_sample_double(RtArenaV2 *arena, RtHandleV2 *rng, double *arr, long count)
+SnArray *sn_random_sample_double(RtRandom *rng, SnArray *arr, long long count)
 {
-    if (arena == NULL || rng == NULL || arr == NULL) {
+    if (rng == NULL || arr == NULL) {
         return NULL;
     }
 
@@ -1601,48 +1541,42 @@ RtHandleV2 *sn_random_sample_double(RtArenaV2 *arena, RtHandleV2 *rng, double *a
         return NULL;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
 
-    if (count > (long)n) {
+    if (count > (long long)n) {
         return NULL;
     }
+
+    double *src = (double *)arr->data;
 
     /* Allocate temporary buffer for shuffle */
     double *temp = (double *)malloc(n * sizeof(double));
     if (temp == NULL) {
         return NULL;
     }
-    memcpy(temp, arr, n * sizeof(double));
+    memcpy(temp, src, n * sizeof(double));
 
-    /* Allocate buffer for result */
-    double *result_buf = (double *)malloc((size_t)count * sizeof(double));
-    if (result_buf == NULL) {
-        free(temp);
-        return NULL;
-    }
+    SnArray *result = sn_array_new(sizeof(double), (size_t)count);
+    result->elem_tag = SN_TAG_DOUBLE;
 
-    for (long i = 0; i < count; i++) {
-        size_t j = (size_t)sn_random_int(rng, (long)i, (long)(n - 1));
+    for (long long i = 0; i < count; i++) {
+        size_t j = (size_t)sn_random_int(rng, i, (long long)(n - 1));
 
         double swap = temp[i];
         temp[i] = temp[j];
         temp[j] = swap;
 
-        result_buf[i] = temp[i];
+        sn_array_push(result, &temp[i]);
     }
 
-    /* Create handle-based array from buffer */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)count, sizeof(double), result_buf);
-
     free(temp);
-    free(result_buf);
 
     return result;
 }
 
-RtHandleV2 *sn_random_sample_str(RtArenaV2 *arena, RtHandleV2 *rng, char **arr, long count)
+SnArray *sn_random_sample_str(RtRandom *rng, SnArray *arr, long long count)
 {
-    if (arena == NULL || rng == NULL || arr == NULL) {
+    if (rng == NULL || arr == NULL) {
         return NULL;
     }
 
@@ -1650,41 +1584,38 @@ RtHandleV2 *sn_random_sample_str(RtArenaV2 *arena, RtHandleV2 *rng, char **arr, 
         return NULL;
     }
 
-    size_t n = rt_v2_data_array_length(arr);
+    size_t n = sn_array_length(arr);
 
-    if (count > (long)n) {
+    if (count > (long long)n) {
         return NULL;
     }
 
-    /* Allocate temporary buffer for shuffle */
+    char **src = (char **)arr->data;
+
+    /* Allocate temporary buffer for shuffle (pointers only, no strdup yet) */
     char **temp = (char **)malloc(n * sizeof(char *));
     if (temp == NULL) {
         return NULL;
     }
-    memcpy(temp, arr, n * sizeof(char *));
+    memcpy(temp, src, n * sizeof(char *));
 
-    /* Allocate buffer for result string pointers */
-    const char **result_buf = (const char **)malloc((size_t)count * sizeof(const char *));
-    if (result_buf == NULL) {
-        free(temp);
-        return NULL;
-    }
+    SnArray *result = sn_array_new(sizeof(char *), (size_t)count);
+    result->elem_tag = SN_TAG_STRING;
+    result->elem_release = (void (*)(void *))sn_cleanup_str;
+    result->elem_copy = sn_copy_str;
 
-    for (long i = 0; i < count; i++) {
-        size_t j = (size_t)sn_random_int(rng, (long)i, (long)(n - 1));
+    for (long long i = 0; i < count; i++) {
+        size_t j = (size_t)sn_random_int(rng, i, (long long)(n - 1));
 
         char *swap = temp[i];
         temp[i] = temp[j];
         temp[j] = swap;
 
-        result_buf[i] = temp[i];
+        char *dup = strdup(temp[i]);
+        sn_array_push(result, &dup);
     }
 
-    /* Create handle-based string array from buffer */
-    RtHandleV2 *result = rt_array_create_string_v2(arena, (size_t)count, result_buf);
-
     free(temp);
-    free(result_buf);
 
     return result;
 }

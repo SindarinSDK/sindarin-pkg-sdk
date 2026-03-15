@@ -84,13 +84,13 @@ native struct Path =>
 # ==============================================================================
 
 # Path manipulation functions
-native fn sn_path_directory(arena, path: str): str
-native fn sn_path_filename(arena, path: str): str
-native fn sn_path_extension(arena, path: str): str
-native fn sn_path_join2(arena, path1: str, path2: str): str
-native fn sn_path_join3(arena, path1: str, path2: str, path3: str): str
-native fn sn_path_join_all(arena, parts: str[]): str
-native fn sn_path_absolute(arena, path: str): str
+native fn sn_path_directory(path: str): str
+native fn sn_path_filename(path: str): str
+native fn sn_path_extension(path: str): str
+native fn sn_path_join2(path1: str, path2: str): str
+native fn sn_path_join3(path1: str, path2: str, path3: str): str
+native fn sn_path_join_all(parts: str[]): str
+native fn sn_path_absolute(path: str): str
 
 # Path query functions
 native fn sn_path_exists(path: str): int

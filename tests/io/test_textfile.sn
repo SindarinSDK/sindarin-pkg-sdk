@@ -57,14 +57,14 @@ fn test_instance_read_write(): void =>
     f.writeLine("Line 1")
     f.writeLine("Line 2")
     f.writeLine("Line 3")
-    f.close()
+    f.dispose()
 
     # Open and read back
     var f2: TextFile = TextFile.open(testPath)
     var line1: str = f2.readLine()
     var line2: str = f2.readLine()
     var line3: str = f2.readLine()
-    f2.close()
+    f2.dispose()
 
     assert(line1 == "Line 1", "First line should match")
     assert(line2 == "Line 2", "Second line should match")
@@ -83,7 +83,7 @@ fn test_read_lines(): void =>
 
     var f: TextFile = TextFile.open(testPath)
     var lines: str[] = f.readLines()
-    f.close()
+    f.dispose()
 
     assert(lines.length == 3, "Should have 3 lines")
     assert(lines[0] == "Alpha", "First line")
@@ -105,7 +105,7 @@ fn test_read_word(): void =>
     var w2: str = f.readWord()
     var w3: str = f.readWord()
     var w4: str = f.readWord()
-    f.close()
+    f.dispose()
 
     assert(w1 == "one", "First word")
     assert(w2 == "two", "Second word")
@@ -144,7 +144,7 @@ fn test_position_and_seek(): void =>
     var c4: int = f.readChar()
     assert(c4 == 65, "First char after seek should be 'A'")
 
-    f.close()
+    f.dispose()
     TextFile.delete(testPath)
 
     print("PASS\n")
@@ -166,7 +166,7 @@ fn test_eof_and_has_chars(): void =>
     assert(f.isEof(), "Should be at EOF after reading all")
     assert(!f.hasChars(), "Should not have chars after reading all")
 
-    f.close()
+    f.dispose()
     TextFile.delete(testPath)
 
     print("PASS\n")
@@ -209,7 +209,7 @@ fn test_properties(): void =>
     assert(f.size() == 10, "Size should be 10 bytes")
     assert(f.name() == "sdk_textfile_test8.txt", "Name should be filename only")
 
-    f.close()
+    f.dispose()
     TextFile.delete(testPath)
 
     print("PASS\n")

@@ -76,7 +76,6 @@ native struct OS =>
 # Runtime Function Declarations
 # ==============================================================================
 # These declare the C functions implemented in os.sn.c.
-# Platform detection functions don't need arena (return int as bool).
 
 # Platform detection (returns 0 or 1)
 native fn sn_os_is_windows(): int
@@ -84,8 +83,8 @@ native fn sn_os_is_macos(): int
 native fn sn_os_is_linux(): int
 native fn sn_os_is_unix(): int
 
-# OS name (needs arena for string allocation)
-native fn sn_os_name(arena): str
+# OS name (returns string)
+native fn sn_os_name(): str
 
 # CPU count
 native fn sn_os_cpu_count(): int

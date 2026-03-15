@@ -33,7 +33,7 @@ native struct Time as ref =>
     _milliseconds: long
 
     # ==========================================================================
-    # Static Factory Methods (non-native - receive arena)
+    # Static Factory Methods
     # ==========================================================================
 
     # Get current local time
@@ -117,7 +117,7 @@ native struct Time as ref =>
     native fn equals(other: Time): bool
 
     # ==========================================================================
-    # Formatting Methods (non-native - need arena for string allocation)
+    # Formatting Methods
     # ==========================================================================
 
     # Format time using pattern string
@@ -137,7 +137,7 @@ native struct Time as ref =>
         return sn_time_to_time(self)
 
     # ==========================================================================
-    # Arithmetic Methods (non-native - need arena for new time allocation)
+    # Arithmetic Methods
     # ==========================================================================
 
     # Add milliseconds to this time - matches builtin Time.add(ms)
@@ -171,26 +171,26 @@ native struct Time as ref =>
 # Time is an opaque handle type that generates as RtTime* in C.
 
 # Factory functions - return Time (which is RtTime*)
-native fn sn_time_now(arena): Time
-native fn sn_time_utc(arena): Time
-native fn sn_time_from_millis(arena, ms: long): Time
-native fn sn_time_from_seconds(arena, s: long): Time
+native fn sn_time_now(): Time
+native fn sn_time_utc(): Time
+native fn sn_time_from_millis(ms: long): Time
+native fn sn_time_from_seconds(s: long): Time
 
 # Utility functions
 native fn sn_time_sleep(ms: int): void
 
 # Formatting functions - take Time (which is RtTime*)
-native fn sn_time_format(arena, t: Time, pattern: str): str
-native fn sn_time_to_iso(arena, t: Time): str
-native fn sn_time_to_date(arena, t: Time): str
-native fn sn_time_to_time(arena, t: Time): str
+native fn sn_time_format(t: Time, pattern: str): str
+native fn sn_time_to_iso(t: Time): str
+native fn sn_time_to_date(t: Time): str
+native fn sn_time_to_time(t: Time): str
 
 # Arithmetic functions - take Time, return new Time
-native fn sn_time_add(arena, t: Time, ms: long): Time
-native fn sn_time_add_seconds(arena, t: Time, seconds: int): Time
-native fn sn_time_add_minutes(arena, t: Time, minutes: int): Time
-native fn sn_time_add_hours(arena, t: Time, hours: int): Time
-native fn sn_time_add_days(arena, t: Time, days: int): Time
+native fn sn_time_add(t: Time, ms: long): Time
+native fn sn_time_add_seconds(t: Time, seconds: int): Time
+native fn sn_time_add_minutes(t: Time, minutes: int): Time
+native fn sn_time_add_hours(t: Time, hours: int): Time
+native fn sn_time_add_days(t: Time, days: int): Time
 native fn sn_time_diff(t: Time, other: Time): long
 
 # Getter functions - these need explicit declarations for proper return types
@@ -209,4 +209,3 @@ native fn sn_time_get_weekday(t: Time): int
 native fn sn_time_is_before(t: Time, other: Time): bool
 native fn sn_time_is_after(t: Time, other: Time): bool
 native fn sn_time_equals(t: Time, other: Time): bool
-

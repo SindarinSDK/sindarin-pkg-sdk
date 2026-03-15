@@ -134,9 +134,9 @@ native struct BinaryFile as ref =>
     @alias "sn_binary_file_flush"
     native fn flush(): void
 
-    # Close the file
-    @alias "sn_binary_file_close"
-    native fn close(): void
+    # Dispose the file (closes and frees resources)
+    fn dispose(): void =>
+        sn_binary_file_dispose(self)
 
     # ==========================================================================
     # Properties
@@ -159,20 +159,23 @@ native struct BinaryFile as ref =>
 # ==============================================================================
 
 # Factory/open function
-native fn sn_binary_file_open(arena, path: str): BinaryFile
+native fn sn_binary_file_open(path: str): BinaryFile
 
 # Static file operations
 native fn sn_binary_file_exists(path: str): int
-native fn sn_binary_file_read_all_static(arena, path: str): byte[]
+native fn sn_binary_file_read_all_static(path: str): byte[]
 native fn sn_binary_file_write_all_static(path: str, data: byte[]): void
 native fn sn_binary_file_copy(source: str, dest: str): void
 native fn sn_binary_file_move(source: str, dest: str): void
 native fn sn_binary_file_delete(path: str): void
 
-# Instance reading functions that need arena
-native fn sn_binary_file_read_bytes(arena, f: BinaryFile, count: int): byte[]
-native fn sn_binary_file_read_remaining(arena, f: BinaryFile): byte[]
+# Instance reading functions
+native fn sn_binary_file_read_bytes(f: BinaryFile, count: int): byte[]
+native fn sn_binary_file_read_remaining(f: BinaryFile): byte[]
 
-# Property getters that need arena
-native fn sn_binary_file_get_path(arena, f: BinaryFile): str
-native fn sn_binary_file_get_name(arena, f: BinaryFile): str
+# Instance dispose
+native fn sn_binary_file_dispose(f: BinaryFile): void
+
+# Property getters
+native fn sn_binary_file_get_path(f: BinaryFile): str
+native fn sn_binary_file_get_name(f: BinaryFile): str

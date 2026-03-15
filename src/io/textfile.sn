@@ -158,9 +158,9 @@ native struct TextFile as ref =>
     @alias "sn_text_file_flush"
     native fn flush(): void
 
-    # Close the file
-    @alias "sn_text_file_close"
-    native fn close(): void
+    # Dispose the file (closes and frees resources)
+    fn dispose(): void =>
+        sn_text_file_dispose(self)
 
     # ==========================================================================
     # Properties
@@ -183,22 +183,25 @@ native struct TextFile as ref =>
 # ==============================================================================
 
 # Factory/open function
-native fn sn_text_file_open(arena, path: str): TextFile
+native fn sn_text_file_open(path: str): TextFile
 
 # Static file operations
 native fn sn_text_file_exists(path: str): int
-native fn sn_text_file_read_all_static(arena, path: str): str
+native fn sn_text_file_read_all_static(path: str): str
 native fn sn_text_file_write_all_static(path: str, content: str): void
 native fn sn_text_file_copy(source: str, dest: str): void
 native fn sn_text_file_move(source: str, dest: str): void
 native fn sn_text_file_delete(path: str): void
 
-# Instance reading functions that need arena
-native fn sn_text_file_read_line(arena, f: TextFile): str
-native fn sn_text_file_read_remaining(arena, f: TextFile): str
-native fn sn_text_file_read_lines(arena, f: TextFile): str[]
-native fn sn_text_file_read_word(arena, f: TextFile): str
+# Instance reading functions
+native fn sn_text_file_read_line(f: TextFile): str
+native fn sn_text_file_read_remaining(f: TextFile): str
+native fn sn_text_file_read_lines(f: TextFile): str[]
+native fn sn_text_file_read_word(f: TextFile): str
 
-# Property getters that need arena
-native fn sn_text_file_get_path(arena, f: TextFile): str
-native fn sn_text_file_get_name(arena, f: TextFile): str
+# Instance dispose
+native fn sn_text_file_dispose(f: TextFile): void
+
+# Property getters
+native fn sn_text_file_get_path(f: TextFile): str
+native fn sn_text_file_get_name(f: TextFile): str

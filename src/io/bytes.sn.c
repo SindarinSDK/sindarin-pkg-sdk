@@ -1,25 +1,13 @@
 /* ==============================================================================
  * sdk/bytes.sn.c - Self-contained Bytes Implementation for Sindarin SDK
  * ==============================================================================
- * This file provides the C implementation for the SnBytes type.
- * It is compiled via #pragma source and linked with Sindarin code.
+ * Minimal runtime version - no arena, uses SnArray for byte array returns.
  * ============================================================================== */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-
-/* Include runtime arena for proper memory management */
-#include "runtime/array/runtime_array_v2.h"
-
-/* ============================================================================
- * Bytes Type Definition (unused, just for namespace)
- * ============================================================================ */
-
-typedef struct RtSnBytes {
-    int32_t _unused;
-} RtSnBytes;
 
 /* ============================================================================
  * Base64 Decoding Table
@@ -49,99 +37,53 @@ static const signed char base64_decode_table[256] = {
  * ============================================================================ */
 
 /* Decode hexadecimal string to byte array */
-RtHandleV2 *sn_bytes_from_hex(RtArenaV2 *arena, const char *hex)
+SnArray *sn_bytes_from_hex(char *hex)
 {
-    if (hex == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-    }
+    SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+    arr->elem_tag = SN_TAG_BYTE;
+
+    if (hex == NULL) return arr;
 
     size_t hex_len = strlen(hex);
-
-    /* Hex string must have even length */
     if (hex_len % 2 != 0) {
         fprintf(stderr, "SnBytes.fromHex: hex string must have even length\n");
         exit(1);
     }
 
-    size_t byte_len = hex_len / 2;
-
-    /* Allocate temporary buffer for decoded bytes */
-    unsigned char *temp_bytes = malloc(byte_len);
-    if (temp_bytes == NULL && byte_len > 0) {
-        fprintf(stderr, "SnBytes.fromHex: memory allocation failed\n");
-        exit(1);
-    }
-
-    for (size_t i = 0; i < byte_len; i++) {
-        unsigned char hi = hex[i * 2];
-        unsigned char lo = hex[i * 2 + 1];
-
+    for (size_t i = 0; i < hex_len; i += 2) {
+        unsigned char hi = hex[i];
+        unsigned char lo = hex[i + 1];
         int hi_val, lo_val;
 
-        /* Parse high nibble */
-        if (hi >= '0' && hi <= '9') {
-            hi_val = hi - '0';
-        } else if (hi >= 'a' && hi <= 'f') {
-            hi_val = hi - 'a' + 10;
-        } else if (hi >= 'A' && hi <= 'F') {
-            hi_val = hi - 'A' + 10;
-        } else {
-            free(temp_bytes);
-            fprintf(stderr, "SnBytes.fromHex: invalid hex character '%c'\n", hi);
-            exit(1);
-        }
+        if (hi >= '0' && hi <= '9') hi_val = hi - '0';
+        else if (hi >= 'a' && hi <= 'f') hi_val = hi - 'a' + 10;
+        else if (hi >= 'A' && hi <= 'F') hi_val = hi - 'A' + 10;
+        else { fprintf(stderr, "SnBytes.fromHex: invalid hex character '%c'\n", hi); exit(1); }
 
-        /* Parse low nibble */
-        if (lo >= '0' && lo <= '9') {
-            lo_val = lo - '0';
-        } else if (lo >= 'a' && lo <= 'f') {
-            lo_val = lo - 'a' + 10;
-        } else if (lo >= 'A' && lo <= 'F') {
-            lo_val = lo - 'A' + 10;
-        } else {
-            free(temp_bytes);
-            fprintf(stderr, "SnBytes.fromHex: invalid hex character '%c'\n", lo);
-            exit(1);
-        }
+        if (lo >= '0' && lo <= '9') lo_val = lo - '0';
+        else if (lo >= 'a' && lo <= 'f') lo_val = lo - 'a' + 10;
+        else if (lo >= 'A' && lo <= 'F') lo_val = lo - 'A' + 10;
+        else { fprintf(stderr, "SnBytes.fromHex: invalid hex character '%c'\n", lo); exit(1); }
 
-        temp_bytes[i] = (unsigned char)((hi_val << 4) | lo_val);
+        unsigned char byte = (unsigned char)((hi_val << 4) | lo_val);
+        sn_array_push(arr, &byte);
     }
 
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, byte_len, sizeof(unsigned char), temp_bytes);
-    free(temp_bytes);
-    return result;
+    return arr;
 }
 
 /* Decode Base64 string to byte array */
-RtHandleV2 *sn_bytes_from_base64(RtArenaV2 *arena, const char *b64)
+SnArray *sn_bytes_from_base64(char *b64)
 {
-    if (b64 == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-    }
+    SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+    arr->elem_tag = SN_TAG_BYTE;
+
+    if (b64 == NULL) return arr;
 
     size_t len = strlen(b64);
-    if (len == 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-    }
-
-    /* Count padding characters */
-    size_t padding = 0;
-    if (len >= 1 && b64[len - 1] == '=') padding++;
-    if (len >= 2 && b64[len - 2] == '=') padding++;
-
-    /* Calculate output size: 3 output bytes for every 4 input chars */
-    size_t out_len = (len / 4) * 3 - padding;
-
-    /* Allocate temporary buffer for decoded bytes */
-    unsigned char *temp_bytes = malloc(out_len);
-    if (temp_bytes == NULL && out_len > 0) {
-        fprintf(stderr, "SnBytes.fromBase64: memory allocation failed\n");
-        exit(1);
-    }
+    if (len == 0) return arr;
 
     size_t i = 0;
-    size_t out_idx = 0;
-
     while (i < len) {
         /* Skip whitespace */
         while (i < len && (b64[i] == ' ' || b64[i] == '\n' || b64[i] == '\r' || b64[i] == '\t')) {
@@ -149,7 +91,6 @@ RtHandleV2 *sn_bytes_from_base64(RtArenaV2 *arena, const char *b64)
         }
         if (i >= len) break;
 
-        /* Read 4 characters (some may be padding) */
         unsigned int vals[4] = {0, 0, 0, 0};
         int valid_chars = 0;
 
@@ -159,7 +100,6 @@ RtHandleV2 *sn_bytes_from_base64(RtArenaV2 *arena, const char *b64)
             } else {
                 signed char val = base64_decode_table[(unsigned char)b64[i]];
                 if (val < 0) {
-                    free(temp_bytes);
                     fprintf(stderr, "SnBytes.fromBase64: invalid Base64 character '%c'\n", b64[i]);
                     exit(1);
                 }
@@ -168,21 +108,21 @@ RtHandleV2 *sn_bytes_from_base64(RtArenaV2 *arena, const char *b64)
             }
         }
 
-        /* Decode: combine 4 6-bit values into 3 8-bit values */
         unsigned int combined = (vals[0] << 18) | (vals[1] << 12) | (vals[2] << 6) | vals[3];
 
-        if (out_idx < out_len) {
-            temp_bytes[out_idx++] = (unsigned char)((combined >> 16) & 0xFF);
+        unsigned char byte;
+        byte = (unsigned char)((combined >> 16) & 0xFF);
+        sn_array_push(arr, &byte);
+
+        if (valid_chars >= 3) {
+            byte = (unsigned char)((combined >> 8) & 0xFF);
+            sn_array_push(arr, &byte);
         }
-        if (out_idx < out_len && valid_chars >= 3) {
-            temp_bytes[out_idx++] = (unsigned char)((combined >> 8) & 0xFF);
-        }
-        if (out_idx < out_len && valid_chars >= 4) {
-            temp_bytes[out_idx++] = (unsigned char)(combined & 0xFF);
+        if (valid_chars >= 4) {
+            byte = (unsigned char)(combined & 0xFF);
+            sn_array_push(arr, &byte);
         }
     }
 
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, out_len, sizeof(unsigned char), temp_bytes);
-    free(temp_bytes);
-    return result;
+    return arr;
 }

@@ -173,27 +173,27 @@ native struct UUID as ref =>
 # UUID is an opaque handle type that generates as RtUuid* in C.
 
 # Factory functions - return UUID (which is RtUuid*)
-native fn sn_uuid_create(arena): UUID
-native fn sn_uuid_v4(arena): UUID
-native fn sn_uuid_v5(arena, namespace: UUID, name: str): UUID
-native fn sn_uuid_v7(arena): UUID
+native fn sn_uuid_create(): UUID
+native fn sn_uuid_v4(): UUID
+native fn sn_uuid_v5(namespace: UUID, name: str): UUID
+native fn sn_uuid_v7(): UUID
 
 # Parsing functions - return UUID
-native fn sn_uuid_from_string(arena, s: str): UUID
-native fn sn_uuid_from_hex(arena, s: str): UUID
-native fn sn_uuid_from_base64(arena, s: str): UUID
+native fn sn_uuid_from_string(s: str): UUID
+native fn sn_uuid_from_hex(s: str): UUID
+native fn sn_uuid_from_base64(s: str): UUID
 
 # Special UUIDs
-native fn sn_uuid_nil(arena): UUID
-native fn sn_uuid_max(arena): UUID
+native fn sn_uuid_nil(): UUID
+native fn sn_uuid_max(): UUID
 
 # Namespace UUIDs
-native fn sn_uuid_namespace_dns(arena): UUID
-native fn sn_uuid_namespace_url(arena): UUID
-native fn sn_uuid_namespace_oid(arena): UUID
-native fn sn_uuid_namespace_x500(arena): UUID
+native fn sn_uuid_namespace_dns(): UUID
+native fn sn_uuid_namespace_url(): UUID
+native fn sn_uuid_namespace_oid(): UUID
+native fn sn_uuid_namespace_x500(): UUID
 
 # Conversion functions - take UUID (which is RtUuid*)
-native fn sn_uuid_to_string(arena, u: UUID): str
-native fn sn_uuid_to_hex(arena, u: UUID): str
-native fn sn_uuid_to_base64(arena, u: UUID): str
+native fn sn_uuid_to_string(u: UUID): str
+native fn sn_uuid_to_hex(u: UUID): str
+native fn sn_uuid_to_base64(u: UUID): str

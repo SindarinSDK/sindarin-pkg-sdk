@@ -57,8 +57,8 @@ native struct Directory =>
 # ==============================================================================
 
 # Directory operations
-native fn sn_directory_list(arena, path: str): str[]
-native fn sn_directory_list_recursive(arena, path: str): str[]
+native fn sn_directory_list(path: str): str[]
+native fn sn_directory_list_recursive(path: str): str[]
 native fn sn_directory_create(path: str): void
 native fn sn_directory_delete(path: str): void
 native fn sn_directory_delete_recursive(path: str): void

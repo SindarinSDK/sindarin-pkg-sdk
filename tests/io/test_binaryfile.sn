@@ -65,7 +65,7 @@ fn test_instance_read_write(): void =>
     f.writeByte(30)
     var moreData: byte[] = {40, 50, 60}
     f.writeBytes(moreData)
-    f.close()
+    f.dispose()
 
     # Open and read back
     var f2: BinaryFile = BinaryFile.open(testPath)
@@ -73,7 +73,7 @@ fn test_instance_read_write(): void =>
     var b2: int = f2.readByte()
     var b3: int = f2.readByte()
     var rest: byte[] = f2.readBytes(3)
-    f2.close()
+    f2.dispose()
 
     assert(b1 == 10, "First byte")
     assert(b2 == 20, "Second byte")
@@ -103,7 +103,7 @@ fn test_read_remaining(): void =>
 
     # Read all remaining
     var remaining: byte[] = f.readRemaining()
-    f.close()
+    f.dispose()
 
     assert(remaining.length == 7, "Should have 7 remaining bytes")
     assert(remaining[0] == 4, "First remaining byte")
@@ -146,7 +146,7 @@ fn test_position_and_seek(): void =>
     f.rewind()
     assert(f.position() == 0, "Position should be 0 after rewind")
 
-    f.close()
+    f.dispose()
     BinaryFile.delete(testPath)
 
     print("PASS\n")
@@ -169,7 +169,7 @@ fn test_eof_and_has_bytes(): void =>
     assert(f.isEof(), "Should be at EOF after reading all")
     assert(!f.hasBytes(), "Should not have bytes after reading all")
 
-    f.close()
+    f.dispose()
     BinaryFile.delete(testPath)
 
     print("PASS\n")
@@ -215,7 +215,7 @@ fn test_properties(): void =>
     assert(f.size() == 10, "Size should be 10 bytes")
     assert(f.name() == "sdk_binaryfile_test7.bin", "Name should be filename only")
 
-    f.close()
+    f.dispose()
     BinaryFile.delete(testPath)
 
     print("PASS\n")
