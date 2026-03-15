@@ -1711,7 +1711,7 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
     size_t total_written = 0;
     while (total_written < data_len) {
         ngtcp2_vec v;
-        v.base = (uint8_t *)data + total_written;
+        v.base = (uint8_t *)data->data + total_written;
         v.len = data_len - total_written;
 
         ngtcp2_ssize ndatalen = 0;
