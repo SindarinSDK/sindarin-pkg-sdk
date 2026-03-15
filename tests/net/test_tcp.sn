@@ -16,7 +16,7 @@ fn test_listener_bind(): void =>
     assert(port > 0, "Port should be assigned")
     assert(port < 65536, "Port should be valid")
 
-    server.close()
+    server.dispose()
     print("PASS\n")
 
 fn test_connect_and_echo(): void =>
@@ -46,9 +46,9 @@ fn test_connect_and_echo(): void =>
     assert(response == "Hello, Client!", "Client should receive response")
 
     # Clean up
-    client.close()
-    serverConn.close()
-    server.close()
+    client.dispose()
+    serverConn.dispose()
+    server.dispose()
 
     print("PASS\n")
 
@@ -74,9 +74,9 @@ fn test_write_bytes(): void =>
     assert(received.toString() == "Binary data!", "Content should match")
 
     # Clean up
-    client.close()
-    serverConn.close()
-    server.close()
+    client.dispose()
+    serverConn.dispose()
+    server.dispose()
 
     print("PASS\n")
 
@@ -96,9 +96,9 @@ fn test_remote_address(): void =>
     assert(remoteAddr.startsWith("127.0.0.1:"), "Remote should be localhost")
 
     # Clean up
-    client.close()
-    serverConn.close()
-    server.close()
+    client.dispose()
+    serverConn.dispose()
+    server.dispose()
 
     print("PASS\n")
 

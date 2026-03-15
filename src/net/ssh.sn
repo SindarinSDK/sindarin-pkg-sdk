@@ -289,41 +289,41 @@ native struct SshChannel as ref =>
 # ==============================================================================
 
 # SshConnection factory functions
-native fn sn_ssh_connect_password(arena, address: str, username: str, password: str): SshConnection
-native fn sn_ssh_connect_key(arena, address: str, username: str, privateKeyPath: str, passphrase: str): SshConnection
-native fn sn_ssh_connect_agent(arena, address: str, username: str): SshConnection
-native fn sn_ssh_connect_interactive(arena, address: str, username: str, password: str): SshConnection
+native fn sn_ssh_connect_password(address: str, username: str, password: str): SshConnection
+native fn sn_ssh_connect_key(address: str, username: str, privateKeyPath: str, passphrase: str): SshConnection
+native fn sn_ssh_connect_agent(address: str, username: str): SshConnection
+native fn sn_ssh_connect_interactive(address: str, username: str, password: str): SshConnection
 
 # SshConnection command execution
-native fn sn_ssh_run(arena, conn: SshConnection, command: str): str
-native fn sn_ssh_exec(arena, conn: SshConnection, command: str): SshExecResult
+native fn sn_ssh_run(conn: SshConnection, command: str): str
+native fn sn_ssh_exec(conn: SshConnection, command: str): SshExecResult
 
 # SshConnection getters
-native fn sn_ssh_get_remote_address(arena, conn: SshConnection): str
+native fn sn_ssh_get_remote_address(conn: SshConnection): str
 
 # SshExecResult getters
-native fn sn_ssh_exec_result_get_stdout(arena, result: SshExecResult): str
-native fn sn_ssh_exec_result_get_stderr(arena, result: SshExecResult): str
+native fn sn_ssh_exec_result_get_stdout(result: SshExecResult): str
+native fn sn_ssh_exec_result_get_stderr(result: SshExecResult): str
 
 # SshServerConfig functions
-native fn sn_ssh_server_config_defaults(arena): SshServerConfig
-native fn sn_ssh_server_config_set_host_key(arena, config: SshServerConfig, path: str): SshServerConfig
-native fn sn_ssh_server_config_add_user(arena, config: SshServerConfig, username: str, password: str): SshServerConfig
-native fn sn_ssh_server_config_set_authorized_keys_dir(arena, config: SshServerConfig, path: str): SshServerConfig
+native fn sn_ssh_server_config_defaults(): SshServerConfig
+native fn sn_ssh_server_config_set_host_key(config: SshServerConfig, path: str): SshServerConfig
+native fn sn_ssh_server_config_add_user(config: SshServerConfig, username: str, password: str): SshServerConfig
+native fn sn_ssh_server_config_set_authorized_keys_dir(config: SshServerConfig, path: str): SshServerConfig
 
 # SshListener functions
-native fn sn_ssh_listener_bind(arena, address: str, hostKeyPath: str): SshListener
-native fn sn_ssh_listener_bind_with(arena, address: str, config: SshServerConfig): SshListener
-native fn sn_ssh_listener_accept(arena, listener: SshListener): SshSession
+native fn sn_ssh_listener_bind(address: str, hostKeyPath: str): SshListener
+native fn sn_ssh_listener_bind_with(address: str, config: SshServerConfig): SshListener
+native fn sn_ssh_listener_accept(listener: SshListener): SshSession
 
 # SshSession functions
-native fn sn_ssh_session_accept_channel(arena, session: SshSession): SshChannel
-native fn sn_ssh_session_get_username(arena, session: SshSession): str
-native fn sn_ssh_session_get_remote_address(arena, session: SshSession): str
+native fn sn_ssh_session_accept_channel(session: SshSession): SshChannel
+native fn sn_ssh_session_get_username(session: SshSession): str
+native fn sn_ssh_session_get_remote_address(session: SshSession): str
 
 # SshChannel functions
-native fn sn_ssh_channel_get_command(arena, channel: SshChannel): str
-native fn sn_ssh_channel_read(arena, channel: SshChannel, maxBytes: int): byte[]
-native fn sn_ssh_channel_read_line(arena, channel: SshChannel): str
+native fn sn_ssh_channel_get_command(channel: SshChannel): str
+native fn sn_ssh_channel_read(channel: SshChannel, maxBytes: int): byte[]
+native fn sn_ssh_channel_read_line(channel: SshChannel): str
 native fn sn_ssh_channel_write(channel: SshChannel, data: byte[]): int
 native fn sn_ssh_channel_write_line(channel: SshChannel, text: str): void

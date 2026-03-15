@@ -145,35 +145,35 @@ native struct Crypto =>
 # ==============================================================================
 
 # Hashing (byte[] input)
-native fn sn_crypto_sha256(arena, data: byte[]): byte[]
-native fn sn_crypto_sha384(arena, data: byte[]): byte[]
-native fn sn_crypto_sha512(arena, data: byte[]): byte[]
-native fn sn_crypto_sha1(arena, data: byte[]): byte[]
-native fn sn_crypto_md5(arena, data: byte[]): byte[]
+native fn sn_crypto_sha256(data: byte[]): byte[]
+native fn sn_crypto_sha384(data: byte[]): byte[]
+native fn sn_crypto_sha512(data: byte[]): byte[]
+native fn sn_crypto_sha1(data: byte[]): byte[]
+native fn sn_crypto_md5(data: byte[]): byte[]
 
 # Hashing (str input)
-native fn sn_crypto_sha256_str(arena, text: str): byte[]
-native fn sn_crypto_sha384_str(arena, text: str): byte[]
-native fn sn_crypto_sha512_str(arena, text: str): byte[]
-native fn sn_crypto_sha1_str(arena, text: str): byte[]
-native fn sn_crypto_md5_str(arena, text: str): byte[]
+native fn sn_crypto_sha256_str(text: str): byte[]
+native fn sn_crypto_sha384_str(text: str): byte[]
+native fn sn_crypto_sha512_str(text: str): byte[]
+native fn sn_crypto_sha1_str(text: str): byte[]
+native fn sn_crypto_md5_str(text: str): byte[]
 
 # HMAC
-native fn sn_crypto_hmac_sha256(arena, key: byte[], data: byte[]): byte[]
-native fn sn_crypto_hmac_sha512(arena, key: byte[], data: byte[]): byte[]
+native fn sn_crypto_hmac_sha256(key: byte[], data: byte[]): byte[]
+native fn sn_crypto_hmac_sha512(key: byte[], data: byte[]): byte[]
 
 # AES-256-GCM
-native fn sn_crypto_encrypt(arena, key: byte[], plaintext: byte[]): byte[]
-native fn sn_crypto_decrypt(arena, key: byte[], ciphertext: byte[]): byte[]
-native fn sn_crypto_encrypt_with_iv(arena, key: byte[], iv: byte[], plaintext: byte[]): byte[]
-native fn sn_crypto_decrypt_with_iv(arena, key: byte[], iv: byte[], ciphertext: byte[]): byte[]
+native fn sn_crypto_encrypt(key: byte[], plaintext: byte[]): byte[]
+native fn sn_crypto_decrypt(key: byte[], ciphertext: byte[]): byte[]
+native fn sn_crypto_encrypt_with_iv(key: byte[], iv: byte[], plaintext: byte[]): byte[]
+native fn sn_crypto_decrypt_with_iv(key: byte[], iv: byte[], ciphertext: byte[]): byte[]
 
 # PBKDF2
-native fn sn_crypto_pbkdf2(arena, password: str, salt: byte[], iterations: int, keyLen: int): byte[]
-native fn sn_crypto_pbkdf2_sha512(arena, password: str, salt: byte[], iterations: int, keyLen: int): byte[]
+native fn sn_crypto_pbkdf2(password: str, salt: byte[], iterations: int, keyLen: int): byte[]
+native fn sn_crypto_pbkdf2_sha512(password: str, salt: byte[], iterations: int, keyLen: int): byte[]
 
 # Secure random
-native fn sn_crypto_random_bytes(arena, count: int): byte[]
+native fn sn_crypto_random_bytes(count: int): byte[]
 
 # Utility
 native fn sn_crypto_constant_time_equal(a: byte[], b: byte[]): int

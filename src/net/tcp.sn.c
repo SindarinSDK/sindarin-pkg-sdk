@@ -1,18 +1,15 @@
 /* ==============================================================================
  * sdk/net/tcp.sn.c - Self-contained TCP Implementation (TcpStream + TcpListener)
  * ==============================================================================
- * This file provides the C implementation for SnTcpStream and SnTcpListener.
- * It is compiled via #pragma source and linked with Sindarin code.
+ * Minimal runtime version - no arena, uses calloc/malloc/strdup for allocations.
+ * Uses SnArray for byte array returns.
  * ============================================================================== */
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-
-/* Include runtime for proper memory management */
-#include "runtime/array/runtime_array_v2.h"
-#include "runtime/arena/arena_safepoint.h"
+#include <stdbool.h>
 
 /* Platform-specific socket includes */
 #ifdef _WIN32
@@ -56,27 +53,64 @@
  * Type Definitions
  * ============================================================================ */
 
-typedef struct RtTcpStream {
-    socket_t socket_fd;
-    char *remote_addr;
+typedef __sn__TcpStream RtTcpStream;
+typedef __sn__TcpListener RtTcpListener;
+
+/* Internal stream state (not exposed to Sindarin) */
+typedef struct TcpStreamInternal {
     unsigned char *read_buf;
     size_t read_buf_capacity;
     size_t read_buf_pos;
     size_t read_buf_end;
     int read_timeout_ms;
     bool eof_reached;
-    RtArenaV2 *arena;             /* Private arena — owns all internal allocations */
-} RtTcpStream;
+} TcpStreamInternal;
 
-typedef struct RtTcpListener {
-    socket_t socket_fd;
-    int bound_port;
-    RtArenaV2 *arena;       /* Private arena — owns all internal allocations */
-} RtTcpListener;
+/* Global table to associate stream pointers with internal state */
+#define MAX_TCP_STREAMS 1024
+static struct {
+    __sn__TcpStream *stream;
+    TcpStreamInternal *internal;
+} tcp_stream_table[MAX_TCP_STREAMS];
+static int tcp_stream_count = 0;
 
-/* Forward declarations for cleanup callbacks */
-static void sn_tcp_stream_cleanup(RtHandleV2 *h);
-static void sn_tcp_listener_cleanup(RtHandleV2 *h);
+static TcpStreamInternal *get_internal(__sn__TcpStream *stream) {
+    for (int i = 0; i < tcp_stream_count; i++) {
+        if (tcp_stream_table[i].stream == stream) {
+            return tcp_stream_table[i].internal;
+        }
+    }
+    return NULL;
+}
+
+static void register_internal(__sn__TcpStream *stream, TcpStreamInternal *internal) {
+    /* Check if slot already exists */
+    for (int i = 0; i < tcp_stream_count; i++) {
+        if (tcp_stream_table[i].stream == stream) {
+            tcp_stream_table[i].internal = internal;
+            return;
+        }
+    }
+    if (tcp_stream_count < MAX_TCP_STREAMS) {
+        tcp_stream_table[tcp_stream_count].stream = stream;
+        tcp_stream_table[tcp_stream_count].internal = internal;
+        tcp_stream_count++;
+    } else {
+        fprintf(stderr, "sn_tcp: too many open streams\n");
+        exit(1);
+    }
+}
+
+static void unregister_internal(__sn__TcpStream *stream) {
+    for (int i = 0; i < tcp_stream_count; i++) {
+        if (tcp_stream_table[i].stream == stream) {
+            /* Swap with last */
+            tcp_stream_table[i] = tcp_stream_table[tcp_stream_count - 1];
+            tcp_stream_count--;
+            return;
+        }
+    }
+}
 
 /* ============================================================================
  * WinSock Initialization (Windows only)
@@ -105,44 +139,44 @@ static void ensure_winsock_initialized(void) {
  * ============================================================================ */
 
 /* Returns number of bytes available in read buffer without syscall */
-static inline size_t stream_buffered(RtTcpStream *stream) {
-    return stream->read_buf_end - stream->read_buf_pos;
+static inline size_t stream_buffered(TcpStreamInternal *internal) {
+    return internal->read_buf_end - internal->read_buf_pos;
 }
 
 /* Returns available space at end of buffer */
-static inline size_t stream_space(RtTcpStream *stream) {
-    return stream->read_buf_capacity - stream->read_buf_end;
+static inline size_t stream_space(TcpStreamInternal *internal) {
+    return internal->read_buf_capacity - internal->read_buf_end;
 }
 
 /* Compact buffer - move unread data to start to make room for more */
-static void stream_compact(RtTcpStream *stream) {
-    size_t buffered = stream_buffered(stream);
-    if (buffered > 0 && stream->read_buf_pos > 0) {
-        memmove(stream->read_buf,
-                stream->read_buf + stream->read_buf_pos,
+static void stream_compact(TcpStreamInternal *internal) {
+    size_t buffered = stream_buffered(internal);
+    if (buffered > 0 && internal->read_buf_pos > 0) {
+        memmove(internal->read_buf,
+                internal->read_buf + internal->read_buf_pos,
                 buffered);
     }
-    stream->read_buf_pos = 0;
-    stream->read_buf_end = buffered;
+    internal->read_buf_pos = 0;
+    internal->read_buf_end = buffered;
 }
 
 /* Wait for socket to be readable with timeout.
  * Returns: 1 = readable, 0 = timeout, -1 = error */
-static int stream_wait_readable(RtTcpStream *stream) {
-    if (stream->read_timeout_ms < 0) {
+static int stream_wait_readable(socket_t socket_fd, TcpStreamInternal *internal) {
+    if (internal->read_timeout_ms < 0) {
         return 1;  /* Blocking mode - assume readable */
     }
 
     fd_set readfds;
     FD_ZERO(&readfds);
-    FD_SET(stream->socket_fd, &readfds);
+    FD_SET(socket_fd, &readfds);
 
     struct timeval tv;
     struct timeval *tvp = NULL;
 
-    if (stream->read_timeout_ms > 0) {
-        tv.tv_sec = stream->read_timeout_ms / 1000;
-        tv.tv_usec = (stream->read_timeout_ms % 1000) * 1000;
+    if (internal->read_timeout_ms > 0) {
+        tv.tv_sec = internal->read_timeout_ms / 1000;
+        tv.tv_usec = (internal->read_timeout_ms % 1000) * 1000;
         tvp = &tv;
     } else {
         /* Non-blocking: zero timeout */
@@ -151,29 +185,27 @@ static int stream_wait_readable(RtTcpStream *stream) {
         tvp = &tv;
     }
 
-    rt_safepoint_enter_native();
-    int result = select((int)(stream->socket_fd + 1), &readfds, NULL, NULL, tvp);
-    rt_safepoint_leave_native();
+    int result = select((int)(socket_fd + 1), &readfds, NULL, NULL, tvp);
     return result;
 }
 
 /* Fill buffer from socket.
  * Returns: >0 bytes read, 0 on EOF, -1 on error, -2 on timeout */
-static int stream_fill(RtTcpStream *stream) {
-    if (stream->eof_reached) {
+static int stream_fill(socket_t socket_fd, TcpStreamInternal *internal) {
+    if (internal->eof_reached) {
         return 0;
     }
 
     /* Compact if we've consumed more than half the buffer */
-    if (stream->read_buf_pos > stream->read_buf_capacity / 2) {
-        stream_compact(stream);
+    if (internal->read_buf_pos > internal->read_buf_capacity / 2) {
+        stream_compact(internal);
     }
 
     /* If buffer is full, compact to make room */
-    size_t space = stream_space(stream);
+    size_t space = stream_space(internal);
     if (space == 0) {
-        stream_compact(stream);
-        space = stream_space(stream);
+        stream_compact(internal);
+        space = stream_space(internal);
         if (space == 0) {
             /* Buffer truly full with unread data */
             return -1;
@@ -181,8 +213,8 @@ static int stream_fill(RtTcpStream *stream) {
     }
 
     /* Wait for data if timeout is configured */
-    if (stream->read_timeout_ms >= 0) {
-        int wait_result = stream_wait_readable(stream);
+    if (internal->read_timeout_ms >= 0) {
+        int wait_result = stream_wait_readable(socket_fd, internal);
         if (wait_result == 0) {
             return -2;  /* Timeout */
         }
@@ -192,43 +224,26 @@ static int stream_fill(RtTcpStream *stream) {
     }
 
     /* Read from socket into buffer */
-    rt_safepoint_enter_native();
-    int n = recv(stream->socket_fd,
-                 (char *)(stream->read_buf + stream->read_buf_end),
+    int n = recv(socket_fd,
+                 (char *)(internal->read_buf + internal->read_buf_end),
                  (int)space, 0);
-    rt_safepoint_leave_native();
 
     if (n > 0) {
-        stream->read_buf_end += n;
+        internal->read_buf_end += n;
     } else if (n == 0) {
-        stream->eof_reached = true;
+        internal->eof_reached = true;
     }
 
     return n;
 }
 
-/* Ensure at least 'need' bytes in buffer.
- * Returns: true if enough data available, false on EOF/error/timeout */
-static bool stream_ensure(RtTcpStream *stream, size_t need) {
-    while (stream_buffered(stream) < need) {
-        if (stream->eof_reached) {
-            return false;
-        }
-        int n = stream_fill(stream);
-        if (n <= 0) {
-            return false;
-        }
-    }
-    return true;
-}
-
 /* Consume n bytes from the buffer (advance read position) */
-static inline void stream_consume(RtTcpStream *stream, size_t n) {
-    stream->read_buf_pos += n;
-    if (stream->read_buf_pos >= stream->read_buf_end) {
+static inline void stream_consume(TcpStreamInternal *internal, size_t n) {
+    internal->read_buf_pos += n;
+    if (internal->read_buf_pos >= internal->read_buf_end) {
         /* Buffer empty - reset positions */
-        stream->read_buf_pos = 0;
-        stream->read_buf_end = 0;
+        internal->read_buf_pos = 0;
+        internal->read_buf_end = 0;
     }
 }
 
@@ -236,62 +251,39 @@ static inline void stream_consume(RtTcpStream *stream, size_t n) {
  * Helper Functions
  * ============================================================================ */
 
-static RtHandleV2 *sn_tcp_stream_create(RtArenaV2 *arena, socket_t sock, const char *remote_addr) {
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tcp_stream");
-
-    /* Allocate the struct in the private arena so close() frees everything.
-     * The handle in the caller's arena uses EXTERN so GC won't double-free. */
-    RtHandleV2 *priv_h = rt_arena_v2_alloc(priv, sizeof(RtTcpStream));
-    RtHandleV2 *h = rt_arena_v2_alloc(arena, 1); /* minimal allocation for handle wrapper */
-    h->ptr = priv_h->ptr;    /* point to data in private arena */
-    h->size = sizeof(RtTcpStream);
-    h->flags |= RT_HANDLE_FLAG_EXTERN;  /* GC: free handle struct, not data */
-    RtTcpStream *stream = (RtTcpStream *)h->ptr;
+static __sn__TcpStream *sn_tcp_stream_create(socket_t sock, char *remote_addr) {
+    __sn__TcpStream *stream = (__sn__TcpStream *)calloc(1, sizeof(__sn__TcpStream));
     if (stream == NULL) {
         fprintf(stderr, "sn_tcp_stream_create: allocation failed\n");
         exit(1);
     }
-    stream->socket_fd = sock;
+    stream->socket_fd = (long long)sock;
+    stream->remote_addr = remote_addr ? strdup(remote_addr) : NULL;
 
-    /* Initialize read buffer in private arena */
-    stream->read_buf_capacity = SN_TCP_DEFAULT_BUFFER_SIZE;
-    RtHandleV2 *_buf_h = rt_arena_v2_alloc(priv, stream->read_buf_capacity);
-    stream->read_buf = (unsigned char *)_buf_h->ptr;
-    if (stream->read_buf == NULL) {
+    /* Create internal state */
+    TcpStreamInternal *internal = (TcpStreamInternal *)calloc(1, sizeof(TcpStreamInternal));
+    if (internal == NULL) {
+        fprintf(stderr, "sn_tcp_stream_create: internal allocation failed\n");
+        exit(1);
+    }
+    internal->read_buf_capacity = SN_TCP_DEFAULT_BUFFER_SIZE;
+    internal->read_buf = (unsigned char *)malloc(internal->read_buf_capacity);
+    if (internal->read_buf == NULL) {
         fprintf(stderr, "sn_tcp_stream_create: buffer allocation failed\n");
         exit(1);
     }
-    stream->read_buf_pos = 0;
-    stream->read_buf_end = 0;
+    internal->read_buf_pos = 0;
+    internal->read_buf_end = 0;
+    internal->read_timeout_ms = -1;
+    internal->eof_reached = false;
 
-    /* Configuration defaults */
-    stream->read_timeout_ms = -1;
-    stream->eof_reached = false;
+    register_internal(stream, internal);
 
-    /* Store private arena */
-    stream->arena = priv;
-
-    /* Copy remote address string into private arena */
-    if (remote_addr) {
-        size_t len = strlen(remote_addr) + 1;
-        RtHandleV2 *_addr_h = rt_arena_v2_alloc(priv, len);
-        stream->remote_addr = (char *)_addr_h->ptr;
-        if (stream->remote_addr) {
-            memcpy(stream->remote_addr, remote_addr, len);
-        }
-    } else {
-        stream->remote_addr = NULL;
-    }
-
-    /* Register per-handle cleanup so GC can close the socket and destroy the
-     * private arena if the handle becomes unreachable without explicit .close() */
-    rt_handle_set_cleanup(h, sn_tcp_stream_cleanup);
-
-    return h;
+    return stream;
 }
 
 /* Parse address string "host:port" into host and port components */
-static int parse_address(const char *address, char *host, size_t host_len, int *port) {
+static int parse_address(char *address, char *host, size_t host_len, int *port) {
     if (address == NULL) return 0;
 
     const char *last_colon = NULL;
@@ -341,7 +333,7 @@ static int parse_address(const char *address, char *host, size_t host_len, int *
  * TcpStream Creation
  * ============================================================================ */
 
-RtHandleV2 *sn_tcp_stream_connect(RtArenaV2 *arena, const char *address) {
+__sn__TcpStream *sn_tcp_stream_connect(char *address) {
     ensure_winsock_initialized();
 
     if (address == NULL) {
@@ -395,7 +387,7 @@ RtHandleV2 *sn_tcp_stream_connect(RtArenaV2 *arena, const char *address) {
         exit(1);
     }
 
-    return sn_tcp_stream_create(arena, sock, address);
+    return sn_tcp_stream_create(sock, address);
 }
 
 /* ============================================================================
@@ -403,37 +395,61 @@ RtHandleV2 *sn_tcp_stream_connect(RtArenaV2 *arena, const char *address) {
  * ============================================================================ */
 
 /* Read up to maxBytes (may return fewer) - uses internal buffer */
-RtHandleV2 *sn_tcp_stream_read(RtArenaV2 *arena, RtHandleV2 *stream, long maxBytes) {
+SnArray *sn_tcp_stream_read(__sn__TcpStream *stream, long long maxBytes) {
     if (stream == NULL || maxBytes <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        return arr;
     }
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
+    TcpStreamInternal *internal = get_internal(stream);
+    if (internal == NULL) {
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        return arr;
+    }
+
+    socket_t sock = (socket_t)stream->socket_fd;
 
     /* If buffer is empty, fill it */
-    if (stream_buffered(_stream) == 0 && !_stream->eof_reached) {
-        int n = stream_fill(_stream);
+    if (stream_buffered(internal) == 0 && !internal->eof_reached) {
+        int n = stream_fill(sock, internal);
         if (n < 0 && n != -2) {  /* Error (not timeout) - return empty array */
-            return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+            SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+            arr->elem_tag = SN_TAG_BYTE;
+            return arr;
         }
     }
 
     /* Return what we have (up to maxBytes) */
-    size_t available = stream_buffered(_stream);
+    size_t available = stream_buffered(internal);
     size_t to_read = ((size_t)maxBytes < available) ? (size_t)maxBytes : available;
 
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, to_read, sizeof(unsigned char),
-                                              _stream->read_buf + _stream->read_buf_pos);
-    stream_consume(_stream, to_read);
+    SnArray *arr = sn_array_new(sizeof(unsigned char), (long long)to_read);
+    arr->elem_tag = SN_TAG_BYTE;
+    if (to_read > 0) {
+        memcpy(arr->data, internal->read_buf + internal->read_buf_pos, to_read);
+        arr->len = (long long)to_read;
+    }
+    stream_consume(internal, to_read);
 
-    return result;
+    return arr;
 }
 
 /* Read until connection closes - uses internal buffer */
-RtHandleV2 *sn_tcp_stream_read_all(RtArenaV2 *arena, RtHandleV2 *stream) {
+SnArray *sn_tcp_stream_read_all(__sn__TcpStream *stream) {
     if (stream == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        return arr;
     }
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
+    TcpStreamInternal *internal = get_internal(stream);
+    if (internal == NULL) {
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        return arr;
+    }
+
+    socket_t sock = (socket_t)stream->socket_fd;
 
     /* We still need a growing buffer for accumulating all data,
      * but we read through our internal buffer for efficiency */
@@ -446,10 +462,10 @@ RtHandleV2 *sn_tcp_stream_read_all(RtArenaV2 *arena, RtHandleV2 *stream) {
         exit(1);
     }
 
-    while (!_stream->eof_reached) {
+    while (!internal->eof_reached) {
         /* Fill internal buffer if empty */
-        if (stream_buffered(_stream) == 0) {
-            int n = stream_fill(_stream);
+        if (stream_buffered(internal) == 0) {
+            int n = stream_fill(sock, internal);
             if (n < 0 && n != -2) {
                 free(temp_buffer);
                 fprintf(stderr, "sn_tcp_stream_read_all: recv failed (%d)\n", GET_SOCKET_ERROR());
@@ -461,7 +477,7 @@ RtHandleV2 *sn_tcp_stream_read_all(RtArenaV2 *arena, RtHandleV2 *stream) {
         }
 
         /* Copy from internal buffer to accumulator */
-        size_t available = stream_buffered(_stream);
+        size_t available = stream_buffered(internal);
         if (available > 0) {
             /* Grow accumulator if needed */
             if (total_read + available > capacity) {
@@ -478,28 +494,38 @@ RtHandleV2 *sn_tcp_stream_read_all(RtArenaV2 *arena, RtHandleV2 *stream) {
             }
 
             memcpy(temp_buffer + total_read,
-                   _stream->read_buf + _stream->read_buf_pos,
+                   internal->read_buf + internal->read_buf_pos,
                    available);
             total_read += available;
-            stream_consume(_stream, available);
+            stream_consume(internal, available);
         }
     }
 
-    /* Create runtime array with received data */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, total_read, sizeof(unsigned char), temp_buffer);
+    /* Create SnArray with received data */
+    SnArray *arr = sn_array_new(sizeof(unsigned char), (long long)total_read);
+    arr->elem_tag = SN_TAG_BYTE;
+    if (total_read > 0) {
+        memcpy(arr->data, temp_buffer, total_read);
+        arr->len = (long long)total_read;
+    }
     free(temp_buffer);
 
-    return result;
+    return arr;
 }
 
 /* Read until newline - efficient buffered implementation */
-RtHandleV2 *sn_tcp_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
+char *sn_tcp_stream_read_line(__sn__TcpStream *stream) {
     if (stream == NULL) {
-        return rt_arena_v2_strdup(arena, "");
+        return strdup("");
     }
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
+    TcpStreamInternal *internal = get_internal(stream);
+    if (internal == NULL) {
+        return strdup("");
+    }
 
-    /* For lines that fit in buffer, we can avoid malloc entirely.
+    socket_t sock = (socket_t)stream->socket_fd;
+
+    /* For lines that fit in buffer, we can avoid extra malloc.
      * For longer lines, we accumulate in a temp buffer. */
     size_t accum_capacity = 0;
     size_t accum_len = 0;
@@ -507,18 +533,18 @@ RtHandleV2 *sn_tcp_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
 
     while (1) {
         /* Scan buffer for newline */
-        for (size_t i = _stream->read_buf_pos; i < _stream->read_buf_end; i++) {
-            unsigned char ch = _stream->read_buf[i];
+        for (size_t i = internal->read_buf_pos; i < internal->read_buf_end; i++) {
+            unsigned char ch = internal->read_buf[i];
 
             if (ch == '\n') {
                 /* Found newline - calculate line length */
-                size_t chunk_len = i - _stream->read_buf_pos;
+                size_t chunk_len = i - internal->read_buf_pos;
 
                 /* Total line length (accumulated + this chunk, minus trailing \r) */
                 size_t total_len = accum_len + chunk_len;
 
                 /* Check for \r at end of chunk */
-                if (chunk_len > 0 && _stream->read_buf[i - 1] == '\r') {
+                if (chunk_len > 0 && internal->read_buf[i - 1] == '\r') {
                     chunk_len--;
                     total_len--;
                 } else if (chunk_len == 0 && accum_len > 0 && accum_buffer[accum_len - 1] == '\r') {
@@ -527,9 +553,9 @@ RtHandleV2 *sn_tcp_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
                     total_len--;
                 }
 
-                /* Allocate temp buffer and build final string */
-                char *temp = (char *)malloc(total_len + 1);
-                if (temp == NULL) {
+                /* Allocate result string */
+                char *result = (char *)malloc(total_len + 1);
+                if (result == NULL) {
                     if (accum_buffer) free(accum_buffer);
                     fprintf(stderr, "sn_tcp_stream_read_line: malloc failed\n");
                     exit(1);
@@ -537,35 +563,33 @@ RtHandleV2 *sn_tcp_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
 
                 /* Copy accumulated data first */
                 if (accum_len > 0) {
-                    memcpy(temp, accum_buffer, accum_len);
+                    memcpy(result, accum_buffer, accum_len);
                 }
 
                 /* Copy this chunk (excluding \r if present) */
                 if (chunk_len > 0) {
-                    memcpy(temp + accum_len,
-                           _stream->read_buf + _stream->read_buf_pos,
+                    memcpy(result + accum_len,
+                           internal->read_buf + internal->read_buf_pos,
                            chunk_len);
                 }
 
-                temp[total_len] = '\0';
+                result[total_len] = '\0';
 
                 /* Consume up to and including the newline */
-                _stream->read_buf_pos = i + 1;
-                if (_stream->read_buf_pos >= _stream->read_buf_end) {
-                    _stream->read_buf_pos = 0;
-                    _stream->read_buf_end = 0;
+                internal->read_buf_pos = i + 1;
+                if (internal->read_buf_pos >= internal->read_buf_end) {
+                    internal->read_buf_pos = 0;
+                    internal->read_buf_end = 0;
                 }
 
                 if (accum_buffer) free(accum_buffer);
-                RtHandleV2 *result = rt_arena_v2_strdup(arena, temp);
-                free(temp);
                 return result;
             }
         }
 
         /* No newline found in current buffer content.
          * Save what we have and try to get more data. */
-        size_t chunk_len = _stream->read_buf_end - _stream->read_buf_pos;
+        size_t chunk_len = internal->read_buf_end - internal->read_buf_pos;
 
         if (chunk_len > 0) {
             /* Need to accumulate this chunk */
@@ -590,21 +614,21 @@ RtHandleV2 *sn_tcp_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
             }
 
             memcpy(accum_buffer + accum_len,
-                   _stream->read_buf + _stream->read_buf_pos,
+                   internal->read_buf + internal->read_buf_pos,
                    chunk_len);
             accum_len += chunk_len;
-            _stream->read_buf_pos = _stream->read_buf_end;
+            internal->read_buf_pos = internal->read_buf_end;
         }
 
         /* Reset buffer and fill with more data */
-        _stream->read_buf_pos = 0;
-        _stream->read_buf_end = 0;
+        internal->read_buf_pos = 0;
+        internal->read_buf_end = 0;
 
-        if (_stream->eof_reached) {
+        if (internal->eof_reached) {
             break;
         }
 
-        int n = stream_fill(_stream);
+        int n = stream_fill(sock, internal);
         if (n <= 0) {
             break;  /* EOF or error */
         }
@@ -616,206 +640,21 @@ RtHandleV2 *sn_tcp_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
         accum_len--;
     }
 
-    /* Allocate temp buffer for final string */
-    char *temp = (char *)malloc(accum_len + 1);
-    if (temp == NULL) {
+    /* Allocate result string */
+    char *result = (char *)malloc(accum_len + 1);
+    if (result == NULL) {
         if (accum_buffer) free(accum_buffer);
         fprintf(stderr, "sn_tcp_stream_read_line: malloc failed\n");
         exit(1);
     }
 
     if (accum_len > 0 && accum_buffer) {
-        memcpy(temp, accum_buffer, accum_len);
+        memcpy(result, accum_buffer, accum_len);
     }
-    temp[accum_len] = '\0';
+    result[accum_len] = '\0';
 
     if (accum_buffer) free(accum_buffer);
-    RtHandleV2 *result = rt_arena_v2_strdup(arena, temp);
-    free(temp);
     return result;
-}
-
-/* ============================================================================
- * TcpStream Advanced Read Operations
- * ============================================================================ */
-
-/* Peek at next n bytes without consuming them */
-RtHandleV2 *sn_tcp_stream_peek(RtArenaV2 *arena, RtHandleV2 *stream, long n) {
-    if (stream == NULL || n <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-    }
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
-
-    /* Ensure we have enough data */
-    if (!stream_ensure(_stream, (size_t)n)) {
-        /* Return what we have */
-        size_t available = stream_buffered(_stream);
-        return rt_array_create_generic_v2(arena, available, sizeof(unsigned char),
-                                       _stream->read_buf + _stream->read_buf_pos);
-    }
-
-    /* Return n bytes without consuming */
-    return rt_array_create_generic_v2(arena, (size_t)n, sizeof(unsigned char),
-                                   _stream->read_buf + _stream->read_buf_pos);
-}
-
-/* Read exactly n bytes, blocking until all received or EOF/error */
-RtHandleV2 *sn_tcp_stream_read_exact(RtArenaV2 *arena, RtHandleV2 *stream, long n) {
-    if (stream == NULL || n <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-    }
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
-
-    size_t needed = (size_t)n;
-
-    /* Fast path: if all data is already in buffer */
-    if (stream_buffered(_stream) >= needed) {
-        RtHandleV2 *result = rt_array_create_generic_v2(arena, needed, sizeof(unsigned char),
-                                                  _stream->read_buf + _stream->read_buf_pos);
-        stream_consume(_stream, needed);
-        return result;
-    }
-
-    /* Slow path: need to accumulate from multiple fills */
-    unsigned char *temp = (unsigned char *)malloc(needed);
-    if (temp == NULL) {
-        fprintf(stderr, "sn_tcp_stream_read_exact: malloc failed\n");
-        exit(1);
-    }
-
-    size_t total_read = 0;
-
-    while (total_read < needed && !_stream->eof_reached) {
-        /* Copy from buffer */
-        size_t available = stream_buffered(_stream);
-        if (available > 0) {
-            size_t to_copy = (needed - total_read < available) ?
-                             (needed - total_read) : available;
-            memcpy(temp + total_read,
-                   _stream->read_buf + _stream->read_buf_pos,
-                   to_copy);
-            stream_consume(_stream, to_copy);
-            total_read += to_copy;
-        }
-
-        /* Fill buffer if we need more */
-        if (total_read < needed && !_stream->eof_reached) {
-            int fill_result = stream_fill(_stream);
-            if (fill_result <= 0) {
-                break;  /* EOF or error */
-            }
-        }
-    }
-
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, total_read, sizeof(unsigned char), temp);
-    free(temp);
-    return result;
-}
-
-/* Read until delimiter byte is found (delimiter included in result) */
-RtHandleV2 *sn_tcp_stream_read_until(RtArenaV2 *arena, RtHandleV2 *stream, int delimiter) {
-    if (stream == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-    }
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
-
-    unsigned char delim_byte = (unsigned char)delimiter;
-    size_t accum_capacity = 0;
-    size_t accum_len = 0;
-    unsigned char *accum_buffer = NULL;
-
-    while (1) {
-        /* Scan buffer for delimiter */
-        for (size_t i = _stream->read_buf_pos; i < _stream->read_buf_end; i++) {
-            if (_stream->read_buf[i] == delim_byte) {
-                /* Found delimiter */
-                size_t chunk_len = i - _stream->read_buf_pos + 1;  /* Include delimiter */
-                size_t total_len = accum_len + chunk_len;
-
-                /* First accumulate all data into temp buffer */
-                unsigned char *temp = (unsigned char *)malloc(total_len);
-                if (temp == NULL) {
-                    if (accum_buffer) free(accum_buffer);
-                    fprintf(stderr, "sn_tcp_stream_read_until: alloc failed\n");
-                    exit(1);
-                }
-
-                if (accum_len > 0 && accum_buffer) {
-                    memcpy(temp, accum_buffer, accum_len);
-                }
-                memcpy(temp + accum_len,
-                       _stream->read_buf + _stream->read_buf_pos,
-                       chunk_len);
-
-                stream_consume(_stream, chunk_len);
-
-                if (accum_buffer) free(accum_buffer);
-                RtHandleV2 *result = rt_array_create_generic_v2(arena, total_len, sizeof(unsigned char), temp);
-                free(temp);
-                return result;
-            }
-        }
-
-        /* No delimiter found - accumulate and get more data */
-        size_t chunk_len = stream_buffered(_stream);
-
-        if (chunk_len > 0) {
-            if (accum_buffer == NULL) {
-                accum_capacity = (chunk_len < 256) ? 256 : chunk_len * 2;
-                accum_buffer = (unsigned char *)malloc(accum_capacity);
-                if (accum_buffer == NULL) {
-                    fprintf(stderr, "sn_tcp_stream_read_until: malloc failed\n");
-                    exit(1);
-                }
-            } else if (accum_len + chunk_len > accum_capacity) {
-                while (accum_len + chunk_len > accum_capacity) {
-                    accum_capacity *= 2;
-                }
-                unsigned char *new_buffer = (unsigned char *)realloc(accum_buffer, accum_capacity);
-                if (new_buffer == NULL) {
-                    free(accum_buffer);
-                    fprintf(stderr, "sn_tcp_stream_read_until: realloc failed\n");
-                    exit(1);
-                }
-                accum_buffer = new_buffer;
-            }
-
-            memcpy(accum_buffer + accum_len,
-                   _stream->read_buf + _stream->read_buf_pos,
-                   chunk_len);
-            accum_len += chunk_len;
-            stream_consume(_stream, chunk_len);
-        }
-
-        if (_stream->eof_reached) {
-            break;
-        }
-
-        int n = stream_fill(_stream);
-        if (n <= 0) {
-            break;
-        }
-    }
-
-    /* EOF without finding delimiter - return what we have */
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, accum_len, sizeof(unsigned char),
-                                              accum_len > 0 ? accum_buffer : NULL);
-    if (accum_buffer) free(accum_buffer);
-    return result;
-}
-
-/* Check how many bytes are available without blocking */
-long sn_tcp_stream_available(RtHandleV2 *stream) {
-    if (stream == NULL) return 0;
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
-    return (long)stream_buffered(_stream);
-}
-
-/* Check if EOF has been reached */
-bool sn_tcp_stream_eof(RtHandleV2 *stream) {
-    if (stream == NULL) return true;
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
-    return _stream->eof_reached && stream_buffered(_stream) == 0;
 }
 
 /* ============================================================================
@@ -823,17 +662,11 @@ bool sn_tcp_stream_eof(RtHandleV2 *stream) {
  * ============================================================================ */
 
 /* Set read timeout in milliseconds (-1 = blocking, 0 = non-blocking) */
-void sn_tcp_stream_set_timeout(RtHandleV2 *stream, long timeout_ms) {
+void sn_tcp_stream_set_timeout(__sn__TcpStream *stream, long long timeout_ms) {
     if (stream == NULL) return;
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
-    _stream->read_timeout_ms = (int)timeout_ms;
-}
-
-/* Get current read timeout */
-long sn_tcp_stream_get_timeout(RtHandleV2 *stream) {
-    if (stream == NULL) return -1;
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
-    return _stream->read_timeout_ms;
+    TcpStreamInternal *internal = get_internal(stream);
+    if (internal == NULL) return;
+    internal->read_timeout_ms = (int)timeout_ms;
 }
 
 /* ============================================================================
@@ -841,36 +674,33 @@ long sn_tcp_stream_get_timeout(RtHandleV2 *stream) {
  * ============================================================================ */
 
 /* Write bytes, return count written */
-long sn_tcp_stream_write(RtHandleV2 *stream, unsigned char *data) {
+long long sn_tcp_stream_write(__sn__TcpStream *stream, SnArray *data) {
     if (stream == NULL || data == NULL) return 0;
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
 
-    size_t length = rt_v2_data_array_length(data);
+    long long length = sn_array_length(data);
     if (length == 0) return 0;
 
-    rt_safepoint_enter_native();
-    int bytes_sent = send(_stream->socket_fd, (const char *)data, (int)length, 0);
-    rt_safepoint_leave_native();
+    socket_t sock = (socket_t)stream->socket_fd;
+    int bytes_sent = send(sock, (const char *)data->data, (int)length, 0);
 
     if (bytes_sent < 0) {
         fprintf(stderr, "sn_tcp_stream_write: send failed (%d)\n", GET_SOCKET_ERROR());
         exit(1);
     }
 
-    return bytes_sent;
+    return (long long)bytes_sent;
 }
 
 /* Write string + newline */
-void sn_tcp_stream_write_line(RtHandleV2 *stream, const char *text) {
+void sn_tcp_stream_write_line(__sn__TcpStream *stream, char *text) {
     if (stream == NULL) return;
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
+
+    socket_t sock = (socket_t)stream->socket_fd;
 
     if (text != NULL) {
         size_t len = strlen(text);
         if (len > 0) {
-            rt_safepoint_enter_native();
-            int result = send(_stream->socket_fd, text, (int)len, 0);
-            rt_safepoint_leave_native();
+            int result = send(sock, text, (int)len, 0);
             if (result < 0) {
                 fprintf(stderr, "sn_tcp_stream_write_line: send failed (%d)\n", GET_SOCKET_ERROR());
                 exit(1);
@@ -879,9 +709,7 @@ void sn_tcp_stream_write_line(RtHandleV2 *stream, const char *text) {
     }
 
     /* Send newline */
-    rt_safepoint_enter_native();
-    int result = send(_stream->socket_fd, "\r\n", 2, 0);
-    rt_safepoint_leave_native();
+    int result = send(sock, "\r\n", 2, 0);
     if (result < 0) {
         fprintf(stderr, "sn_tcp_stream_write_line: send newline failed (%d)\n", GET_SOCKET_ERROR());
         exit(1);
@@ -892,92 +720,48 @@ void sn_tcp_stream_write_line(RtHandleV2 *stream, const char *text) {
  * TcpStream Getters
  * ============================================================================ */
 
-RtHandleV2 *sn_tcp_stream_get_remote_address(RtArenaV2 *arena, RtHandleV2 *stream) {
+char *sn_tcp_stream_get_remote_address(__sn__TcpStream *stream) {
     if (stream == NULL) {
-        return rt_arena_v2_strdup(arena, "");
+        return strdup("");
     }
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
-    if (_stream->remote_addr == NULL) {
-        return rt_arena_v2_strdup(arena, "");
+    if (stream->remote_addr == NULL) {
+        return strdup("");
     }
-    return rt_arena_v2_strdup(arena, _stream->remote_addr);
+    return strdup((char *)stream->remote_addr);
 }
 
 /* ============================================================================
  * TcpStream Lifecycle
  * ============================================================================ */
 
-/* Cleanup callback — fires when GC collects the handle or arena is destroyed */
-static void sn_tcp_stream_cleanup(RtHandleV2 *h) {
-    if (h == NULL || h->ptr == NULL) return;
-    RtTcpStream *_stream = (RtTcpStream *)h->ptr;
+void sn_tcp_stream_dispose(__sn__TcpStream *stream) {
+    if (stream == NULL) return;
 
-    socket_t fd = _stream->socket_fd;
-    RtArenaV2 *priv = _stream->arena;
+    socket_t fd = (socket_t)stream->socket_fd;
 
+    /* Close socket */
     if (fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(fd);
-    }
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
-    }
-    h->ptr = NULL;
-}
-
-void sn_tcp_stream_close(RtHandleV2 *stream) {
-    if (stream == NULL || stream->ptr == NULL) return;
-
-    /* Clear per-handle cleanup to prevent double-close */
-    stream->cleanup_fn = NULL;
-
-    RtTcpStream *_stream = (RtTcpStream *)stream->ptr;
-
-    socket_t fd = _stream->socket_fd;
-    RtArenaV2 *priv = _stream->arena;
-
-    /* Close socket before destroying arena */
-    if (fd != INVALID_SOCKET_VAL) {
-        CLOSE_SOCKET(fd);
+        stream->socket_fd = (long long)INVALID_SOCKET_VAL;
     }
 
-    /* Destroy private arena — frees struct, buffer, addr string */
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
+    /* Free internal state */
+    TcpStreamInternal *internal = get_internal(stream);
+    if (internal != NULL) {
+        if (internal->read_buf != NULL) {
+            free(internal->read_buf);
+            internal->read_buf = NULL;
+        }
+        unregister_internal(stream);
+        free(internal);
     }
-    stream->ptr = NULL;
 }
 
 /* ============================================================================
  * TcpListener Creation
  * ============================================================================ */
 
-static RtHandleV2 *sn_tcp_listener_create(RtArenaV2 *arena, socket_t sock, int port) {
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "tcp_listener");
-
-    /* Allocate the struct in the private arena so close() frees everything.
-     * The handle in the caller's arena uses EXTERN so GC won't double-free. */
-    RtHandleV2 *priv_h = rt_arena_v2_alloc(priv, sizeof(RtTcpListener));
-    RtHandleV2 *h = rt_arena_v2_alloc(arena, 1); /* minimal allocation for handle wrapper */
-    h->ptr = priv_h->ptr;    /* point to data in private arena */
-    h->size = sizeof(RtTcpListener);
-    h->flags |= RT_HANDLE_FLAG_EXTERN;  /* GC: free handle struct, not data */
-    RtTcpListener *listener = (RtTcpListener *)h->ptr;
-    if (listener == NULL) {
-        fprintf(stderr, "sn_tcp_listener_create: allocation failed\n");
-        exit(1);
-    }
-    listener->socket_fd = sock;
-    listener->bound_port = port;
-    listener->arena = priv;
-
-    /* Register per-handle cleanup so GC can close the socket and destroy the
-     * private arena if the handle becomes unreachable without explicit .close() */
-    rt_handle_set_cleanup(h, sn_tcp_listener_cleanup);
-
-    return h;
-}
-
-RtHandleV2 *sn_tcp_listener_bind(RtArenaV2 *arena, const char *address) {
+__sn__TcpListener *sn_tcp_listener_bind(char *address) {
     ensure_winsock_initialized();
 
     if (address == NULL) {
@@ -1059,28 +843,34 @@ RtHandleV2 *sn_tcp_listener_bind(RtArenaV2 *arena, const char *address) {
         exit(1);
     }
 
-    return sn_tcp_listener_create(arena, sock, actual_port);
+    __sn__TcpListener *listener = (__sn__TcpListener *)calloc(1, sizeof(__sn__TcpListener));
+    if (listener == NULL) {
+        CLOSE_SOCKET(sock);
+        fprintf(stderr, "sn_tcp_listener_bind: allocation failed\n");
+        exit(1);
+    }
+    listener->socket_fd = (long long)sock;
+    listener->bound_port = (long long)actual_port;
+
+    return listener;
 }
 
 /* ============================================================================
  * TcpListener Accept
  * ============================================================================ */
 
-RtHandleV2 *sn_tcp_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
+__sn__TcpStream *sn_tcp_listener_accept(__sn__TcpListener *listener) {
     if (listener == NULL) {
         fprintf(stderr, "sn_tcp_listener_accept: NULL listener\n");
         exit(1);
     }
-    RtTcpListener *_listener = (RtTcpListener *)listener->ptr;
+
+    socket_t listener_fd = (socket_t)listener->socket_fd;
 
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
 
-    /* Pre-park this thread before the blocking accept() syscall so that
-     * GC's stop-the-world doesn't wait for us while we're blocked in the kernel. */
-    rt_safepoint_enter_native();
-    socket_t client_sock = accept(_listener->socket_fd, (struct sockaddr *)&client_addr, &client_len);
-    rt_safepoint_leave_native();
+    socket_t client_sock = accept(listener_fd, (struct sockaddr *)&client_addr, &client_len);
 
     if (client_sock == INVALID_SOCKET_VAL) {
         fprintf(stderr, "sn_tcp_listener_accept: accept failed (%d)\n", GET_SOCKET_ERROR());
@@ -1093,58 +883,29 @@ RtHandleV2 *sn_tcp_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
     inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, sizeof(ip_str));
     snprintf(remote_addr, sizeof(remote_addr), "%s:%d", ip_str, ntohs(client_addr.sin_port));
 
-    return sn_tcp_stream_create(arena, client_sock, remote_addr);
+    return sn_tcp_stream_create(client_sock, remote_addr);
 }
 
 /* ============================================================================
  * TcpListener Getters
  * ============================================================================ */
 
-long sn_tcp_listener_get_port(RtHandleV2 *listener) {
+long long sn_tcp_listener_get_port(__sn__TcpListener *listener) {
     if (listener == NULL) return 0;
-    RtTcpListener *_listener = (RtTcpListener *)listener->ptr;
-    return _listener->bound_port;
+    return listener->bound_port;
 }
 
 /* ============================================================================
  * TcpListener Lifecycle
  * ============================================================================ */
 
-/* Cleanup callback — fires when GC collects the handle or arena is destroyed */
-static void sn_tcp_listener_cleanup(RtHandleV2 *h) {
-    if (h == NULL || h->ptr == NULL) return;
-    RtTcpListener *_listener = (RtTcpListener *)h->ptr;
+void sn_tcp_listener_dispose(__sn__TcpListener *listener) {
+    if (listener == NULL) return;
 
-    socket_t fd = _listener->socket_fd;
-    RtArenaV2 *priv = _listener->arena;
+    socket_t fd = (socket_t)listener->socket_fd;
 
     if (fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(fd);
+        listener->socket_fd = (long long)INVALID_SOCKET_VAL;
     }
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
-    }
-    h->ptr = NULL;
-}
-
-void sn_tcp_listener_close(RtHandleV2 *listener) {
-    if (listener == NULL || listener->ptr == NULL) return;
-
-    /* Clear per-handle cleanup to prevent double-close */
-    listener->cleanup_fn = NULL;
-
-    RtTcpListener *_listener = (RtTcpListener *)listener->ptr;
-
-    socket_t fd = _listener->socket_fd;
-    RtArenaV2 *priv = _listener->arena;
-
-    if (fd != INVALID_SOCKET_VAL) {
-        CLOSE_SOCKET(fd);
-    }
-
-    /* Destroy private arena — frees everything */
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
-    }
-    listener->ptr = NULL;
 }

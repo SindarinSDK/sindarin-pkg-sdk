@@ -20,9 +20,7 @@
 #include <stdbool.h>
 #include <time.h>
 
-/* Include runtime for proper memory management */
-#include "runtime/array/runtime_array_v2.h"
-#include "runtime/string/runtime_string_v2.h"
+/* No arena runtime — minimal runtime */
 
 /* ngtcp2 includes */
 #include <ngtcp2/ngtcp2.h>
@@ -202,7 +200,6 @@ typedef struct RtQuicStream {
     bool closed;
     bool write_closed;
     bool is_uni;
-    RtHandleV2 *_handle;           /* back-pointer to arena handle */
 } RtQuicStream;
 
 typedef struct RtQuicConnection {
@@ -253,10 +250,12 @@ typedef struct RtQuicConnection {
     uint8_t *resumption_token;
     size_t resumption_token_len;
 
-    /* Private arena for connection allocations */
-    RtArenaV2 *arena;
-    RtHandleV2 *_handle;           /* back-pointer to arena handle */
 } RtQuicConnection;
+
+typedef __sn__QuicConfig SnQuicConfig;
+typedef __sn__QuicStream SnQuicStream;
+typedef __sn__QuicConnection SnQuicConnection;
+typedef __sn__QuicListener SnQuicListener;
 
 typedef struct RtQuicListener {
     socket_t socket_fd;
@@ -265,7 +264,7 @@ typedef struct RtQuicListener {
     SSL_CTX *ssl_ctx;
 
     /* Accepted connections queue */
-    RtHandleV2 *accept_queue[QUIC_MAX_INCOMING_STREAMS];
+    RtQuicConnection *accept_queue_conns[QUIC_MAX_INCOMING_STREAMS];
     int accept_head;
     int accept_tail;
     int accept_count;
@@ -288,9 +287,6 @@ typedef struct RtQuicListener {
     struct sockaddr_storage local_addr;
     socklen_t local_addrlen;
 
-    /* Private arena for listener allocations */
-    RtArenaV2 *arena;
-    RtHandleV2 *_handle;           /* back-pointer to arena handle */
 } RtQuicListener;
 
 /* ============================================================================
@@ -384,7 +380,7 @@ static ssize_t quic_send_packet(RtQuicConnection *conn, const uint8_t *buf, size
     }
 }
 
-static int parse_address(const char *address, char *host, size_t hostlen, char *port, size_t portlen) {
+static int parse_address(char *address, char *host, size_t hostlen, char *port, size_t portlen) {
     const char *colon = NULL;
 
     if (address[0] == '[') {
@@ -422,7 +418,7 @@ static int parse_address(const char *address, char *host, size_t hostlen, char *
     return 0;
 }
 
-static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, RtArenaV2 *arena) {
+static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen) {
     char host[NI_MAXHOST];
     char port[NI_MAXSERV];
     (void)addrlen;
@@ -431,8 +427,7 @@ static char *format_address(struct sockaddr_storage *addr, socklen_t addrlen, Rt
         return NULL;
     }
     size_t len = strlen(host) + strlen(port) + 2;
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, len);
-    char *result = (char *)_h->ptr;
+    char *result = (char *)malloc(len);
     snprintf(result, len, "%s:%s", host, port);
     return result;
 }
@@ -605,13 +600,12 @@ static RtQuicStream *quic_find_or_create_stream(RtQuicConnection *conn, int64_t 
     /* Create new stream */
     if (conn->stream_count >= QUIC_MAX_STREAMS) return NULL;
 
-    RtHandleV2 *_stream_h = rt_arena_v2_alloc(conn->arena, sizeof(RtQuicStream));
-    RtQuicStream *stream = (RtQuicStream *)_stream_h->ptr;
+    RtQuicStream *stream = (RtQuicStream *)calloc(1, sizeof(RtQuicStream));
     memset(stream, 0, sizeof(RtQuicStream));
 
     stream->stream_id = stream_id;
     stream->conn_ptr = conn;
-    stream->_handle = _stream_h;
+    /* no handle */
     stream_buf_init(&stream->recv_buf);
     MUTEX_INIT(&stream->stream_mutex);
     COND_INIT(&stream->read_cond);
@@ -950,7 +944,7 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
  * Connection Creation (Client)
  * ============================================================================ */
 
-static RtHandleV2 *quic_connection_create(RtArenaV2 *arena, const char *address,
+static RtQuicConnection *quic_connection_create(char *address,
                                            RtQuicConfig *config, bool early,
                                            const uint8_t *token, size_t token_len) {
     ensure_winsock_initialized();
@@ -997,12 +991,10 @@ static RtHandleV2 *quic_connection_create(RtArenaV2 *arena, const char *address,
     getsockname(sock, (struct sockaddr *)&local_addr, &local_len);
 
     /* Create private detached arena for connection — immune to GC compaction */
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "quic_connection");
-    RtHandleV2 *_conn_h = rt_arena_v2_alloc(priv, sizeof(RtQuicConnection));
-    RtQuicConnection *conn = (RtQuicConnection *)_conn_h->ptr;
+    RtQuicConnection *conn = (RtQuicConnection *)calloc(1, sizeof(RtQuicConnection));
     memset(conn, 0, sizeof(RtQuicConnection));
-    conn->arena = priv;
-    conn->_handle = _conn_h;
+    /* no arena */
+    /* no handle */
     conn->socket_fd = sock;
     conn->is_server = false;
 
@@ -1010,7 +1002,7 @@ static RtHandleV2 *quic_connection_create(RtArenaV2 *arena, const char *address,
     conn->remote_addrlen = (socklen_t)res->ai_addrlen;
     memcpy(&conn->local_addr, &local_addr, local_len);
     conn->local_addrlen = local_len;
-    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, priv);
+    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen);
 
     freeaddrinfo(res);
 
@@ -1174,14 +1166,14 @@ static RtHandleV2 *quic_connection_create(RtArenaV2 *arena, const char *address,
         return NULL;
     }
 
-    return _conn_h;
+    return conn;
 }
 
 /* ============================================================================
  * Connection Creation (Server-side, called from listener)
  * ============================================================================ */
 
-static RtHandleV2 *quic_server_connection_create(RtArenaV2 *arena, socket_t sock,
+static RtQuicConnection *quic_server_connection_create(socket_t sock,
                                                    SSL_CTX *ssl_ctx,
                                                    struct sockaddr_storage *remote,
                                                    socklen_t remote_len,
@@ -1191,13 +1183,11 @@ static RtHandleV2 *quic_server_connection_create(RtArenaV2 *arena, socket_t sock
                                                    const ngtcp2_pkt_hd *hd,
                                                    RtQuicConfig *config) {
     /* Create private detached arena for server connection — immune to GC compaction */
-    (void)arena;  /* caller arena not used for internal allocations */
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "quic_server_conn");
-    RtHandleV2 *_conn_h = rt_arena_v2_alloc(priv, sizeof(RtQuicConnection));
-    RtQuicConnection *conn = (RtQuicConnection *)_conn_h->ptr;
+      /* caller arena not used for internal allocations */
+    RtQuicConnection *conn = (RtQuicConnection *)calloc(1, sizeof(RtQuicConnection));
     memset(conn, 0, sizeof(RtQuicConnection));
-    conn->arena = priv;
-    conn->_handle = _conn_h;
+    /* no arena */
+    /* no handle */
     conn->is_server = true;
 
     /* Server connections share the listener's socket */
@@ -1206,7 +1196,7 @@ static RtHandleV2 *quic_server_connection_create(RtArenaV2 *arena, socket_t sock
     conn->remote_addrlen = remote_len;
     memcpy(&conn->local_addr, local, local_len);
     conn->local_addrlen = local_len;
-    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen, priv);
+    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen);
 
     MUTEX_INIT(&conn->conn_mutex);
     COND_INIT(&conn->handshake_cond);
@@ -1325,7 +1315,7 @@ static RtHandleV2 *quic_server_connection_create(RtArenaV2 *arena, socket_t sock
      * Handshake completion is detected by the listener thread. */
     conn->io_running = false;
 
-    return _conn_h;
+    return conn;
 }
 
 /* ============================================================================
@@ -1437,7 +1427,7 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
 
                         MUTEX_LOCK(&listener->accept_mutex);
                         if (listener->accept_count < QUIC_MAX_INCOMING_STREAMS) {
-                            listener->accept_queue[listener->accept_tail] = existing->_handle;
+                            listener->accept_queue_conns[listener->accept_tail] = existing;
                             listener->accept_tail = (listener->accept_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
                             listener->accept_count++;
                             COND_SIGNAL(&listener->accept_cond);
@@ -1461,14 +1451,14 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
             if (rv < 0) goto handle_timers;
 
             /* Create new server connection (non-blocking, no I/O thread) */
-            RtHandleV2 *_new_conn_h = quic_server_connection_create(
-                listener->arena, listener->socket_fd, listener->ssl_ctx,
+            RtQuicConnection *new_conn_result = quic_server_connection_create(
+                listener->socket_fd, listener->ssl_ctx,
                 &from_addr, from_len,
                 &listener->local_addr, listener->local_addrlen,
                 buf, (size_t)nread, &hd, &listener->config);
 
-            if (_new_conn_h) {
-                RtQuicConnection *new_conn = (RtQuicConnection *)_new_conn_h->ptr;
+            if (new_conn_result) {
+                RtQuicConnection *new_conn = new_conn_result;
 
                 /* Flush initial server response (ServerHello etc.) */
                 MUTEX_LOCK(&new_conn->conn_mutex);
@@ -1487,7 +1477,7 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
                     new_conn->io_running = true;
                     MUTEX_LOCK(&listener->accept_mutex);
                     if (listener->accept_count < QUIC_MAX_INCOMING_STREAMS) {
-                        listener->accept_queue[listener->accept_tail] = _new_conn_h;
+                        listener->accept_queue_conns[listener->accept_tail] = new_conn;
                         listener->accept_tail = (listener->accept_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
                         listener->accept_count++;
                         COND_SIGNAL(&listener->accept_cond);
@@ -1525,9 +1515,8 @@ handle_timers:
  * QuicConfig API
  * ============================================================================ */
 
-RtHandleV2 *sn_quic_config_defaults(RtArenaV2 *arena) {
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    RtQuicConfig *config = (RtQuicConfig *)_h->ptr;
+__sn__QuicConfig *sn_quic_config_defaults(void) {
+    RtQuicConfig *config = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
     config->max_bidi_streams = QUIC_DEFAULT_MAX_BIDI_STREAMS;
     config->max_uni_streams = QUIC_DEFAULT_MAX_UNI_STREAMS;
     config->max_stream_window = QUIC_DEFAULT_MAX_STREAM_WINDOW;
@@ -1536,60 +1525,66 @@ RtHandleV2 *sn_quic_config_defaults(RtArenaV2 *arena) {
     return _h;
 }
 
-RtHandleV2 *sn_quic_config_set_max_bidi_streams(RtArenaV2 *arena, RtHandleV2 *config, int n) {
+__sn__QuicConfig *sn_quic_config_set_max_bidi_streams(__sn__QuicConfig *config, int n) {
     if (config == NULL) return NULL;
-    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    /* config is already the right type */
+    RtQuicConfig *_config = (RtQuicConfig *)config;
     _config->max_bidi_streams = n;
-    RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
-    return _ret_h;
+    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
+    memcpy(ret, _config, sizeof(RtQuicConfig));
+    return (__sn__QuicConfig *)ret;
 }
 
-RtHandleV2 *sn_quic_config_set_max_uni_streams(RtArenaV2 *arena, RtHandleV2 *config, int n) {
+__sn__QuicConfig *sn_quic_config_set_max_uni_streams(__sn__QuicConfig *config, int n) {
     if (config == NULL) return NULL;
-    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    /* config is already the right type */
+    RtQuicConfig *_config = (RtQuicConfig *)config;
     _config->max_uni_streams = n;
-    RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
-    return _ret_h;
+    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
+    memcpy(ret, _config, sizeof(RtQuicConfig));
+    return (__sn__QuicConfig *)ret;
 }
 
-RtHandleV2 *sn_quic_config_set_max_stream_window(RtArenaV2 *arena, RtHandleV2 *config, int bytes) {
+__sn__QuicConfig *sn_quic_config_set_max_stream_window(__sn__QuicConfig *config, int bytes) {
     if (config == NULL) return NULL;
-    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    /* config is already the right type */
+    RtQuicConfig *_config = (RtQuicConfig *)config;
     _config->max_stream_window = bytes;
-    RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
-    return _ret_h;
+    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
+    memcpy(ret, _config, sizeof(RtQuicConfig));
+    return (__sn__QuicConfig *)ret;
 }
 
-RtHandleV2 *sn_quic_config_set_max_conn_window(RtArenaV2 *arena, RtHandleV2 *config, int bytes) {
+__sn__QuicConfig *sn_quic_config_set_max_conn_window(__sn__QuicConfig *config, int bytes) {
     if (config == NULL) return NULL;
-    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    /* config is already the right type */
+    RtQuicConfig *_config = (RtQuicConfig *)config;
     _config->max_conn_window = bytes;
-    RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
-    return _ret_h;
+    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
+    memcpy(ret, _config, sizeof(RtQuicConfig));
+    return (__sn__QuicConfig *)ret;
 }
 
-RtHandleV2 *sn_quic_config_set_idle_timeout(RtArenaV2 *arena, RtHandleV2 *config, int ms) {
+__sn__QuicConfig *sn_quic_config_set_idle_timeout(__sn__QuicConfig *config, int ms) {
     if (config == NULL) return NULL;
-    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
+    /* config is already the right type */
+    RtQuicConfig *_config = (RtQuicConfig *)config;
     _config->idle_timeout_ms = ms;
-    RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtQuicConfig));
-    memcpy(_ret_h->ptr, _config, sizeof(RtQuicConfig));
-    return _ret_h;
+    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
+    memcpy(ret, _config, sizeof(RtQuicConfig));
+    return (__sn__QuicConfig *)ret;
 }
 
 /* ============================================================================
  * QuicStream API
  * ============================================================================ */
 
-RtHandleV2 *sn_quic_stream_read(RtArenaV2 *arena, RtHandleV2 *stream, long maxBytes) {
+SnArray *sn_quic_stream_read(__sn__QuicStream *stream, long long maxBytes) {
     if (!stream || maxBytes <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
     }
-    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    /* stream is already the right type */
+    RtQuicStream *_stream = (RtQuicStream *)stream;
 
     MUTEX_LOCK(&_stream->stream_mutex);
 
@@ -1602,23 +1597,25 @@ RtHandleV2 *sn_quic_stream_read(RtArenaV2 *arena, RtHandleV2 *stream, long maxBy
     size_t avail = stream_buf_available(&_stream->recv_buf);
     if (avail == 0) {
         MUTEX_UNLOCK(&_stream->stream_mutex);
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
     }
 
     size_t to_read = avail < (size_t)maxBytes ? avail : (size_t)maxBytes;
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, to_read, sizeof(unsigned char),
-        _stream->recv_buf.data + _stream->recv_buf.read_pos);
+    SnArray *result = sn_array_new(sizeof(unsigned char), (long long)to_read);
+    result->elem_tag = SN_TAG_BYTE;
+    { unsigned char *src = (unsigned char *)_stream->recv_buf.data + _stream->recv_buf.read_pos; for (size_t _i = 0; _i < (size_t)to_read; _i++) sn_array_push(result, &src[_i]); }
     _stream->recv_buf.read_pos += to_read;
 
     MUTEX_UNLOCK(&_stream->stream_mutex);
     return result;
 }
 
-RtHandleV2 *sn_quic_stream_read_all(RtArenaV2 *arena, RtHandleV2 *stream) {
+SnArray *sn_quic_stream_read_all(__sn__QuicStream *stream) {
     if (!stream) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
     }
-    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    /* stream is already the right type */
+    RtQuicStream *_stream = (RtQuicStream *)stream;
 
     MUTEX_LOCK(&_stream->stream_mutex);
 
@@ -1628,24 +1625,28 @@ RtHandleV2 *sn_quic_stream_read_all(RtArenaV2 *arena, RtHandleV2 *stream) {
     }
 
     size_t avail = stream_buf_available(&_stream->recv_buf);
-    RtHandleV2 *result;
+    SnArray *result;
     if (avail > 0) {
-        result = rt_array_create_generic_v2(arena, avail, sizeof(unsigned char),
-            _stream->recv_buf.data + _stream->recv_buf.read_pos);
+        result = sn_array_new(sizeof(unsigned char), (long long)avail);
+        result->elem_tag = SN_TAG_BYTE;
+        { unsigned char *src = (unsigned char *)_stream->recv_buf.data + _stream->recv_buf.read_pos; for (size_t _i = 0; _i < (size_t)avail; _i++) sn_array_push(result, &src[_i]); }
         _stream->recv_buf.read_pos += avail;
     } else {
-        result = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        result = sn_array_new(sizeof(unsigned char), (long long)0);
+        result->elem_tag = SN_TAG_BYTE;
+        { unsigned char *src = (unsigned char *)NULL; for (size_t _i = 0; _i < (size_t)0; _i++) sn_array_push(result, &src[_i]); }
     }
 
     MUTEX_UNLOCK(&_stream->stream_mutex);
     return result;
 }
 
-RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
+char *sn_quic_stream_read_line(__sn__QuicStream *stream) {
     if (!stream) {
-        return rt_arena_v2_strdup(arena, "");
+        return strdup("");
     }
-    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    /* stream is already the right type */
+    RtQuicStream *_stream = (RtQuicStream *)stream;
 
     MUTEX_LOCK(&_stream->stream_mutex);
 
@@ -1662,35 +1663,34 @@ RtHandleV2 *sn_quic_stream_read_line(RtArenaV2 *arena, RtHandleV2 *stream) {
                 /* Strip \r if present */
                 if (line_len > 0 && start[line_len - 1] == '\r') line_len--;
 
-                RtHandleV2 *_line_h = rt_arena_v2_alloc(arena, line_len + 1);
-                char *temp = (char *)_line_h->ptr;
+                char *temp = (char *)malloc(line_len + 1);
                 memcpy(temp, start, line_len);
                 temp[line_len] = '\0';
                 _stream->recv_buf.read_pos += i + 1;
                 MUTEX_UNLOCK(&_stream->stream_mutex);
-                return rt_arena_v2_strdup(arena, temp);
+                { char *ret = strdup(temp); free(temp); return ret; }
             }
         }
 
         if (_stream->recv_buf.fin_received || _stream->closed) {
             /* Return remaining data as last line */
-            RtHandleV2 *_rem_h = rt_arena_v2_alloc(arena, avail + 1);
-            char *temp = (char *)_rem_h->ptr;
+            char *temp = (char *)malloc(avail + 1);
             if (avail > 0) memcpy(temp, start, avail);
             temp[avail] = '\0';
             _stream->recv_buf.read_pos += avail;
             MUTEX_UNLOCK(&_stream->stream_mutex);
-            return rt_arena_v2_strdup(arena, temp);
+            { char *ret = strdup(temp); free(temp); return ret; }
         }
 
         COND_WAIT(&_stream->read_cond, &_stream->stream_mutex);
     }
 }
 
-long sn_quic_stream_write(RtHandleV2 *stream, unsigned char *data) {
+long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
     if (!stream || !data) return 0;
-    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
-    size_t data_len = rt_v2_data_array_length(data);
+    /* stream is already the right type */
+    RtQuicStream *_stream = (RtQuicStream *)stream;
+    size_t data_len = (size_t)data->len;
     if (data_len == 0) return 0;
 
     RtQuicConnection *conn = (RtQuicConnection *)_stream->conn_ptr;
@@ -1743,9 +1743,10 @@ long sn_quic_stream_write(RtHandleV2 *stream, unsigned char *data) {
     return (long)total_written;
 }
 
-void sn_quic_stream_write_line(RtHandleV2 *stream, const char *text) {
+void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
     if (!stream || !text) return;
-    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    /* stream is already the right type */
+    RtQuicStream *_stream = (RtQuicStream *)stream;
 
     size_t text_len = strlen(text);
     size_t total_len = text_len + 1; /* text + \n */
@@ -1804,21 +1805,24 @@ void sn_quic_stream_write_line(RtHandleV2 *stream, const char *text) {
     free(buf);
 }
 
-int64_t sn_quic_stream_get_id(RtHandleV2 *stream) {
+long long sn_quic_stream_get_id(__sn__QuicStream *stream) {
     if (!stream) return -1;
-    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    /* stream is already the right type */
+    RtQuicStream *_stream = (RtQuicStream *)stream;
     return _stream->stream_id;
 }
 
-bool sn_quic_stream_is_unidirectional(RtHandleV2 *stream) {
+bool sn_quic_stream_is_unidirectional(__sn__QuicStream *stream) {
     if (!stream) return false;
-    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    /* stream is already the right type */
+    RtQuicStream *_stream = (RtQuicStream *)stream;
     return _stream->is_uni;
 }
 
-void sn_quic_stream_close(RtHandleV2 *stream) {
+void sn_quic_stream_close(__sn__QuicStream *stream) {
     if (!stream) return;
-    RtQuicStream *_stream = (RtQuicStream *)stream->ptr;
+    /* stream is already the right type */
+    RtQuicStream *_stream = (RtQuicStream *)stream;
     if (_stream->closed) return;
 
     RtQuicConnection *conn = (RtQuicConnection *)_stream->conn_ptr;
@@ -1858,31 +1862,33 @@ void sn_quic_stream_close(RtHandleV2 *stream) {
  * QuicConnection API
  * ============================================================================ */
 
-RtHandleV2 *sn_quic_connection_connect(RtArenaV2 *arena, const char *address) {
-    return quic_connection_create(arena, address, NULL, false, NULL, 0);
+__sn__QuicConnection *sn_quic_connection_connect(char *address) {
+    return quic_connection_create(address, NULL, false, NULL, 0);
 }
 
-RtHandleV2 *sn_quic_connection_connect_with(RtArenaV2 *arena, const char *address,
-                                              RtHandleV2 *config) {
+__sn__QuicConnection *sn_quic_connection_connect_with(char *address,
+                                              __sn__QuicConfig *config) {
     if (config == NULL) return NULL;
-    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
-    return quic_connection_create(arena, address, _config, false, NULL, 0);
+    /* config is already the right type */
+    RtQuicConfig *_config = (RtQuicConfig *)config;
+    return quic_connection_create(address, _config, false, NULL, 0);
 }
 
-RtHandleV2 *sn_quic_connection_connect_early(RtArenaV2 *arena, const char *address,
-                                               unsigned char *token) {
-    if (!token || rt_v2_data_array_length(token) == 0) {
-        return quic_connection_create(arena, address, NULL, false, NULL, 0);
+__sn__QuicConnection *sn_quic_connection_connect_early(char *address,
+                                               SnArray *token) {
+    if (!token || token->len == 0) {
+        return quic_connection_create(address, NULL, false, NULL, 0);
     }
-    return quic_connection_create(arena, address, NULL, true,
-                                   (const uint8_t *)token, rt_v2_data_array_length(token));
+    return quic_connection_create(address, NULL, true,
+                                   (const uint8_t *)token->data, token->len);
 }
 
-RtHandleV2 *sn_quic_connection_open_stream(RtArenaV2 *arena, RtHandleV2 *conn) {
+__sn__QuicStream *sn_quic_connection_open_stream(__sn__QuicConnection *conn) {
     if (conn == NULL) return NULL;
-    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    /* conn is already the right type */
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
     if (_conn->closed) return NULL;
-    (void)arena;
+    
 
     MUTEX_LOCK(&_conn->conn_mutex);
 
@@ -1896,14 +1902,15 @@ RtHandleV2 *sn_quic_connection_open_stream(RtArenaV2 *arena, RtHandleV2 *conn) {
 
     RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
     MUTEX_UNLOCK(&_conn->conn_mutex);
-    return stream ? stream->_handle : NULL;
+    return stream ? (__sn__QuicStream *)stream : NULL;
 }
 
-RtHandleV2 *sn_quic_connection_open_uni_stream(RtArenaV2 *arena, RtHandleV2 *conn) {
+__sn__QuicStream *sn_quic_connection_open_uni_stream(__sn__QuicConnection *conn) {
     if (conn == NULL) return NULL;
-    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    /* conn is already the right type */
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
     if (_conn->closed) return NULL;
-    (void)arena;
+    
 
     MUTEX_LOCK(&_conn->conn_mutex);
 
@@ -1918,13 +1925,14 @@ RtHandleV2 *sn_quic_connection_open_uni_stream(RtArenaV2 *arena, RtHandleV2 *con
     RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
     if (stream) stream->is_uni = true;
     MUTEX_UNLOCK(&_conn->conn_mutex);
-    return stream ? stream->_handle : NULL;
+    return stream ? (__sn__QuicStream *)stream : NULL;
 }
 
-RtHandleV2 *sn_quic_connection_accept_stream(RtArenaV2 *arena, RtHandleV2 *conn) {
+__sn__QuicStream *sn_quic_connection_accept_stream(__sn__QuicConnection *conn) {
     if (conn == NULL) return NULL;
-    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
-    (void)arena;
+    /* conn is already the right type */
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
+    
 
     MUTEX_LOCK(&_conn->conn_mutex);
 
@@ -1943,22 +1951,27 @@ RtHandleV2 *sn_quic_connection_accept_stream(RtArenaV2 *arena, RtHandleV2 *conn)
 
     RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
     MUTEX_UNLOCK(&_conn->conn_mutex);
-    return stream ? stream->_handle : NULL;
+    return stream ? (__sn__QuicStream *)stream : NULL;
 }
 
-RtHandleV2 *sn_quic_connection_resumption_token(RtArenaV2 *arena, RtHandleV2 *conn) {
-    if (conn == NULL) return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+SnArray *sn_quic_connection_resumption_token(__sn__QuicConnection *conn) {
+    if (conn == NULL) { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
+    /* conn is already the right type */
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
     if (!_conn->resumption_token || _conn->resumption_token_len == 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
     }
 
-    return rt_array_create_generic_v2(arena, _conn->resumption_token_len, sizeof(unsigned char), _conn->resumption_token);
+    { SnArray *tok = sn_array_new(sizeof(unsigned char), (long long)_conn->resumption_token_len);
+    tok->elem_tag = SN_TAG_BYTE;
+    for (size_t _i = 0; _i < _conn->resumption_token_len; _i++) sn_array_push(tok, &_conn->resumption_token[_i]);
+    return tok; }
 }
 
-void sn_quic_connection_migrate(RtHandleV2 *conn, const char *newLocalAddress) {
+void sn_quic_connection_migrate(__sn__QuicConnection *conn, char *newLocalAddress) {
     if (conn == NULL) return;
-    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    /* conn is already the right type */
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
     if (_conn->closed || !newLocalAddress) return;
 
     char host[256], port[16];
@@ -2035,18 +2048,20 @@ void sn_quic_connection_migrate(RtHandleV2 *conn, const char *newLocalAddress) {
     freeaddrinfo(res);
 }
 
-RtHandleV2 *sn_quic_connection_remote_address(RtArenaV2 *arena, RtHandleV2 *conn) {
-    if (conn == NULL) return rt_arena_v2_strdup(arena, "");
-    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+char *sn_quic_connection_remote_address(__sn__QuicConnection *conn) {
+    if (conn == NULL) return strdup("");
+    /* conn is already the right type */
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
     if (!_conn->remote_addr_str) {
-        return rt_arena_v2_strdup(arena, "");
+        return strdup("");
     }
-    return rt_arena_v2_strdup(arena, _conn->remote_addr_str);
+    return strdup(_conn->remote_addr_str);
 }
 
-void sn_quic_connection_close(RtHandleV2 *conn) {
+void sn_quic_connection_close(__sn__QuicConnection *conn) {
     if (conn == NULL) return;
-    RtQuicConnection *_conn = (RtQuicConnection *)conn->ptr;
+    /* conn is already the right type */
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
     if (_conn->closed) return;
 
     MUTEX_LOCK(&_conn->conn_mutex);
@@ -2095,7 +2110,6 @@ void sn_quic_connection_close(RtHandleV2 *conn) {
     }
 
     /* Save OS resources and arena pointer before destroying */
-    RtArenaV2 *priv = _conn->arena;
     SSL *ssl = _conn->ssl;
     ngtcp2_crypto_ossl_ctx *ossl_ctx = _conn->ossl_ctx;
     SSL_CTX *ssl_ctx = _conn->ssl_ctx;
@@ -2152,16 +2166,14 @@ void sn_quic_connection_close(RtHandleV2 *conn) {
     COND_DESTROY(&_conn->accept_stream_cond);
 
     /* Destroy private arena — frees connection struct and all internal allocations */
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
-    }
+
 }
 
 /* ============================================================================
  * QuicListener API
  * ============================================================================ */
 
-static RtHandleV2 *quic_listener_create(RtArenaV2 *arena, const char *address,
+static __sn__QuicListener *quic_listener_create(char *address,
                                          const char *cert_file, const char *key_file,
                                          RtQuicConfig *config) {
     ensure_winsock_initialized();
@@ -2227,13 +2239,11 @@ static RtHandleV2 *quic_listener_create(RtArenaV2 *arena, const char *address,
     }
 
     /* Create private detached arena for listener — immune to GC compaction */
-    (void)arena;  /* caller arena not used for internal allocations */
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "quic_listener");
-    RtHandleV2 *_listener_h = rt_arena_v2_alloc(priv, sizeof(RtQuicListener));
-    RtQuicListener *listener = (RtQuicListener *)_listener_h->ptr;
+      /* caller arena not used for internal allocations */
+    RtQuicListener *listener = (RtQuicListener *)calloc(1, sizeof(RtQuicListener));
     memset(listener, 0, sizeof(RtQuicListener));
-    listener->arena = priv;
-    listener->_handle = _listener_h;
+    /* no arena */
+    /* no handle */
     listener->socket_fd = sock;
     listener->bound_port = bound_port;
     listener->ssl_ctx = ssl_ctx;
@@ -2264,26 +2274,28 @@ static RtHandleV2 *quic_listener_create(RtArenaV2 *arena, const char *address,
     pthread_create(&listener->listen_thread, NULL, quic_listener_thread_entry, listener);
 #endif
 
-    return _listener_h;
+    return listener;
 }
 
-RtHandleV2 *sn_quic_listener_bind(RtArenaV2 *arena, const char *address,
-                                    const char *certFile, const char *keyFile) {
-    return quic_listener_create(arena, address, certFile, keyFile, NULL);
+__sn__QuicListener *sn_quic_listener_bind(char *address,
+                                    char *certFile, char *keyFile) {
+    return quic_listener_create(address, certFile, keyFile, NULL);
 }
 
-RtHandleV2 *sn_quic_listener_bind_with(RtArenaV2 *arena, const char *address,
-                                         const char *certFile, const char *keyFile,
-                                         RtHandleV2 *config) {
+__sn__QuicListener *sn_quic_listener_bind_with(char *address,
+                                         char *certFile, char *keyFile,
+                                         __sn__QuicConfig *config) {
     if (config == NULL) return NULL;
-    RtQuicConfig *_config = (RtQuicConfig *)config->ptr;
-    return quic_listener_create(arena, address, certFile, keyFile, _config);
+    /* config is already the right type */
+    RtQuicConfig *_config = (RtQuicConfig *)config;
+    return quic_listener_create(address, certFile, keyFile, _config);
 }
 
-RtHandleV2 *sn_quic_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
+__sn__QuicConnection *sn_quic_listener_accept(__sn__QuicListener *listener) {
     if (listener == NULL) return NULL;
-    RtQuicListener *_listener = (RtQuicListener *)listener->ptr;
-    (void)arena;
+    /* listener is already the right type */
+    RtQuicListener *_listener = (RtQuicListener *)listener;
+    
 
     MUTEX_LOCK(&_listener->accept_mutex);
 
@@ -2296,23 +2308,25 @@ RtHandleV2 *sn_quic_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
         return NULL;
     }
 
-    RtHandleV2 *conn_h = _listener->accept_queue[_listener->accept_head];
+    RtQuicConnection *conn_q = _listener->accept_queue_conns[_listener->accept_head];
     _listener->accept_head = (_listener->accept_head + 1) % QUIC_MAX_INCOMING_STREAMS;
     _listener->accept_count--;
 
     MUTEX_UNLOCK(&_listener->accept_mutex);
-    return conn_h;
+    return (__sn__QuicConnection *)conn_q;
 }
 
-int sn_quic_listener_get_port(RtHandleV2 *listener) {
+long long sn_quic_listener_get_port(__sn__QuicListener *listener) {
     if (listener == NULL) return 0;
-    RtQuicListener *_listener = (RtQuicListener *)listener->ptr;
+    /* listener is already the right type */
+    RtQuicListener *_listener = (RtQuicListener *)listener;
     return _listener->bound_port;
 }
 
-void sn_quic_listener_close(RtHandleV2 *listener) {
+void sn_quic_listener_close(__sn__QuicListener *listener) {
     if (listener == NULL) return;
-    RtQuicListener *_listener = (RtQuicListener *)listener->ptr;
+    /* listener is already the right type */
+    RtQuicListener *_listener = (RtQuicListener *)listener;
     if (!_listener->running) return;
 
     _listener->running = false;
@@ -2335,7 +2349,7 @@ void sn_quic_listener_close(RtHandleV2 *listener) {
     MUTEX_LOCK(&_listener->conn_list_mutex);
     for (int i = 0; i < _listener->connection_count; i++) {
         if (_listener->connections[i] && !_listener->connections[i]->closed) {
-            sn_quic_connection_close(_listener->connections[i]->_handle);
+            sn_quic_connection_close((__sn__QuicConnection *)_listener->connections[i]);
         }
     }
     MUTEX_UNLOCK(&_listener->conn_list_mutex);
@@ -2348,8 +2362,7 @@ void sn_quic_listener_close(RtHandleV2 *listener) {
         if (!conn) continue;
 
         /* Save OS resources and arena before destroying */
-        RtArenaV2 *conn_priv = conn->arena;
-        SSL *conn_ssl = conn->ssl;
+            SSL *conn_ssl = conn->ssl;
         ngtcp2_crypto_ossl_ctx *conn_ossl_ctx = conn->ossl_ctx;
         ngtcp2_conn *conn_qconn = conn->qconn;
         uint8_t *conn_token = conn->resumption_token;
@@ -2386,14 +2399,11 @@ void sn_quic_listener_close(RtHandleV2 *listener) {
         COND_DESTROY(&conn->handshake_cond);
         COND_DESTROY(&conn->accept_stream_cond);
 
-        /* Destroy server connection's private arena — frees struct and all internal allocs */
-        if (conn_priv != NULL) {
-            rt_arena_v2_destroy(conn_priv, false);
-        }
+        /* Free server connection struct */
+        free(conn);
     }
 
     /* Save listener OS resources and arena before destroying */
-    RtArenaV2 *priv = _listener->arena;
     SSL_CTX *ssl_ctx = _listener->ssl_ctx;
     socket_t sock = _listener->socket_fd;
 
@@ -2410,7 +2420,5 @@ void sn_quic_listener_close(RtHandleV2 *listener) {
     MUTEX_DESTROY(&_listener->conn_list_mutex);
 
     /* Destroy listener's private arena — frees listener struct and all internal allocs */
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
-    }
+
 }

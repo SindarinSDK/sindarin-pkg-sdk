@@ -20,7 +20,7 @@ fn client_echo(port: int): str =>
     # Read echo back
     var echo: str = client.readLine()
 
-    client.close()
+    client.dispose()
     return echo
 
 fn client_write_bytes(port: int): int =>
@@ -32,7 +32,7 @@ fn client_write_bytes(port: int): int =>
 
     # Wait for server to acknowledge receipt before closing
     client.readLine()
-    client.close()
+    client.dispose()
     return sent
 
 # --- Tests ---
@@ -48,7 +48,7 @@ fn test_listener_bind(): void =>
     assert(port > 0, "Port should be assigned")
     assert(port < 65536, "Port should be valid")
 
-    server.close()
+    server.dispose()
     print("PASS\n")
 
 fn test_tls_connect_and_echo(): void =>
@@ -84,8 +84,8 @@ fn test_tls_connect_and_echo(): void =>
     assert(echo == "Echo: Hello TLS", $"Client should receive echo, got '{echo}'")
 
     # Clean up
-    serverConn.close()
-    server.close()
+    serverConn.dispose()
+    server.dispose()
 
     print("PASS\n")
 
@@ -119,8 +119,8 @@ fn test_tls_write_bytes(): void =>
     assert(sent == 11, $"Client should send 11 bytes, got {sent}")
 
     # Clean up
-    serverConn.close()
-    server.close()
+    serverConn.dispose()
+    server.dispose()
 
     print("PASS\n")
 

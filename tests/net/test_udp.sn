@@ -16,7 +16,7 @@ fn test_socket_bind(): void =>
     assert(port > 0, "Port should be assigned")
     assert(port < 65536, "Port should be valid")
 
-    socket.close()
+    socket.dispose()
     print("PASS\n")
 
 fn test_send_receive(): void =>
@@ -43,8 +43,8 @@ fn test_send_receive(): void =>
     assert(sender.startsWith("127.0.0.1:"), "Sender should be localhost")
 
     # Clean up
-    client.close()
-    server.close()
+    client.dispose()
+    server.dispose()
 
     print("PASS\n")
 
@@ -71,8 +71,8 @@ fn test_echo(): void =>
     assert(clientResult.data().toString() == "Ping", "Echo should match")
 
     # Clean up
-    client.close()
-    server.close()
+    client.dispose()
+    server.dispose()
 
     print("PASS\n")
 

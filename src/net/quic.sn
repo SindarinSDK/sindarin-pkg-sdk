@@ -277,33 +277,33 @@ native struct QuicListener as ref =>
 # ==============================================================================
 
 # QuicConfig functions
-native fn sn_quic_config_defaults(arena): QuicConfig
-native fn sn_quic_config_set_max_bidi_streams(arena, config: QuicConfig, n: int): QuicConfig
-native fn sn_quic_config_set_max_uni_streams(arena, config: QuicConfig, n: int): QuicConfig
-native fn sn_quic_config_set_max_stream_window(arena, config: QuicConfig, bytes: int): QuicConfig
-native fn sn_quic_config_set_max_conn_window(arena, config: QuicConfig, bytes: int): QuicConfig
-native fn sn_quic_config_set_idle_timeout(arena, config: QuicConfig, ms: int): QuicConfig
+native fn sn_quic_config_defaults(): QuicConfig
+native fn sn_quic_config_set_max_bidi_streams(config: QuicConfig, n: int): QuicConfig
+native fn sn_quic_config_set_max_uni_streams(config: QuicConfig, n: int): QuicConfig
+native fn sn_quic_config_set_max_stream_window(config: QuicConfig, bytes: int): QuicConfig
+native fn sn_quic_config_set_max_conn_window(config: QuicConfig, bytes: int): QuicConfig
+native fn sn_quic_config_set_idle_timeout(config: QuicConfig, ms: int): QuicConfig
 
 # QuicStream functions
-native fn sn_quic_stream_read(arena, stream: QuicStream, maxBytes: int): byte[]
-native fn sn_quic_stream_read_all(arena, stream: QuicStream): byte[]
-native fn sn_quic_stream_read_line(arena, stream: QuicStream): str
+native fn sn_quic_stream_read(stream: QuicStream, maxBytes: int): byte[]
+native fn sn_quic_stream_read_all(stream: QuicStream): byte[]
+native fn sn_quic_stream_read_line(stream: QuicStream): str
 
 # QuicConnection factory functions
-native fn sn_quic_connection_connect(arena, address: str): QuicConnection
-native fn sn_quic_connection_connect_with(arena, address: str, config: QuicConfig): QuicConnection
-native fn sn_quic_connection_connect_early(arena, address: str, token: byte[]): QuicConnection
+native fn sn_quic_connection_connect(address: str): QuicConnection
+native fn sn_quic_connection_connect_with(address: str, config: QuicConfig): QuicConnection
+native fn sn_quic_connection_connect_early(address: str, token: byte[]): QuicConnection
 
 # QuicConnection stream functions
-native fn sn_quic_connection_open_stream(arena, conn: QuicConnection): QuicStream
-native fn sn_quic_connection_open_uni_stream(arena, conn: QuicConnection): QuicStream
-native fn sn_quic_connection_accept_stream(arena, conn: QuicConnection): QuicStream
+native fn sn_quic_connection_open_stream(conn: QuicConnection): QuicStream
+native fn sn_quic_connection_open_uni_stream(conn: QuicConnection): QuicStream
+native fn sn_quic_connection_accept_stream(conn: QuicConnection): QuicStream
 
 # QuicConnection info functions
-native fn sn_quic_connection_resumption_token(arena, conn: QuicConnection): byte[]
-native fn sn_quic_connection_remote_address(arena, conn: QuicConnection): str
+native fn sn_quic_connection_resumption_token(conn: QuicConnection): byte[]
+native fn sn_quic_connection_remote_address(conn: QuicConnection): str
 
 # QuicListener functions
-native fn sn_quic_listener_bind(arena, address: str, certFile: str, keyFile: str): QuicListener
-native fn sn_quic_listener_bind_with(arena, address: str, certFile: str, keyFile: str, config: QuicConfig): QuicListener
-native fn sn_quic_listener_accept(arena, listener: QuicListener): QuicConnection
+native fn sn_quic_listener_bind(address: str, certFile: str, keyFile: str): QuicListener
+native fn sn_quic_listener_bind_with(address: str, certFile: str, keyFile: str, config: QuicConfig): QuicListener
+native fn sn_quic_listener_accept(listener: QuicListener): QuicConnection

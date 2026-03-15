@@ -393,77 +393,77 @@ native struct GitRepo as ref =>
 # ==============================================================================
 
 # GitRepo factory functions
-native fn sn_git_repo_open(arena, path: str): GitRepo
-native fn sn_git_repo_clone(arena, url: str, path: str): GitRepo
-native fn sn_git_repo_init(arena, path: str): GitRepo
-native fn sn_git_repo_init_bare(arena, path: str): GitRepo
+native fn sn_git_repo_open(path: str): GitRepo
+native fn sn_git_repo_clone(url: str, path: str): GitRepo
+native fn sn_git_repo_init(path: str): GitRepo
+native fn sn_git_repo_init_bare(path: str): GitRepo
 
 # GitRepo status & staging
-native fn sn_git_repo_status(arena, repo: GitRepo): GitStatus[]
+native fn sn_git_repo_status(repo: GitRepo): GitStatus[]
 native fn sn_git_repo_add(repo: GitRepo, path: str): void
 native fn sn_git_repo_add_all(repo: GitRepo): void
 native fn sn_git_repo_unstage(repo: GitRepo, path: str): void
 
 # GitRepo commits & log
-native fn sn_git_repo_commit(arena, repo: GitRepo, message: str): GitCommit
-native fn sn_git_repo_commit_as(arena, repo: GitRepo, message: str, authorName: str, authorEmail: str): GitCommit
-native fn sn_git_repo_log(arena, repo: GitRepo, maxCount: int): GitCommit[]
-native fn sn_git_repo_head_commit(arena, repo: GitRepo): GitCommit
+native fn sn_git_repo_commit(repo: GitRepo, message: str): GitCommit
+native fn sn_git_repo_commit_as(repo: GitRepo, message: str, authorName: str, authorEmail: str): GitCommit
+native fn sn_git_repo_log(repo: GitRepo, maxCount: int): GitCommit[]
+native fn sn_git_repo_head_commit(repo: GitRepo): GitCommit
 
 # GitRepo branches
-native fn sn_git_repo_branches(arena, repo: GitRepo): GitBranch[]
-native fn sn_git_repo_current_branch(arena, repo: GitRepo): str
-native fn sn_git_repo_create_branch(arena, repo: GitRepo, name: str): GitBranch
+native fn sn_git_repo_branches(repo: GitRepo): GitBranch[]
+native fn sn_git_repo_current_branch(repo: GitRepo): str
+native fn sn_git_repo_create_branch(repo: GitRepo, name: str): GitBranch
 native fn sn_git_repo_delete_branch(repo: GitRepo, name: str): void
 native fn sn_git_repo_checkout(repo: GitRepo, refName: str): void
 
 # GitRepo remotes
-native fn sn_git_repo_remotes(arena, repo: GitRepo): GitRemote[]
-native fn sn_git_repo_add_remote(arena, repo: GitRepo, name: str, url: str): GitRemote
+native fn sn_git_repo_remotes(repo: GitRepo): GitRemote[]
+native fn sn_git_repo_add_remote(repo: GitRepo, name: str, url: str): GitRemote
 native fn sn_git_repo_remove_remote(repo: GitRepo, name: str): void
 
 # GitRepo network operations
 native fn sn_git_repo_fetch(repo: GitRepo, remoteName: str): void
 native fn sn_git_repo_push(repo: GitRepo, remoteName: str): void
-native fn sn_git_repo_pull(arena, repo: GitRepo, remoteName: str): void
+native fn sn_git_repo_pull(repo: GitRepo, remoteName: str): void
 
 # GitRepo diff
-native fn sn_git_repo_diff(arena, repo: GitRepo): GitDiff[]
-native fn sn_git_repo_diff_staged(arena, repo: GitRepo): GitDiff[]
+native fn sn_git_repo_diff(repo: GitRepo): GitDiff[]
+native fn sn_git_repo_diff_staged(repo: GitRepo): GitDiff[]
 
 # GitRepo tags
-native fn sn_git_repo_tags(arena, repo: GitRepo): GitTag[]
-native fn sn_git_repo_create_tag(arena, repo: GitRepo, name: str): GitTag
-native fn sn_git_repo_create_annotated_tag(arena, repo: GitRepo, name: str, message: str): GitTag
+native fn sn_git_repo_tags(repo: GitRepo): GitTag[]
+native fn sn_git_repo_create_tag(repo: GitRepo, name: str): GitTag
+native fn sn_git_repo_create_annotated_tag(repo: GitRepo, name: str, message: str): GitTag
 native fn sn_git_repo_delete_tag(repo: GitRepo, name: str): void
 
 # GitRepo getters
-native fn sn_git_repo_get_path(arena, repo: GitRepo): str
+native fn sn_git_repo_get_path(repo: GitRepo): str
 native fn sn_git_repo_is_bare(repo: GitRepo): bool
 
 # GitCommit getters
-native fn sn_git_commit_get_id(arena, commit: GitCommit): str
-native fn sn_git_commit_get_message(arena, commit: GitCommit): str
-native fn sn_git_commit_get_author(arena, commit: GitCommit): str
-native fn sn_git_commit_get_email(arena, commit: GitCommit): str
+native fn sn_git_commit_get_id(commit: GitCommit): str
+native fn sn_git_commit_get_message(commit: GitCommit): str
+native fn sn_git_commit_get_author(commit: GitCommit): str
+native fn sn_git_commit_get_email(commit: GitCommit): str
 
 # GitBranch getters
-native fn sn_git_branch_get_name(arena, branch: GitBranch): str
+native fn sn_git_branch_get_name(branch: GitBranch): str
 
 # GitRemote getters
-native fn sn_git_remote_get_name(arena, remote: GitRemote): str
-native fn sn_git_remote_get_url(arena, remote: GitRemote): str
+native fn sn_git_remote_get_name(remote: GitRemote): str
+native fn sn_git_remote_get_url(remote: GitRemote): str
 
 # GitDiff getters
-native fn sn_git_diff_get_path(arena, diff: GitDiff): str
-native fn sn_git_diff_get_status(arena, diff: GitDiff): str
-native fn sn_git_diff_get_old_path(arena, diff: GitDiff): str
+native fn sn_git_diff_get_path(diff: GitDiff): str
+native fn sn_git_diff_get_status(diff: GitDiff): str
+native fn sn_git_diff_get_old_path(diff: GitDiff): str
 
 # GitStatus getters
-native fn sn_git_status_get_path(arena, status: GitStatus): str
-native fn sn_git_status_get_status(arena, status: GitStatus): str
+native fn sn_git_status_get_path(status: GitStatus): str
+native fn sn_git_status_get_status(status: GitStatus): str
 
 # GitTag getters
-native fn sn_git_tag_get_name(arena, tag: GitTag): str
-native fn sn_git_tag_get_target_id(arena, tag: GitTag): str
-native fn sn_git_tag_get_message(arena, tag: GitTag): str
+native fn sn_git_tag_get_name(tag: GitTag): str
+native fn sn_git_tag_get_target_id(tag: GitTag): str
+native fn sn_git_tag_get_message(tag: GitTag): str

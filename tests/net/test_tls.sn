@@ -17,7 +17,7 @@ fn test_tls_connect(): void =>
     var addr: str = conn.remoteAddress()
     assert(addr == "example.com:443", "Remote address should match")
 
-    conn.close()
+    conn.dispose()
     print("PASS\n")
 
 fn test_tls_read_write(): void =>
@@ -43,14 +43,14 @@ fn test_tls_read_write(): void =>
     var body_str: str = body.toString()
     assert(body_str.contains("Example Domain"), "Body should contain expected content")
 
-    conn.close()
+    conn.dispose()
     print("PASS\n")
 
-fn test_tls_close(): void =>
-    print("test_tls_close: ")
+fn test_tls_dispose(): void =>
+    print("test_tls_dispose: ")
 
     var conn: TlsStream = TlsStream.connect("example.com:443")
-    conn.close()
+    conn.dispose()
 
     print("PASS\n")
 
@@ -59,6 +59,6 @@ fn main(): void =>
 
     test_tls_connect()
     test_tls_read_write()
-    test_tls_close()
+    test_tls_dispose()
 
     print("\nAll TLS tests passed!\n")

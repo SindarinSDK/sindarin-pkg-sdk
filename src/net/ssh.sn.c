@@ -16,9 +16,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* Include runtime for proper memory management */
-#include "runtime/array/runtime_array_v2.h"
-#include "runtime/string/runtime_string_v2.h"
+/* No arena runtime — minimal runtime */
 
 /* libssh includes */
 #include <libssh/libssh.h>
@@ -51,19 +49,12 @@
  * Type Definitions
  * ============================================================================ */
 
-typedef struct RtSshExecResult {
-    char *stdout_str;
-    char *stderr_str;
-    long exit_code;
-} RtSshExecResult;
-
-typedef struct RtSshConnection {
-    void *session_ptr;          /* ssh_session handle */
-    char *remote_addr;          /* Remote address string (host:port) */
-
-    /* Private arena — owns this struct and all internal allocations */
-    RtArenaV2 *arena;
-} RtSshConnection;
+typedef __sn__SshExecResult RtSshExecResult;
+typedef __sn__SshConnection RtSshConnection;
+typedef __sn__SshServerConfig RtSshServerConfig;
+typedef __sn__SshListener RtSshListener;
+typedef __sn__SshSession RtSshSession;
+typedef __sn__SshChannel RtSshChannel;
 
 /* Server types */
 
@@ -72,45 +63,39 @@ typedef struct {
     char *password;
 } SshUserCredential;
 
-typedef struct RtSshServerConfig {
-    char *host_key_path;
+/* Internal data stored alongside SshServerConfig */
+typedef struct {
     SshUserCredential *users;
-    long user_count;
+    long long user_count;
+    char *host_key_path;
     char *authorized_keys_dir;
-} RtSshServerConfig;
+} SshServerConfigInternal;
 
-typedef struct RtSshListener {
-    void *bind_ptr;             /* ssh_bind handle */
-    long bound_port;
-    RtSshServerConfig *config_ptr;
+/* Internal data stored alongside structs that need extra fields */
+static SshServerConfigInternal *g_ssh_config_internals[16] = {0};
+static __sn__SshServerConfig *g_ssh_configs[16] = {0};
+static int g_ssh_config_count = 0;
 
-    /* Private arena — owns this struct and all internal allocations */
-    RtArenaV2 *arena;
-} RtSshListener;
+static void ssh_register_config(__sn__SshServerConfig *cfg, SshServerConfigInternal *internal) {
+    if (g_ssh_config_count < 16) {
+        g_ssh_configs[g_ssh_config_count] = cfg;
+        g_ssh_config_internals[g_ssh_config_count] = internal;
+        g_ssh_config_count++;
+    }
+}
 
-typedef struct RtSshSession {
-    void *session_ptr;          /* ssh_session handle */
-    char *username;
-    char *remote_addr;
-
-    /* Private arena — owns this struct and all internal allocations */
-    RtArenaV2 *arena;
-} RtSshSession;
-
-typedef struct RtSshChannel {
-    void *channel_ptr;          /* ssh_channel handle */
-    char *command_str;
-    long is_shell;
-
-    /* Private arena — owns this struct and all internal allocations */
-    RtArenaV2 *arena;
-} RtSshChannel;
+static SshServerConfigInternal *ssh_find_config_internal(__sn__SshServerConfig *cfg) {
+    for (int i = 0; i < g_ssh_config_count; i++) {
+        if (g_ssh_configs[i] == cfg) return g_ssh_config_internals[i];
+    }
+    return NULL;
+}
 
 /* ============================================================================
  * Forward Declarations
  * ============================================================================ */
 
-void sn_ssh_close(RtHandleV2 *conn);
+void sn_ssh_close(__sn__SshConnection *conn);
 
 /* ============================================================================
  * libssh Initialization (one-time)
@@ -243,7 +228,7 @@ static int ssh_parse_address(const char *address, char *host, size_t host_len, i
  * Internal: SSH Session Connect + Handshake
  * ============================================================================ */
 
-static RtHandleV2 *ssh_connect_and_handshake(RtArenaV2 *arena, const char *address) {
+static __sn__SshConnection *ssh_connect_and_handshake(const char *address) {
     ensure_libssh_initialized();
 
     if (address == NULL) {
@@ -282,65 +267,50 @@ static RtHandleV2 *ssh_connect_and_handshake(RtArenaV2 *arena, const char *addre
     /* Verify known hosts */
     ssh_verify_known_host(session);
 
-    /* Create private arena for this connection */
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "ssh_connection");
-
     /* Allocate Connection Struct */
-    RtHandleV2 *_conn_h = rt_arena_v2_alloc(priv, sizeof(RtSshConnection));
-    RtSshConnection *conn = (RtSshConnection *)_conn_h->ptr;
+    __sn__SshConnection *conn = (__sn__SshConnection *)calloc(1, sizeof(__sn__SshConnection));
     if (!conn) {
         fprintf(stderr, "SshConnection: allocation failed\n");
         ssh_disconnect(session);
         ssh_free(session);
-        rt_arena_v2_destroy(priv, false);
         exit(1);
     }
 
     conn->session_ptr = session;
-    conn->arena = priv;
+    conn->remote_addr = strdup(address);
 
-    /* Copy address string into private arena */
-    size_t addr_len = strlen(address) + 1;
-    RtHandleV2 *_addr_h = rt_arena_v2_alloc(priv, addr_len);
-    conn->remote_addr = (char *)_addr_h->ptr;
-    if (conn->remote_addr) {
-        memcpy(conn->remote_addr, address, addr_len);
-    }
-
-    return _conn_h;
+    return conn;
 }
 
 /* ============================================================================
  * Authentication: Password
  * ============================================================================ */
 
-RtHandleV2 *sn_ssh_connect_password(RtArenaV2 *arena, const char *address,
-                                           const char *username, const char *password) {
-    RtHandleV2 *_conn_h = ssh_connect_and_handshake(arena, address);
-    RtSshConnection *conn = (RtSshConnection *)_conn_h->ptr;
-    ssh_session session = (ssh_session)conn->session_ptr;
+__sn__SshConnection *sn_ssh_connect_password(char *address,
+                                           char *username, char *password) {
+    __sn__SshConnection *_conn = ssh_connect_and_handshake(address);
+    ssh_session session = (ssh_session)_conn->session_ptr;
 
     int rc = ssh_userauth_password(session, username, password);
     if (rc != SSH_AUTH_SUCCESS) {
         fprintf(stderr, "SshConnection.connectPassword: auth failed for '%s@%s': %s\n",
                 username, address, ssh_get_error(session));
-        sn_ssh_close(_conn_h);
+        sn_ssh_close(_conn);
         exit(1);
     }
 
-    return _conn_h;
+    return _conn;
 }
 
 /* ============================================================================
  * Authentication: Public Key
  * ============================================================================ */
 
-RtHandleV2 *sn_ssh_connect_key(RtArenaV2 *arena, const char *address,
-                                      const char *username, const char *privateKeyPath,
-                                      const char *passphrase) {
-    RtHandleV2 *_conn_h = ssh_connect_and_handshake(arena, address);
-    RtSshConnection *conn = (RtSshConnection *)_conn_h->ptr;
-    ssh_session session = (ssh_session)conn->session_ptr;
+__sn__SshConnection *sn_ssh_connect_key(char *address,
+                                      char *username, char *privateKeyPath,
+                                      char *passphrase) {
+    __sn__SshConnection *_conn = ssh_connect_and_handshake(address);
+    ssh_session session = (ssh_session)_conn->session_ptr;
 
     /* If passphrase is empty string, pass NULL */
     const char *pp = (passphrase && passphrase[0] != '\0') ? passphrase : NULL;
@@ -351,7 +321,7 @@ RtHandleV2 *sn_ssh_connect_key(RtArenaV2 *arena, const char *address,
     if (rc != SSH_OK) {
         fprintf(stderr, "SshConnection.connectKey: failed to load key '%s': %s\n",
                 privateKeyPath, ssh_get_error(session));
-        sn_ssh_close(_conn_h);
+        sn_ssh_close(_conn);
         exit(1);
     }
 
@@ -362,43 +332,41 @@ RtHandleV2 *sn_ssh_connect_key(RtArenaV2 *arena, const char *address,
     if (rc != SSH_AUTH_SUCCESS) {
         fprintf(stderr, "SshConnection.connectKey: auth failed for '%s@%s' with key '%s': %s\n",
                 username, address, privateKeyPath, ssh_get_error(session));
-        sn_ssh_close(_conn_h);
+        sn_ssh_close(_conn);
         exit(1);
     }
 
-    return _conn_h;
+    return _conn;
 }
 
 /* ============================================================================
  * Authentication: SSH Agent
  * ============================================================================ */
 
-RtHandleV2 *sn_ssh_connect_agent(RtArenaV2 *arena, const char *address,
-                                        const char *username) {
-    RtHandleV2 *_conn_h = ssh_connect_and_handshake(arena, address);
-    RtSshConnection *conn = (RtSshConnection *)_conn_h->ptr;
-    ssh_session session = (ssh_session)conn->session_ptr;
+__sn__SshConnection *sn_ssh_connect_agent(char *address,
+                                        char *username) {
+    __sn__SshConnection *_conn = ssh_connect_and_handshake(address);
+    ssh_session session = (ssh_session)_conn->session_ptr;
 
     int rc = ssh_userauth_agent(session, username);
     if (rc != SSH_AUTH_SUCCESS) {
         fprintf(stderr, "SshConnection.connectAgent: auth failed for '%s@%s': %s\n",
                 username, address, ssh_get_error(session));
-        sn_ssh_close(_conn_h);
+        sn_ssh_close(_conn);
         exit(1);
     }
 
-    return _conn_h;
+    return _conn;
 }
 
 /* ============================================================================
  * Authentication: Keyboard-Interactive
  * ============================================================================ */
 
-RtHandleV2 *sn_ssh_connect_interactive(RtArenaV2 *arena, const char *address,
-                                              const char *username, const char *password) {
-    RtHandleV2 *_conn_h = ssh_connect_and_handshake(arena, address);
-    RtSshConnection *conn = (RtSshConnection *)_conn_h->ptr;
-    ssh_session session = (ssh_session)conn->session_ptr;
+__sn__SshConnection *sn_ssh_connect_interactive(char *address,
+                                              char *username, char *password) {
+    __sn__SshConnection *_conn = ssh_connect_and_handshake(address);
+    ssh_session session = (ssh_session)_conn->session_ptr;
 
     int rc = ssh_userauth_kbdint(session, username, NULL);
 
@@ -413,18 +381,18 @@ RtHandleV2 *sn_ssh_connect_interactive(RtArenaV2 *arena, const char *address,
     if (rc != SSH_AUTH_SUCCESS) {
         fprintf(stderr, "SshConnection.connectInteractive: auth failed for '%s@%s': %s\n",
                 username, address, ssh_get_error(session));
-        sn_ssh_close(_conn_h);
+        sn_ssh_close(_conn);
         exit(1);
     }
 
-    return _conn_h;
+    return _conn;
 }
 
 /* ============================================================================
  * Command Execution (Internal)
  * ============================================================================ */
 
-static RtHandleV2 *ssh_exec_internal(RtArenaV2 *arena, RtSshConnection *conn,
+static __sn__SshExecResult *ssh_exec_internal(RtSshConnection *conn,
                                             const char *command) {
     if (!conn || !conn->session_ptr) {
         fprintf(stderr, "SshConnection.exec: connection is closed\n");
@@ -549,9 +517,8 @@ static RtHandleV2 *ssh_exec_internal(RtArenaV2 *arena, RtSshConnection *conn,
     ssh_channel_close(channel);
     ssh_channel_free(channel);
 
-    /* Allocate result in caller arena (value type) */
-    RtHandleV2 *_result_h = rt_arena_v2_alloc(arena, sizeof(RtSshExecResult));
-    RtSshExecResult *result = (RtSshExecResult *)_result_h->ptr;
+    /* Allocate result */
+    RtSshExecResult *result = (RtSshExecResult *)calloc(1, sizeof(RtSshExecResult));
     if (!result) {
         fprintf(stderr, "SshConnection.exec: result allocation failed\n");
         free(out_buf);
@@ -559,26 +526,16 @@ static RtHandleV2 *ssh_exec_internal(RtArenaV2 *arena, RtSshConnection *conn,
         exit(1);
     }
 
-    /* Copy stdout to caller arena */
-    RtHandleV2 *_stdout_h = rt_arena_v2_alloc(arena, out_len + 1);
-    result->stdout_str = (char *)_stdout_h->ptr;
-    if (result->stdout_str) {
-        memcpy(result->stdout_str, out_buf, out_len + 1);
-    }
+    result->stdout_str = strdup(out_buf);
 
-    /* Copy stderr to caller arena */
-    RtHandleV2 *_stderr_h = rt_arena_v2_alloc(arena, err_len + 1);
-    result->stderr_str = (char *)_stderr_h->ptr;
-    if (result->stderr_str) {
-        memcpy(result->stderr_str, err_buf, err_len + 1);
-    }
+    result->stderr_str = strdup(err_buf);
 
     result->exit_code = exit_code;
 
     free(out_buf);
     free(err_buf);
 
-    return _result_h;
+    return result;
 }
 
 /* ============================================================================
@@ -586,92 +543,69 @@ static RtHandleV2 *ssh_exec_internal(RtArenaV2 *arena, RtSshConnection *conn,
  * ============================================================================ */
 
 /* Execute command, return stdout only */
-RtHandleV2 *sn_ssh_run(RtArenaV2 *arena, RtHandleV2 *conn, const char *command) {
+char *sn_ssh_run(__sn__SshConnection *conn, char *command) {
     if (!conn) {
         fprintf(stderr, "SshConnection.run: NULL connection handle\n");
         exit(1);
     }
-    RtSshConnection *_conn = (RtSshConnection *)conn->ptr;
-    RtHandleV2 *_result_h = ssh_exec_internal(arena, _conn, command);
-    RtSshExecResult *result = (RtSshExecResult *)_result_h->ptr;
-    return rt_arena_v2_strdup(arena, result->stdout_str ? result->stdout_str : "");
+    __sn__SshExecResult *result = ssh_exec_internal(conn, command);
+    char *out = strdup(result->stdout_str ? result->stdout_str : "");
+    return out;
 }
 
 /* Execute command, return full result struct */
-RtHandleV2 *sn_ssh_exec(RtArenaV2 *arena, RtHandleV2 *conn, const char *command) {
+__sn__SshExecResult *sn_ssh_exec(__sn__SshConnection *conn, char *command) {
     if (!conn) {
         fprintf(stderr, "SshConnection.exec: NULL connection handle\n");
         exit(1);
     }
-    RtSshConnection *_conn = (RtSshConnection *)conn->ptr;
-    return ssh_exec_internal(arena, _conn, command);
+    return ssh_exec_internal(conn, command);
 }
 
 /* ============================================================================
  * Getters
  * ============================================================================ */
 
-RtHandleV2 *sn_ssh_get_remote_address(RtArenaV2 *arena, RtHandleV2 *conn) {
-    if (conn == NULL) {
-        return rt_arena_v2_strdup(arena, "");
+char *sn_ssh_get_remote_address(__sn__SshConnection *conn) {
+    if (conn == NULL || conn->remote_addr == NULL) {
+        return strdup("");
     }
-    RtSshConnection *_conn = (RtSshConnection *)conn->ptr;
-    if (_conn->remote_addr == NULL) {
-        return rt_arena_v2_strdup(arena, "");
-    }
-    return rt_arena_v2_strdup(arena, _conn->remote_addr);
+    return strdup((char *)conn->remote_addr);
 }
 
-RtHandleV2 *sn_ssh_exec_result_get_stdout(RtArenaV2 *arena, RtHandleV2 *result) {
-    if (result == NULL) {
-        return rt_arena_v2_strdup(arena, "");
+char *sn_ssh_exec_result_get_stdout(__sn__SshExecResult *result) {
+    if (result == NULL || result->stdout_str == NULL) {
+        return strdup("");
     }
-    RtSshExecResult *_result = (RtSshExecResult *)result->ptr;
-    if (_result->stdout_str == NULL) {
-        return rt_arena_v2_strdup(arena, "");
-    }
-    return rt_arena_v2_strdup(arena, _result->stdout_str);
+    return strdup(result->stdout_str);
 }
 
-RtHandleV2 *sn_ssh_exec_result_get_stderr(RtArenaV2 *arena, RtHandleV2 *result) {
-    if (result == NULL) {
-        return rt_arena_v2_strdup(arena, "");
+char *sn_ssh_exec_result_get_stderr(__sn__SshExecResult *result) {
+    if (result == NULL || result->stderr_str == NULL) {
+        return strdup("");
     }
-    RtSshExecResult *_result = (RtSshExecResult *)result->ptr;
-    if (_result->stderr_str == NULL) {
-        return rt_arena_v2_strdup(arena, "");
-    }
-    return rt_arena_v2_strdup(arena, _result->stderr_str);
+    return strdup(result->stderr_str);
 }
 
-long sn_ssh_exec_result_get_exit_code(RtHandleV2 *result) {
+long long sn_ssh_exec_result_get_exit_code(__sn__SshExecResult *result) {
     if (result == NULL) return -1;
-    RtSshExecResult *_result = (RtSshExecResult *)result->ptr;
-    return _result->exit_code;
+    return result->exit_code;
 }
 
 /* ============================================================================
  * Lifecycle: Close (Client)
  * ============================================================================ */
 
-void sn_ssh_close(RtHandleV2 *conn) {
+void sn_ssh_close(__sn__SshConnection *conn) {
     if (conn == NULL) return;
-    RtSshConnection *_conn = (RtSshConnection *)conn->ptr;
 
-    /* Save resources before destroying the arena (which frees the struct) */
-    ssh_session session = (ssh_session)_conn->session_ptr;
-    RtArenaV2 *priv = _conn->arena;
+    ssh_session session = (ssh_session)conn->session_ptr;
 
-    /* Close SSH resources */
     if (session != NULL) {
         ssh_disconnect(session);
         ssh_free(session);
     }
-
-    /* Destroy private arena — frees struct and all internal allocations */
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
-    }
+    conn->session_ptr = NULL;
 }
 
 /* ============================================================================
@@ -680,91 +614,66 @@ void sn_ssh_close(RtHandleV2 *conn) {
 
 #define SSH_MAX_USERS 64
 
-RtHandleV2 *sn_ssh_server_config_defaults(RtArenaV2 *arena) {
-    RtHandleV2 *_config_h = rt_arena_v2_alloc(arena, sizeof(RtSshServerConfig));
-    RtSshServerConfig *config = (RtSshServerConfig *)_config_h->ptr;
+__sn__SshServerConfig *sn_ssh_server_config_defaults(void) {
+    __sn__SshServerConfig *config = (__sn__SshServerConfig *)calloc(1, sizeof(__sn__SshServerConfig));
     if (!config) {
         fprintf(stderr, "SshServerConfig.defaults: allocation failed\n");
         exit(1);
     }
-    config->host_key_path = NULL;
-    RtHandleV2 *_users_h = rt_arena_v2_alloc(arena, sizeof(SshUserCredential) * SSH_MAX_USERS);
-    config->users = (SshUserCredential *)_users_h->ptr;
-    config->user_count = 0;
-    config->authorized_keys_dir = NULL;
-    return _config_h;
+    SshServerConfigInternal *internal = (SshServerConfigInternal *)calloc(1, sizeof(SshServerConfigInternal));
+    internal->users = (SshUserCredential *)calloc(SSH_MAX_USERS, sizeof(SshUserCredential));
+    internal->user_count = 0;
+    ssh_register_config(config, internal);
+    return config;
 }
 
-RtHandleV2 *sn_ssh_server_config_set_host_key(RtArenaV2 *arena, RtHandleV2 *config, const char *path) {
+__sn__SshServerConfig *sn_ssh_server_config_set_host_key(__sn__SshServerConfig *config, char *path) {
     if (!config || !path) return NULL;
-    RtSshServerConfig *_config = (RtSshServerConfig *)config->ptr;
-    size_t len = strlen(path) + 1;
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, len);
-    _config->host_key_path = (char *)_h->ptr;
-    if (_config->host_key_path) {
-        memcpy(_config->host_key_path, path, len);
+    SshServerConfigInternal *internal = ssh_find_config_internal(config);
+    if (internal) {
+        if (internal->host_key_path) free(internal->host_key_path);
+        internal->host_key_path = strdup(path);
     }
-    /* Wrap mutated config back into a handle */
-    RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtSshServerConfig));
-    memcpy(_ret_h->ptr, _config, sizeof(RtSshServerConfig));
-    return _ret_h;
+    config->host_key_path = strdup(path);
+    return config;
 }
 
-RtHandleV2 *sn_ssh_server_config_add_user(RtArenaV2 *arena, RtHandleV2 *config,
-                                                   const char *username, const char *password) {
+__sn__SshServerConfig *sn_ssh_server_config_add_user(__sn__SshServerConfig *config,
+                                                   char *username, char *password) {
     if (!config || !username || !password) return NULL;
-    RtSshServerConfig *_config = (RtSshServerConfig *)config->ptr;
-    if (_config->user_count >= SSH_MAX_USERS) {
+    SshServerConfigInternal *internal = ssh_find_config_internal(config);
+    if (!internal) return config;
+    if (internal->user_count >= SSH_MAX_USERS) {
         fprintf(stderr, "SshServerConfig.addUser: max users (%d) exceeded\n", SSH_MAX_USERS);
         exit(1);
     }
 
-    int idx = (int)_config->user_count;
-
-    size_t ulen = strlen(username) + 1;
-    RtHandleV2 *_uname_h = rt_arena_v2_alloc(arena, ulen);
-    _config->users[idx].username = (char *)_uname_h->ptr;
-    if (_config->users[idx].username) {
-        memcpy(_config->users[idx].username, username, ulen);
-    }
-
-    size_t plen = strlen(password) + 1;
-    RtHandleV2 *_pass_h = rt_arena_v2_alloc(arena, plen);
-    _config->users[idx].password = (char *)_pass_h->ptr;
-    if (_config->users[idx].password) {
-        memcpy(_config->users[idx].password, password, plen);
-    }
-
-    _config->user_count++;
-    /* Wrap mutated config back into a handle */
-    RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtSshServerConfig));
-    memcpy(_ret_h->ptr, _config, sizeof(RtSshServerConfig));
-    return _ret_h;
+    int idx = (int)internal->user_count;
+    internal->users[idx].username = strdup(username);
+    internal->users[idx].password = strdup(password);
+    internal->user_count++;
+    config->user_count = internal->user_count;
+    return config;
 }
 
-RtHandleV2 *sn_ssh_server_config_set_authorized_keys_dir(RtArenaV2 *arena,
-                                                                   RtHandleV2 *config,
-                                                                   const char *path) {
+__sn__SshServerConfig *sn_ssh_server_config_set_authorized_keys_dir(__sn__SshServerConfig *config,
+                                                                   char *path) {
     if (!config || !path) return NULL;
-    RtSshServerConfig *_config = (RtSshServerConfig *)config->ptr;
-    size_t len = strlen(path) + 1;
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, len);
-    _config->authorized_keys_dir = (char *)_h->ptr;
-    if (_config->authorized_keys_dir) {
-        memcpy(_config->authorized_keys_dir, path, len);
+    SshServerConfigInternal *internal = ssh_find_config_internal(config);
+    if (internal) {
+        if (internal->authorized_keys_dir) free(internal->authorized_keys_dir);
+        internal->authorized_keys_dir = strdup(path);
     }
-    /* Wrap mutated config back into a handle */
-    RtHandleV2 *_ret_h = rt_arena_v2_alloc(arena, sizeof(RtSshServerConfig));
-    memcpy(_ret_h->ptr, _config, sizeof(RtSshServerConfig));
-    return _ret_h;
+    config->authorized_keys_dir = strdup(path);
+    return config;
 }
 
 /* ============================================================================
  * Server: SshListener
  * ============================================================================ */
 
-static RtHandleV2 *ssh_listener_bind_internal(RtArenaV2 *arena, const char *address,
-                                                   RtSshServerConfig *config) {
+static __sn__SshListener *ssh_listener_bind_internal(const char *address,
+                                                   SshServerConfigInternal *config) {
     ensure_libssh_initialized();
 
     if (!address) {
@@ -822,86 +731,74 @@ static RtHandleV2 *ssh_listener_bind_internal(RtArenaV2 *arena, const char *addr
     }
 
     /* Create private arena for this listener */
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "ssh_listener");
+    /* no arena needed */
 
     /* Allocate listener */
-    RtHandleV2 *_listener_h = rt_arena_v2_alloc(priv, sizeof(RtSshListener));
-    RtSshListener *listener = (RtSshListener *)_listener_h->ptr;
+    RtSshListener *listener = (RtSshListener *)calloc(1, sizeof(RtSshListener));
     if (!listener) {
         fprintf(stderr, "SshListener.bind: allocation failed\n");
         ssh_bind_free(sshbind);
-        rt_arena_v2_destroy(priv, false);
+        /* no arena to destroy */
         exit(1);
     }
 
     listener->bind_ptr = sshbind;
     listener->bound_port = actual_port;
     listener->config_ptr = config;
-    listener->arena = priv;
 
-    return _listener_h;
+    return listener;
 }
 
-RtHandleV2 *sn_ssh_listener_bind(RtArenaV2 *arena, const char *address, const char *hostKeyPath) {
+__sn__SshListener *sn_ssh_listener_bind(char *address, char *hostKeyPath) {
     /* Create a simple config with just the host key */
-    RtHandleV2 *_config_h = sn_ssh_server_config_defaults(arena);
-    sn_ssh_server_config_set_host_key(arena, _config_h, hostKeyPath);
-    RtSshServerConfig *config = (RtSshServerConfig *)_config_h->ptr;
-    return ssh_listener_bind_internal(arena, address, config);
+    __sn__SshServerConfig *cfg = sn_ssh_server_config_defaults();
+    sn_ssh_server_config_set_host_key(cfg, hostKeyPath);
+    SshServerConfigInternal *internal = ssh_find_config_internal(cfg);
+    return ssh_listener_bind_internal(address, internal);
 }
 
-RtHandleV2 *sn_ssh_listener_bind_with(RtArenaV2 *arena, const char *address,
-                                            RtHandleV2 *config) {
+__sn__SshListener *sn_ssh_listener_bind_with(char *address,
+                                            __sn__SshServerConfig *config) {
     if (!config) {
         fprintf(stderr, "SshListener.bindWith: NULL config handle\n");
         exit(1);
     }
-    RtSshServerConfig *_config = (RtSshServerConfig *)config->ptr;
-    return ssh_listener_bind_internal(arena, address, _config);
+    SshServerConfigInternal *internal = ssh_find_config_internal(config);
+    return ssh_listener_bind_internal(address, internal);
 }
 
-long sn_ssh_listener_port(RtHandleV2 *listener) {
+long long sn_ssh_listener_port(__sn__SshListener *listener) {
     if (!listener) return 0;
-    RtSshListener *_listener = (RtSshListener *)listener->ptr;
-    return _listener->bound_port;
+    return listener->bound_port;
 }
 
-void sn_ssh_listener_close(RtHandleV2 *listener) {
+void sn_ssh_listener_close(__sn__SshListener *listener) {
     if (!listener) return;
-    RtSshListener *_listener = (RtSshListener *)listener->ptr;
 
-    /* Save resources before destroying the arena (which frees the struct) */
-    ssh_bind sshbind = (ssh_bind)_listener->bind_ptr;
-    RtArenaV2 *priv = _listener->arena;
+    ssh_bind sshbind = (ssh_bind)listener->bind_ptr;
 
-    /* Close SSH resources */
     if (sshbind != NULL) {
         ssh_bind_free(sshbind);
     }
-
-    /* Destroy private arena — frees struct and all internal allocations */
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
-    }
+    listener->bind_ptr = NULL;
 }
 
 /* ============================================================================
  * Server: Accept Session (Authentication)
  * ============================================================================ */
 
-RtHandleV2 *sn_ssh_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
+__sn__SshSession *sn_ssh_listener_accept(__sn__SshListener *listener) {
     if (!listener) {
         fprintf(stderr, "SshListener.accept: NULL listener handle\n");
         exit(1);
     }
-    RtSshListener *_listener = (RtSshListener *)listener->ptr;
-    if (!_listener->bind_ptr) {
+    if (!listener->bind_ptr) {
         fprintf(stderr, "SshListener.accept: listener is closed\n");
         exit(1);
     }
 
-    ssh_bind sshbind = (ssh_bind)_listener->bind_ptr;
-    RtSshServerConfig *config = _listener->config_ptr;
+    ssh_bind sshbind = (ssh_bind)listener->bind_ptr;
+    SshServerConfigInternal *config = (SshServerConfigInternal *)listener->config_ptr;
 
     /* Create a new session for the incoming connection */
     ssh_session session = ssh_new();
@@ -930,7 +827,7 @@ RtHandleV2 *sn_ssh_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
     }
 
     /* Create private arena for the session */
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "ssh_session");
+    /* no arena needed */
 
     /* Authentication message loop */
     char *auth_username = NULL;
@@ -958,10 +855,7 @@ RtHandleV2 *sn_ssh_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
                             strcmp(pass, config->users[i].password) == 0) {
                             authenticated = 1;
                             /* Copy username into private arena */
-                            size_t ulen = strlen(user) + 1;
-                            RtHandleV2 *_uname_h = rt_arena_v2_alloc(priv, ulen);
-                            auth_username = (char *)_uname_h->ptr;
-                            if (auth_username) memcpy(auth_username, user, ulen);
+                            auth_username = strdup(user);
                             break;
                         }
                     }
@@ -992,7 +886,6 @@ RtHandleV2 *sn_ssh_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
         fprintf(stderr, "SshListener.accept: authentication failed\n");
         ssh_disconnect(session);
         ssh_free(session);
-        rt_arena_v2_destroy(priv, false);
         exit(1);
     }
 
@@ -1019,96 +912,70 @@ RtHandleV2 *sn_ssh_listener_accept(RtArenaV2 *arena, RtHandleV2 *listener) {
     }
 
     /* Allocate session struct in private arena */
-    RtHandleV2 *_sess_h = rt_arena_v2_alloc(priv, sizeof(RtSshSession));
-    RtSshSession *sess = (RtSshSession *)_sess_h->ptr;
+    RtSshSession *sess = (RtSshSession *)calloc(1, sizeof(RtSshSession));
     if (!sess) {
         fprintf(stderr, "SshListener.accept: session allocation failed\n");
         ssh_disconnect(session);
         ssh_free(session);
-        rt_arena_v2_destroy(priv, false);
         exit(1);
     }
 
     sess->session_ptr = session;
     sess->username = auth_username;
-    sess->arena = priv;
 
-    /* Copy remote address into private arena */
-    size_t rlen = strlen(remote_addr_buf) + 1;
-    RtHandleV2 *_raddr_h = rt_arena_v2_alloc(priv, rlen);
-    sess->remote_addr = (char *)_raddr_h->ptr;
-    if (sess->remote_addr) {
-        memcpy(sess->remote_addr, remote_addr_buf, rlen);
-    }
+    sess->remote_addr = strdup(remote_addr_buf);
 
-    return _sess_h;
+    return sess;
 }
 
 /* ============================================================================
  * Server: SshSession
  * ============================================================================ */
 
-RtHandleV2 *sn_ssh_session_get_username(RtArenaV2 *arena, RtHandleV2 *session) {
-    if (!session) {
-        return rt_arena_v2_strdup(arena, "");
+char *sn_ssh_session_get_username(__sn__SshSession *session) {
+    if (!session || !session->username) {
+        return strdup("");
     }
-    RtSshSession *_session = (RtSshSession *)session->ptr;
-    if (!_session->username) {
-        return rt_arena_v2_strdup(arena, "");
-    }
-    return rt_arena_v2_strdup(arena, _session->username);
+    return strdup((char *)session->username);
 }
 
-RtHandleV2 *sn_ssh_session_get_remote_address(RtArenaV2 *arena, RtHandleV2 *session) {
-    if (!session) {
-        return rt_arena_v2_strdup(arena, "");
+char *sn_ssh_session_get_remote_address(__sn__SshSession *session) {
+    if (!session || !session->remote_addr) {
+        return strdup("");
     }
-    RtSshSession *_session = (RtSshSession *)session->ptr;
-    if (!_session->remote_addr) {
-        return rt_arena_v2_strdup(arena, "");
-    }
-    return rt_arena_v2_strdup(arena, _session->remote_addr);
+    return strdup((char *)session->remote_addr);
 }
 
-void sn_ssh_session_close(RtHandleV2 *session) {
+void sn_ssh_session_close(__sn__SshSession *session) {
     if (!session) return;
-    RtSshSession *_session = (RtSshSession *)session->ptr;
 
-    /* Save resources before destroying the arena (which frees the struct) */
-    ssh_session ssh_sess = (ssh_session)_session->session_ptr;
-    RtArenaV2 *priv = _session->arena;
+    ssh_session ssh_sess = (ssh_session)session->session_ptr;
 
-    /* Close SSH resources */
     if (ssh_sess != NULL) {
         ssh_disconnect(ssh_sess);
         ssh_free(ssh_sess);
     }
-
-    /* Destroy private arena — frees struct and all internal allocations */
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
-    }
+    session->session_ptr = NULL;
 }
 
 /* ============================================================================
  * Server: Accept Channel
  * ============================================================================ */
 
-RtHandleV2 *sn_ssh_session_accept_channel(RtArenaV2 *arena, RtHandleV2 *session) {
+__sn__SshChannel *sn_ssh_session_accept_channel(__sn__SshSession *session) {
     if (!session) {
         fprintf(stderr, "SshSession.acceptChannel: NULL session handle\n");
         exit(1);
     }
-    RtSshSession *_session = (RtSshSession *)session->ptr;
-    if (!_session->session_ptr) {
+    if (!session->session_ptr) {
         fprintf(stderr, "SshSession.acceptChannel: session is closed\n");
         exit(1);
     }
 
-    ssh_session ssh_sess = (ssh_session)_session->session_ptr;
+    ssh_session ssh_sess = (ssh_session)session->session_ptr;
 
     /* Create private arena for this channel */
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "ssh_channel");
+    /* no arena needed */
 
     ssh_channel channel = NULL;
     char *command = NULL;
@@ -1140,10 +1007,7 @@ RtHandleV2 *sn_ssh_session_accept_channel(RtArenaV2 *arena, RtHandleV2 *session)
             if (msg_subtype == SSH_CHANNEL_REQUEST_EXEC) {
                 const char *cmd = ssh_message_channel_request_command(msg);
                 if (cmd) {
-                    size_t clen = strlen(cmd) + 1;
-                    RtHandleV2 *_cmd_h = rt_arena_v2_alloc(priv, clen);
-                    command = (char *)_cmd_h->ptr;
-                    if (command) memcpy(command, cmd, clen);
+                    command = strdup(cmd);
                 }
                 is_shell = 0;
                 ssh_message_channel_request_reply_success(msg);
@@ -1167,93 +1031,99 @@ RtHandleV2 *sn_ssh_session_accept_channel(RtArenaV2 *arena, RtHandleV2 *session)
 
     if (!got_channel || !got_request) {
         fprintf(stderr, "SshSession.acceptChannel: no channel/request received\n");
-        rt_arena_v2_destroy(priv, false);
+        /* no arena to destroy */
         exit(1);
     }
 
     /* Allocate channel struct in private arena */
-    RtHandleV2 *_ch_h = rt_arena_v2_alloc(priv, sizeof(RtSshChannel));
-    RtSshChannel *ch = (RtSshChannel *)_ch_h->ptr;
+    RtSshChannel *ch = (RtSshChannel *)calloc(1, sizeof(RtSshChannel));
     if (!ch) {
         fprintf(stderr, "SshSession.acceptChannel: allocation failed\n");
-        rt_arena_v2_destroy(priv, false);
+        /* no arena to destroy */
         exit(1);
     }
 
     ch->channel_ptr = channel;
     ch->command_str = command;
     ch->is_shell = is_shell;
-    ch->arena = priv;
 
-    return _ch_h;
+    return ch;
 }
 
 /* ============================================================================
  * Server: SshChannel Operations
  * ============================================================================ */
 
-RtHandleV2 *sn_ssh_channel_get_command(RtArenaV2 *arena, RtHandleV2 *channel) {
+char *sn_ssh_channel_get_command(__sn__SshChannel *channel) {
     if (!channel) {
-        return rt_arena_v2_strdup(arena, "");
+        return strdup("");
     }
-    RtSshChannel *_channel = (RtSshChannel *)channel->ptr;
-    if (!_channel->command_str) {
-        return rt_arena_v2_strdup(arena, "");
+    if (!channel->command_str) {
+        return strdup("");
     }
-    return rt_arena_v2_strdup(arena, _channel->command_str);
+    return strdup((char *)channel->command_str);
 }
 
-long sn_ssh_channel_is_shell(RtHandleV2 *channel) {
-    if (!channel) return 0;
-    RtSshChannel *_channel = (RtSshChannel *)channel->ptr;
-    return _channel->is_shell;
+bool sn_ssh_channel_is_shell(__sn__SshChannel *channel) {
+    if (!channel) return false;
+    return channel->is_shell != 0;
 }
 
-RtHandleV2 *sn_ssh_channel_read(RtArenaV2 *arena, RtHandleV2 *channel, long maxBytes) {
+SnArray *sn_ssh_channel_read(__sn__SshChannel *channel, long long maxBytes) {
     if (!channel || maxBytes <= 0) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        return arr;
     }
-    RtSshChannel *_channel = (RtSshChannel *)channel->ptr;
-    if (!_channel->channel_ptr) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+    if (!channel->channel_ptr) {
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        return arr;
     }
 
-    ssh_channel ch = (ssh_channel)_channel->channel_ptr;
+    ssh_channel ch = (ssh_channel)channel->channel_ptr;
 
     /* Allocate temp buffer */
     size_t buf_size = (size_t)maxBytes;
     unsigned char *temp = (unsigned char *)malloc(buf_size);
     if (!temp) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        SnArray *empty = sn_array_new(sizeof(unsigned char), 0);
+        empty->elem_tag = SN_TAG_BYTE;
+        return empty;
     }
 
     int n = ssh_channel_read(ch, temp, (uint32_t)buf_size, 0);
     if (n <= 0) {
         free(temp);
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        return arr;
     }
 
-    RtHandleV2 *result = rt_array_create_generic_v2(arena, (size_t)n, sizeof(unsigned char), temp);
+    SnArray *arr = sn_array_new(sizeof(unsigned char), (long long)n);
+    arr->elem_tag = SN_TAG_BYTE;
+    for (int i = 0; i < n; i++) {
+        sn_array_push(arr, &temp[i]);
+    }
     free(temp);
-    return result;
+    return arr;
 }
 
-RtHandleV2 *sn_ssh_channel_read_line(RtArenaV2 *arena, RtHandleV2 *channel) {
+char *sn_ssh_channel_read_line(__sn__SshChannel *channel) {
     if (!channel) {
-        return rt_arena_v2_strdup(arena, "");
+        return strdup("");
     }
-    RtSshChannel *_channel = (RtSshChannel *)channel->ptr;
-    if (!_channel->channel_ptr) {
-        return rt_arena_v2_strdup(arena, "");
+    if (!channel->channel_ptr) {
+        return strdup("");
     }
 
-    ssh_channel ch = (ssh_channel)_channel->channel_ptr;
+    ssh_channel ch = (ssh_channel)channel->channel_ptr;
 
     /* Read character by character until newline */
     size_t cap = 256, len = 0;
     char *buf = (char *)malloc(cap);
     if (!buf) {
-        return rt_arena_v2_strdup(arena, "");
+        return strdup("");
     }
 
     while (1) {
@@ -1273,35 +1143,31 @@ RtHandleV2 *sn_ssh_channel_read_line(RtArenaV2 *arena, RtHandleV2 *channel) {
     }
     buf[len] = '\0';
 
-    /* Copy to managed arena */
-    RtHandleV2 *result = rt_arena_v2_strdup(arena, buf);
+    char *result = strdup(buf);
     free(buf);
     return result;
 }
 
-long sn_ssh_channel_write(RtHandleV2 *channel, unsigned char *data) {
+long long sn_ssh_channel_write(__sn__SshChannel *channel, SnArray *data) {
     if (!channel || !data) return 0;
-    RtSshChannel *_channel = (RtSshChannel *)channel->ptr;
-    if (!_channel->channel_ptr) return 0;
+    if (!channel->channel_ptr) return 0;
 
-    size_t length = rt_v2_data_array_length(data);
-    if (length == 0) return 0;
+    if (data->len == 0) return 0;
 
-    ssh_channel ch = (ssh_channel)_channel->channel_ptr;
-    int written = ssh_channel_write(ch, data, (uint32_t)length);
+    ssh_channel ch = (ssh_channel)channel->channel_ptr;
+    int written = ssh_channel_write(ch, data->data, (uint32_t)data->len);
     if (written < 0) {
         fprintf(stderr, "SshChannel.write: write failed\n");
         exit(1);
     }
-    return written;
+    return (long long)written;
 }
 
-void sn_ssh_channel_write_line(RtHandleV2 *channel, const char *text) {
+void sn_ssh_channel_write_line(__sn__SshChannel *channel, char *text) {
     if (!channel) return;
-    RtSshChannel *_channel = (RtSshChannel *)channel->ptr;
-    if (!_channel->channel_ptr) return;
+    if (!channel->channel_ptr) return;
 
-    ssh_channel ch = (ssh_channel)_channel->channel_ptr;
+    ssh_channel ch = (ssh_channel)channel->channel_ptr;
 
     if (text) {
         size_t len = strlen(text);
@@ -1322,31 +1188,23 @@ void sn_ssh_channel_write_line(RtHandleV2 *channel, const char *text) {
     }
 }
 
-void sn_ssh_channel_send_exit_status(RtHandleV2 *channel, long code) {
+void sn_ssh_channel_send_exit_status(__sn__SshChannel *channel, long long code) {
     if (!channel) return;
-    RtSshChannel *_channel = (RtSshChannel *)channel->ptr;
-    if (!_channel->channel_ptr) return;
-    ssh_channel ch = (ssh_channel)_channel->channel_ptr;
+    if (!channel->channel_ptr) return;
+    ssh_channel ch = (ssh_channel)channel->channel_ptr;
     ssh_channel_request_send_exit_status(ch, (int)code);
 }
 
-void sn_ssh_channel_close(RtHandleV2 *channel) {
+void sn_ssh_channel_close(__sn__SshChannel *channel) {
     if (!channel) return;
-    RtSshChannel *_channel = (RtSshChannel *)channel->ptr;
 
-    /* Save resources before destroying the arena (which frees the struct) */
-    ssh_channel ch = (ssh_channel)_channel->channel_ptr;
-    RtArenaV2 *priv = _channel->arena;
+    ssh_channel ch = (ssh_channel)channel->channel_ptr;
 
-    /* Close SSH channel resources */
     if (ch != NULL) {
         ssh_channel_send_eof(ch);
         ssh_channel_close(ch);
         ssh_channel_free(ch);
     }
-
-    /* Destroy private arena — frees struct and all internal allocations */
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
+    channel->channel_ptr = NULL;
     }
 }

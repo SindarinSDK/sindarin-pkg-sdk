@@ -61,8 +61,8 @@ fn test_builtin_println(): void =>
 fn test_builtin_printErr(): void =>
     Stdout.flush()
     print("test_builtin_printErr: ")
-    printErr("OK")
-    printErrLn("")
+    Stderr.write("OK")
+    Stderr.writeLine("")
     Stderr.flush()
     print("PASS\n")
 

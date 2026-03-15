@@ -11,7 +11,7 @@
 #   conn.writeLine("Host: example.com")
 #   conn.writeLine("")
 #   var response: byte[] = conn.readAll()
-#   conn.close()
+#   conn.dispose()
 #
 # Certificate loading priority:
 #   1. SN_CERTS environment variable (path to PEM file or directory)
@@ -91,9 +91,9 @@ native struct TlsStream as ref =>
     # Lifecycle Methods
     # ==========================================================================
 
-    # Close the TLS connection and underlying socket
-    @alias "sn_tls_stream_close"
-    native fn close(): void
+    # Dispose the TLS connection (closes and frees resources)
+    fn dispose(): void =>
+        sn_tls_stream_dispose(self)
 
 # ==============================================================================
 # TlsListener Native Struct Definition
@@ -106,8 +106,8 @@ native struct TlsStream as ref =>
 #   var conn: TlsStream = server.accept()
 #   var line: str = conn.readLine()
 #   conn.writeLine("Echo: " + line)
-#   conn.close()
-#   server.close()
+#   conn.dispose()
+#   server.dispose()
 
 @alias "RtTlsListener"
 native struct TlsListener as ref =>
@@ -145,27 +145,33 @@ native struct TlsListener as ref =>
     # Lifecycle Methods
     # ==========================================================================
 
-    # Close the listener
-    @alias "sn_tls_listener_close"
-    native fn close(): void
+    # Dispose the listener (closes and frees resources)
+    fn dispose(): void =>
+        sn_tls_listener_dispose(self)
 
 # ==============================================================================
 # Runtime Function Declarations
 # ==============================================================================
 
 # TlsStream factory functions
-native fn sn_tls_stream_connect(arena, address: str): TlsStream
+native fn sn_tls_stream_connect(address: str): TlsStream
 
 # TlsStream read functions
-native fn sn_tls_stream_read(arena, s: TlsStream, maxBytes: int): byte[]
-native fn sn_tls_stream_read_all(arena, s: TlsStream): byte[]
-native fn sn_tls_stream_read_line(arena, s: TlsStream): str
+native fn sn_tls_stream_read(s: TlsStream, maxBytes: int): byte[]
+native fn sn_tls_stream_read_all(s: TlsStream): byte[]
+native fn sn_tls_stream_read_line(s: TlsStream): str
 
 # TlsStream getter functions
-native fn sn_tls_stream_get_remote_address(arena, s: TlsStream): str
+native fn sn_tls_stream_get_remote_address(s: TlsStream): str
+
+# TlsStream lifecycle
+native fn sn_tls_stream_dispose(s: TlsStream): void
 
 # TlsListener factory functions
-native fn sn_tls_listener_bind(arena, address: str, certFile: str, keyFile: str): TlsListener
+native fn sn_tls_listener_bind(address: str, certFile: str, keyFile: str): TlsListener
 
 # TlsListener accept function
-native fn sn_tls_listener_accept(arena, listener: TlsListener): TlsStream
+native fn sn_tls_listener_accept(listener: TlsListener): TlsStream
+
+# TlsListener lifecycle
+native fn sn_tls_listener_dispose(listener: TlsListener): void

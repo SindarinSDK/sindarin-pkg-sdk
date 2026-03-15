@@ -56,9 +56,9 @@
 @alias "SnJson"
 native struct Json as ref =>
     @alias "obj"
-    _obj: *void
+    _obj: long
     @alias "handle"
-    _handle: *void
+    _handle: long
     @alias "is_root"
     _is_root: int32
 
@@ -236,7 +236,7 @@ native struct Json as ref =>
 
     # Insert a value at an index in an array
     @alias "sn_json_insert"
-    native fn insert(index: int, value: Json): void
+    native fn insertAt(index: int, value: Json): void
 
     # Remove value at index from array
     @alias "sn_json_remove_at"
@@ -283,32 +283,32 @@ native struct Json as ref =>
 # ==============================================================================
 
 # Parsing functions
-native fn sn_json_parse(arena, text: str): Json
-native fn sn_json_parse_file(arena, path: str): Json
+native fn sn_json_parse(text: str): Json
+native fn sn_json_parse_file(path: str): Json
 
 # Creation functions
-native fn sn_json_new_object(arena): Json
-native fn sn_json_new_array(arena): Json
-native fn sn_json_new_null(arena): Json
-native fn sn_json_new_bool(arena, value: bool): Json
-native fn sn_json_new_int(arena, value: int): Json
-native fn sn_json_new_float(arena, value: double): Json
-native fn sn_json_new_string(arena, value: str): Json
+native fn sn_json_new_object(): Json
+native fn sn_json_new_array(): Json
+native fn sn_json_new_null(): Json
+native fn sn_json_new_bool(value: bool): Json
+native fn sn_json_new_int(value: int): Json
+native fn sn_json_new_float(value: double): Json
+native fn sn_json_new_string(value: str): Json
 
 # Value extraction functions
-native fn sn_json_as_string(arena, j: Json): str
+native fn sn_json_as_string(j: Json): str
 
 # Object/Array access functions
-native fn sn_json_get(arena, j: Json, key: str): Json
-native fn sn_json_get_at(arena, j: Json, index: int): Json
-native fn sn_json_first(arena, j: Json): Json
-native fn sn_json_last(arena, j: Json): Json
-native fn sn_json_keys(arena, j: Json): str[]
+native fn sn_json_get(j: Json, key: str): Json
+native fn sn_json_get_at(j: Json, index: int): Json
+native fn sn_json_first(j: Json): Json
+native fn sn_json_last(j: Json): Json
+native fn sn_json_keys(j: Json): str[]
 
 # Serialization functions
-native fn sn_json_to_string(arena, j: Json): str
-native fn sn_json_to_pretty_string(arena, j: Json): str
+native fn sn_json_to_string(j: Json): str
+native fn sn_json_to_pretty_string(j: Json): str
 
 # Utility functions
-native fn sn_json_copy(arena, j: Json): Json
-native fn sn_json_type_name(arena, j: Json): str
+native fn sn_json_copy(j: Json): Json
+native fn sn_json_type_name(j: Json): str

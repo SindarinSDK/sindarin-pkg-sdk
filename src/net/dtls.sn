@@ -136,16 +136,16 @@ native struct DtlsListener as ref =>
 # ==============================================================================
 
 # DtlsConnection factory functions
-native fn sn_dtls_connection_connect(arena, address: str): DtlsConnection
+native fn sn_dtls_connection_connect(address: str): DtlsConnection
 
 # DtlsConnection receive function
-native fn sn_dtls_connection_receive(arena, conn: DtlsConnection, maxBytes: int): byte[]
+native fn sn_dtls_connection_receive(conn: DtlsConnection, maxBytes: int): byte[]
 
 # DtlsConnection getter functions
-native fn sn_dtls_connection_get_remote_address(arena, conn: DtlsConnection): str
+native fn sn_dtls_connection_get_remote_address(conn: DtlsConnection): str
 
 # DtlsListener factory functions
-native fn sn_dtls_listener_bind(arena, address: str, certFile: str, keyFile: str): DtlsListener
+native fn sn_dtls_listener_bind(address: str, certFile: str, keyFile: str): DtlsListener
 
 # DtlsListener accept function
-native fn sn_dtls_listener_accept(arena, listener: DtlsListener): DtlsConnection
+native fn sn_dtls_listener_accept(listener: DtlsListener): DtlsConnection

@@ -51,13 +51,13 @@
 @alias "SnYaml"
 native struct Yaml as ref =>
     @alias "root"
-    _root: *void
+    _root: long
     @alias "node"
-    _node: *void
+    _node: long
     @alias "is_root"
     _is_root: int32
     @alias "handle"
-    _handle: *void
+    _handle: long
 
     # ==========================================================================
     # Static Parsing Methods
@@ -232,29 +232,29 @@ native struct Yaml as ref =>
 # ==============================================================================
 
 # Parsing functions
-native fn sn_yaml_parse(arena, text: str): Yaml
-native fn sn_yaml_parse_file(arena, path: str): Yaml
+native fn sn_yaml_parse(text: str): Yaml
+native fn sn_yaml_parse_file(path: str): Yaml
 
 # Creation functions
-native fn sn_yaml_scalar(arena, value: str): Yaml
-native fn sn_yaml_sequence(arena): Yaml
-native fn sn_yaml_mapping(arena): Yaml
+native fn sn_yaml_scalar(value: str): Yaml
+native fn sn_yaml_sequence(): Yaml
+native fn sn_yaml_mapping(): Yaml
 
 # Value access functions
-native fn sn_yaml_value(arena, y: Yaml): str
+native fn sn_yaml_value(y: Yaml): str
 
 # Mapping access functions
-native fn sn_yaml_get(arena, y: Yaml, key: str): Yaml
-native fn sn_yaml_keys(arena, y: Yaml): str[]
+native fn sn_yaml_get(y: Yaml, key: str): Yaml
+native fn sn_yaml_keys(y: Yaml): str[]
 
 # Sequence access functions
-native fn sn_yaml_get_at(arena, y: Yaml, index: int): Yaml
-native fn sn_yaml_first(arena, y: Yaml): Yaml
-native fn sn_yaml_last(arena, y: Yaml): Yaml
+native fn sn_yaml_get_at(y: Yaml, index: int): Yaml
+native fn sn_yaml_first(y: Yaml): Yaml
+native fn sn_yaml_last(y: Yaml): Yaml
 
 # Serialization functions
-native fn sn_yaml_to_string(arena, y: Yaml): str
+native fn sn_yaml_to_string(y: Yaml): str
 
 # Utility functions
-native fn sn_yaml_copy(arena, y: Yaml): Yaml
-native fn sn_yaml_type_name(arena, y: Yaml): str
+native fn sn_yaml_copy(y: Yaml): Yaml
+native fn sn_yaml_type_name(y: Yaml): str

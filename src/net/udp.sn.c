@@ -1,17 +1,15 @@
 /* ==============================================================================
- * sdk/net/udp_socket.sn.c - Self-contained UdpSocket Implementation
+ * sdk/net/udp.sn.c - Self-contained UdpSocket Implementation
  * ==============================================================================
- * This file provides the C implementation for the SnUdpSocket type.
- * It is compiled via #pragma source and linked with Sindarin code.
+ * Minimal runtime version - no arena, uses calloc/malloc/strdup for allocations.
+ * Uses SnArray for byte array returns.
  * ============================================================================== */
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-
-/* Include runtime for proper memory management */
-#include "runtime/array/runtime_array_v2.h"
+#include <stdbool.h>
 
 /* Platform-specific socket includes */
 #ifdef _WIN32
@@ -45,21 +43,60 @@
 #endif
 
 /* ============================================================================
- * UdpSocket Type Definition
+ * Type Definitions
  * ============================================================================ */
 
-typedef struct RtUdpSocket {
-    socket_t socket_fd;
-    int bound_port;
-    int recv_timeout_ms;
-    RtArenaV2 *arena;             /* Private arena — owns all internal allocations */
-} RtUdpSocket;
+typedef __sn__UdpSocket RtUdpSocket;
+typedef __sn__UdpReceiveResult RtUdpReceiveResult;
 
-/* Result struct for receiveFrom */
-typedef struct RtUdpReceiveResult {
-    RtHandleV2 *data;          /* byte[] runtime array handle */
-    char *sender;           /* Sender address string "ip:port" */
-} RtUdpReceiveResult;
+/* Internal UDP socket state */
+typedef struct UdpSocketInternal {
+    int recv_timeout_ms;
+} UdpSocketInternal;
+
+/* Global table for internal state */
+#define MAX_UDP_SOCKETS 1024
+static struct {
+    __sn__UdpSocket *socket;
+    UdpSocketInternal *internal;
+} udp_socket_table[MAX_UDP_SOCKETS];
+static int udp_socket_count = 0;
+
+static UdpSocketInternal *udp_get_internal(__sn__UdpSocket *socket) {
+    for (int i = 0; i < udp_socket_count; i++) {
+        if (udp_socket_table[i].socket == socket) {
+            return udp_socket_table[i].internal;
+        }
+    }
+    return NULL;
+}
+
+static void udp_register_internal(__sn__UdpSocket *socket, UdpSocketInternal *internal) {
+    for (int i = 0; i < udp_socket_count; i++) {
+        if (udp_socket_table[i].socket == socket) {
+            udp_socket_table[i].internal = internal;
+            return;
+        }
+    }
+    if (udp_socket_count < MAX_UDP_SOCKETS) {
+        udp_socket_table[udp_socket_count].socket = socket;
+        udp_socket_table[udp_socket_count].internal = internal;
+        udp_socket_count++;
+    } else {
+        fprintf(stderr, "sn_udp: too many open sockets\n");
+        exit(1);
+    }
+}
+
+static void udp_unregister_internal(__sn__UdpSocket *socket) {
+    for (int i = 0; i < udp_socket_count; i++) {
+        if (udp_socket_table[i].socket == socket) {
+            udp_socket_table[i] = udp_socket_table[udp_socket_count - 1];
+            udp_socket_count--;
+            return;
+        }
+    }
+}
 
 /* ============================================================================
  * WinSock Initialization (Windows only)
@@ -89,21 +126,23 @@ static void ensure_winsock_initialized(void) {
 
 /* Wait for socket to be readable with timeout.
  * Returns: 1 = readable, 0 = timeout, -1 = error */
-static int udp_wait_readable(RtUdpSocket *socket_obj) {
-    if (socket_obj->recv_timeout_ms < 0) {
+static int udp_wait_readable(__sn__UdpSocket *socket_obj, UdpSocketInternal *internal) {
+    if (internal->recv_timeout_ms < 0) {
         return 1;  /* Blocking mode - assume readable */
     }
 
+    socket_t fd = (socket_t)socket_obj->socket_fd;
+
     fd_set readfds;
     FD_ZERO(&readfds);
-    FD_SET(socket_obj->socket_fd, &readfds);
+    FD_SET(fd, &readfds);
 
     struct timeval tv;
     struct timeval *tvp = NULL;
 
-    if (socket_obj->recv_timeout_ms > 0) {
-        tv.tv_sec = socket_obj->recv_timeout_ms / 1000;
-        tv.tv_usec = (socket_obj->recv_timeout_ms % 1000) * 1000;
+    if (internal->recv_timeout_ms > 0) {
+        tv.tv_sec = internal->recv_timeout_ms / 1000;
+        tv.tv_usec = (internal->recv_timeout_ms % 1000) * 1000;
         tvp = &tv;
     } else {
         /* Non-blocking: zero timeout */
@@ -112,27 +151,12 @@ static int udp_wait_readable(RtUdpSocket *socket_obj) {
         tvp = &tv;
     }
 
-    int result = select((int)(socket_obj->socket_fd + 1), &readfds, NULL, NULL, tvp);
+    int result = select((int)(fd + 1), &readfds, NULL, NULL, tvp);
     return result;
 }
 
-static RtHandleV2 *sn_udp_socket_create(RtArenaV2 *arena, socket_t sock, int port) {
-    RtArenaV2 *priv = rt_arena_v2_create(NULL, RT_ARENA_MODE_DEFAULT, "udp_socket");
-    RtHandleV2 *h = rt_arena_v2_alloc(arena, sizeof(RtUdpSocket));
-    RtUdpSocket *socket_obj = (RtUdpSocket *)h->ptr;
-    if (socket_obj == NULL) {
-        fprintf(stderr, "sn_udp_socket_create: allocation failed\n");
-        exit(1);
-    }
-    socket_obj->socket_fd = sock;
-    socket_obj->bound_port = port;
-    socket_obj->recv_timeout_ms = -1;
-    socket_obj->arena = priv;
-    return h;
-}
-
 /* Parse address string "host:port" or ":port" into host and port components */
-static int parse_bind_address(const char *address, char *host, size_t host_len, int *port) {
+static int parse_bind_address(char *address, char *host, size_t host_len, int *port) {
     if (address == NULL) return 0;
 
     const char *last_colon = NULL;
@@ -179,7 +203,7 @@ static int parse_bind_address(const char *address, char *host, size_t host_len, 
 }
 
 /* Parse destination address for sendTo */
-static int parse_dest_address(const char *address, struct sockaddr_in *dest_addr) {
+static int parse_dest_address(char *address, struct sockaddr_in *dest_addr) {
     if (address == NULL) return 0;
 
     char host[256];
@@ -234,7 +258,7 @@ static int parse_dest_address(const char *address, struct sockaddr_in *dest_addr
  * UdpSocket Creation
  * ============================================================================ */
 
-RtHandleV2 *sn_udp_socket_bind(RtArenaV2 *arena, const char *address) {
+__sn__UdpSocket *sn_udp_socket_bind(char *address) {
     ensure_winsock_initialized();
 
     if (address == NULL) {
@@ -309,7 +333,27 @@ RtHandleV2 *sn_udp_socket_bind(RtArenaV2 *arena, const char *address) {
     }
     int actual_port = ntohs(bound_addr.sin_port);
 
-    return sn_udp_socket_create(arena, sock, actual_port);
+    __sn__UdpSocket *socket_obj = (__sn__UdpSocket *)calloc(1, sizeof(__sn__UdpSocket));
+    if (socket_obj == NULL) {
+        CLOSE_SOCKET(sock);
+        fprintf(stderr, "sn_udp_socket_bind: allocation failed\n");
+        exit(1);
+    }
+    socket_obj->socket_fd = (long long)sock;
+    socket_obj->bound_port = (long long)actual_port;
+
+    /* Create internal state */
+    UdpSocketInternal *internal = (UdpSocketInternal *)calloc(1, sizeof(UdpSocketInternal));
+    if (internal == NULL) {
+        CLOSE_SOCKET(sock);
+        free(socket_obj);
+        fprintf(stderr, "sn_udp_socket_bind: internal allocation failed\n");
+        exit(1);
+    }
+    internal->recv_timeout_ms = -1;
+    udp_register_internal(socket_obj, internal);
+
+    return socket_obj;
 }
 
 /* ============================================================================
@@ -317,9 +361,8 @@ RtHandleV2 *sn_udp_socket_bind(RtArenaV2 *arena, const char *address) {
  * ============================================================================ */
 
 /* Send datagram to address, return bytes sent */
-long sn_udp_socket_send_to(RtHandleV2 *socket_obj, unsigned char *data, const char *address) {
+long long sn_udp_socket_send_to(__sn__UdpSocket *socket_obj, SnArray *data, char *address) {
     if (socket_obj == NULL || data == NULL || address == NULL) return 0;
-    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
 
     struct sockaddr_in dest_addr;
     if (!parse_dest_address(address, &dest_addr)) {
@@ -327,10 +370,11 @@ long sn_udp_socket_send_to(RtHandleV2 *socket_obj, unsigned char *data, const ch
         exit(1);
     }
 
-    size_t length = rt_v2_data_array_length(data);
+    long long length = sn_array_length(data);
     if (length == 0) return 0;
 
-    int bytes_sent = sendto(_socket_obj->socket_fd, (const char *)data, (int)length, 0,
+    socket_t fd = (socket_t)socket_obj->socket_fd;
+    int bytes_sent = sendto(fd, (const char *)data->data, (int)length, 0,
                             (struct sockaddr *)&dest_addr, sizeof(dest_addr));
 
     if (bytes_sent < 0) {
@@ -338,35 +382,36 @@ long sn_udp_socket_send_to(RtHandleV2 *socket_obj, unsigned char *data, const ch
         exit(1);
     }
 
-    return bytes_sent;
+    return (long long)bytes_sent;
 }
 
 /* Receive datagram and sender address */
-RtHandleV2 *sn_udp_socket_receive_from(RtArenaV2 *arena, RtHandleV2 *socket_obj, long maxBytes) {
-    RtHandleV2 *_result_h = rt_arena_v2_alloc(arena, sizeof(RtUdpReceiveResult));
-    RtUdpReceiveResult *result = (RtUdpReceiveResult *)_result_h->ptr;
+__sn__UdpReceiveResult *sn_udp_socket_receive_from(__sn__UdpSocket *socket_obj, long long maxBytes) {
+    __sn__UdpReceiveResult *result = (__sn__UdpReceiveResult *)calloc(1, sizeof(__sn__UdpReceiveResult));
     if (result == NULL) {
         fprintf(stderr, "sn_udp_socket_receive_from: allocation failed\n");
         exit(1);
     }
 
     if (socket_obj == NULL || maxBytes <= 0) {
-        result->data = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-        RtHandleV2 *_sender_h = rt_arena_v2_strdup(arena, "");
-        result->sender = (char *)_sender_h->ptr;
-        return _result_h;
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        result->data = arr;
+        result->sender = strdup("");
+        return result;
     }
 
-    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
+    UdpSocketInternal *internal = udp_get_internal(socket_obj);
 
     /* Wait for data with timeout if configured */
-    if (_socket_obj->recv_timeout_ms >= 0) {
-        int wait_result = udp_wait_readable(_socket_obj);
+    if (internal != NULL && internal->recv_timeout_ms >= 0) {
+        int wait_result = udp_wait_readable(socket_obj, internal);
         if (wait_result == 0) {
-            result->data = rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
-            RtHandleV2 *_sender_h = rt_arena_v2_strdup(arena, "");
-            result->sender = (char *)_sender_h->ptr;
-            return _result_h;
+            SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+            arr->elem_tag = SN_TAG_BYTE;
+            result->data = arr;
+            result->sender = strdup("");
+            return result;
         }
         if (wait_result < 0) {
             fprintf(stderr, "sn_udp_socket_receive_from: select failed (%d)\n", GET_SOCKET_ERROR());
@@ -384,7 +429,8 @@ RtHandleV2 *sn_udp_socket_receive_from(RtArenaV2 *arena, RtHandleV2 *socket_obj,
     struct sockaddr_in sender_addr;
     socklen_t sender_len = sizeof(sender_addr);
 
-    int bytes_received = recvfrom(_socket_obj->socket_fd, (char *)temp,
+    socket_t fd = (socket_t)socket_obj->socket_fd;
+    int bytes_received = recvfrom(fd, (char *)temp,
                                    (int)maxBytes, 0, (struct sockaddr *)&sender_addr, &sender_len);
 
     if (bytes_received < 0) {
@@ -393,70 +439,58 @@ RtHandleV2 *sn_udp_socket_receive_from(RtArenaV2 *arena, RtHandleV2 *socket_obj,
         exit(1);
     }
 
-    result->data = rt_array_create_generic_v2(arena, (size_t)bytes_received, sizeof(unsigned char), temp);
+    SnArray *arr = sn_array_new(sizeof(unsigned char), (long long)bytes_received);
+    arr->elem_tag = SN_TAG_BYTE;
+    if (bytes_received > 0) {
+        memcpy(arr->data, temp, (size_t)bytes_received);
+        arr->len = (long long)bytes_received;
+    }
     free(temp);
+
+    result->data = arr;
 
     char sender_str[64];
     char ip_str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &sender_addr.sin_addr, ip_str, sizeof(ip_str));
     snprintf(sender_str, sizeof(sender_str), "%s:%d", ip_str, ntohs(sender_addr.sin_port));
 
-    RtHandleV2 *_sender_h = rt_arena_v2_strdup(arena, sender_str);
-    result->sender = (char *)_sender_h->ptr;
+    result->sender = strdup(sender_str);
     if (result->sender == NULL) {
         fprintf(stderr, "sn_udp_socket_receive_from: sender allocation failed\n");
         exit(1);
     }
 
-    return _result_h;
+    return result;
 }
 
 /* ============================================================================
  * UdpSocket Getters
  * ============================================================================ */
 
-long sn_udp_socket_get_port(RtHandleV2 *socket_obj) {
+long long sn_udp_socket_get_port(__sn__UdpSocket *socket_obj) {
     if (socket_obj == NULL) return 0;
-    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
-    return _socket_obj->bound_port;
-}
-
-/* ============================================================================
- * UdpSocket Configuration
- * ============================================================================ */
-
-/* Set receive timeout in milliseconds (-1 = blocking, 0 = non-blocking) */
-void sn_udp_socket_set_timeout(RtHandleV2 *socket_obj, long timeout_ms) {
-    if (socket_obj == NULL) return;
-    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
-    _socket_obj->recv_timeout_ms = (int)timeout_ms;
-}
-
-/* Get current receive timeout */
-long sn_udp_socket_get_timeout(RtHandleV2 *socket_obj) {
-    if (socket_obj == NULL) return -1;
-    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
-    return _socket_obj->recv_timeout_ms;
+    return socket_obj->bound_port;
 }
 
 /* ============================================================================
  * UdpSocket Lifecycle
  * ============================================================================ */
 
-void sn_udp_socket_close(RtHandleV2 *socket_obj) {
+void sn_udp_socket_dispose(__sn__UdpSocket *socket_obj) {
     if (socket_obj == NULL) return;
-    RtUdpSocket *_socket_obj = (RtUdpSocket *)socket_obj->ptr;
 
-    socket_t fd = _socket_obj->socket_fd;
-    RtArenaV2 *priv = _socket_obj->arena;
+    socket_t fd = (socket_t)socket_obj->socket_fd;
 
     if (fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(fd);
+        socket_obj->socket_fd = (long long)INVALID_SOCKET_VAL;
     }
 
-    /* Destroy private arena — frees everything */
-    if (priv != NULL) {
-        rt_arena_v2_destroy(priv, false);
+    /* Free internal state */
+    UdpSocketInternal *internal = udp_get_internal(socket_obj);
+    if (internal != NULL) {
+        udp_unregister_internal(socket_obj);
+        free(internal);
     }
 }
 
@@ -464,24 +498,26 @@ void sn_udp_socket_close(RtHandleV2 *socket_obj) {
  * UdpReceiveResult Getters
  * ============================================================================ */
 
-RtHandleV2 *sn_udp_result_get_data(RtArenaV2 *arena, RtHandleV2 *result) {
+SnArray *sn_udp_result_get_data(__sn__UdpReceiveResult *result) {
     if (result == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        return arr;
     }
-    RtUdpReceiveResult *_result = (RtUdpReceiveResult *)result->ptr;
-    if (_result->data == NULL) {
-        return rt_array_create_generic_v2(arena, 0, sizeof(unsigned char), NULL);
+    if (result->data == NULL) {
+        SnArray *arr = sn_array_new(sizeof(unsigned char), 0);
+        arr->elem_tag = SN_TAG_BYTE;
+        return arr;
     }
-    return _result->data;
+    return (SnArray *)result->data;
 }
 
-RtHandleV2 *sn_udp_result_get_sender(RtArenaV2 *arena, RtHandleV2 *result) {
+char *sn_udp_result_get_sender(__sn__UdpReceiveResult *result) {
     if (result == NULL) {
-        return rt_arena_v2_strdup(arena, "");
+        return strdup("");
     }
-    RtUdpReceiveResult *_result = (RtUdpReceiveResult *)result->ptr;
-    if (_result->sender == NULL) {
-        return rt_arena_v2_strdup(arena, "");
+    if (result->sender == NULL) {
+        return strdup("");
     }
-    return rt_arena_v2_strdup(arena, _result->sender);
+    return strdup(result->sender);
 }

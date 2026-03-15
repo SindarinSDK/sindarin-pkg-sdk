@@ -132,7 +132,7 @@ fn test_array_mutation(): void =>
     assert(arr.length() == 3, "Should have 3 elements")
 
     // Insert at index
-    arr.insert(2, Json.ofInt(3))
+    arr.insertAt(2, Json.ofInt(3))
     assert(arr.length() == 4, "Should have 4 elements")
     assert(arr.getAt(2).asInt() == 3, "Element at index 2 should be 3")
 

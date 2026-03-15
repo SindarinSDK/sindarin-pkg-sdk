@@ -1,8 +1,8 @@
 /* ==============================================================================
  * sdk/yaml.sn.c - YAML Implementation for Sindarin SDK using libyaml
  * ==============================================================================
- * This file provides the C implementation for the Yaml type.
- * It uses a custom tree structure for full mutation support, with libyaml
+ * Minimal runtime version - no arena, uses calloc/strdup for allocations.
+ * Uses a custom tree structure for full mutation support, with libyaml
  * handling parsing and serialization.
  * ============================================================================== */
 
@@ -15,9 +15,6 @@
 #include <ctype.h>
 
 #include <yaml.h>
-
-/* Include runtime arena for proper memory management */
-#include "runtime/array/runtime_array_v2.h"
 
 /* ============================================================================
  * Internal Tree Data Structures
@@ -51,15 +48,10 @@ struct SnYamlNode {
 };
 
 /* ============================================================================
- * Yaml Wrapper Type (matches SnYaml in yaml.sn)
+ * Yaml Wrapper Type (matches __sn__Yaml in yaml.sn)
  * ============================================================================ */
 
-typedef struct SnYaml {
-    SnYamlNode *root;       /* Root node of the tree (for ownership) */
-    SnYamlNode *node;       /* Current node */
-    int32_t is_root;        /* Whether this wrapper owns the tree */
-    RtHandleV2 *handle;     /* Self-reference for dispose */
-} SnYaml;
+typedef __sn__Yaml SnYaml;
 
 /* ============================================================================
  * Internal Helper Functions
@@ -184,75 +176,27 @@ static void sn_yaml_node_free(SnYamlNode *node)
     free(node);
 }
 
-/* ============================================================================
- * Cleanup Callback for YAML node trees
- * ============================================================================
- * When a Yaml with is_root=1 is allocated, we register a cleanup callback
- * that frees the malloc'd node tree when the arena is destroyed (e.g., when
- * a thread terminates). This prevents memory leaks from accumulating.
- * ============================================================================ */
-
-static void sn_yaml_tree_cleanup(RtHandleV2 *data)
-{
-    SnYaml *y = (SnYaml *)data->ptr;
-    if (y != NULL && y->is_root && y->root != NULL) {
-        sn_yaml_node_free(y->root);
-        y->root = NULL;
-        y->node = NULL;
-    }
-}
+/* Cast helpers for opaque pointer storage.
+ * Fields use long long to prevent auto-free by the runtime release function. */
+#define YAML_ROOT(y) ((SnYamlNode *)(uintptr_t)(y)->root)
+#define YAML_NODE(y) ((SnYamlNode *)(uintptr_t)(y)->node)
+#define YAML_SET_ROOT(y, v) ((y)->root = (long long)(uintptr_t)(v))
+#define YAML_SET_NODE(y, v) ((y)->node = (long long)(uintptr_t)(v))
 
 /* Create a new SnYaml wrapper for a node within an existing tree.
- * If is_root is true, registers a cleanup callback to free the node tree
- * when the arena is destroyed (e.g., when the thread terminates). */
-static RtHandleV2 *sn_yaml_wrap(RtArenaV2 *arena, SnYamlNode *root, SnYamlNode *node, int is_root)
+ * Returns a heap-allocated __sn__Yaml pointer. */
+static __sn__Yaml *sn_yaml_wrap(SnYamlNode *root, SnYamlNode *node, int is_root)
 {
-    RtHandleV2 *_h = rt_arena_v2_alloc(arena, sizeof(SnYaml));
-    SnYaml *y = (SnYaml *)_h->ptr;
-    y->root = root;
-    y->node = node;
+    __sn__Yaml *y = (__sn__Yaml *)calloc(1, sizeof(__sn__Yaml));
+    if (y == NULL) {
+        fprintf(stderr, "Yaml: memory allocation failed\n");
+        exit(1);
+    }
+    YAML_SET_ROOT(y, root);
+    YAML_SET_NODE(y, node);
     y->is_root = is_root;
-    y->handle = _h;
-
-    /* Register cleanup callback to free the node tree when arena is destroyed.
-     * This prevents memory leaks when Yaml objects go out of scope.
-     * Priority 100 ensures Yaml cleanup happens after user cleanup callbacks. */
-    if (is_root && root != NULL) {
-        rt_handle_set_cleanup(_h, sn_yaml_tree_cleanup);
-    }
-
-    return _h;
-}
-
-/* ============================================================================
- * Dispose Function
- * ============================================================================
- * Releases the YAML node tree and arena handle immediately. This allows
- * deterministic cleanup of YAML values in long-lived arenas.
- *
- * Two-tier cleanup:
- * 1. Explicit: User calls .dispose() - node tree freed, handle reclaimable
- * 2. Implicit: Arena destruction - cleanup callback fires (safety net)
- *
- * If dispose() is called first, it sets root=NULL so the arena cleanup
- * callback becomes a no-op (no double-free).
- * ============================================================================ */
-
-void sn_yaml_dispose(RtHandleV2 *y)
-{
-    if (y == NULL) return;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->is_root && _y->root != NULL) {
-        sn_yaml_node_free(_y->root);
-        _y->root = NULL;
-        _y->node = NULL;
-    }
-    if (_y->handle != NULL) {
-        RtHandleV2 *h = _y->handle;
-        _y->handle = NULL;
-        h->cleanup_fn = NULL;
-        rt_arena_v2_free(h);
-    }
+    y->handle = 0;
+    return y;
 }
 
 /* ============================================================================
@@ -304,12 +248,8 @@ static SnYamlNode *sn_yaml_build_tree(yaml_document_t *doc, yaml_node_t *ynode)
  * Parsing Functions
  * ============================================================================ */
 
-RtHandleV2 *sn_yaml_parse(RtArenaV2 *arena, const char *text)
+__sn__Yaml *sn_yaml_parse(char *text)
 {
-    if (arena == NULL) {
-        fprintf(stderr, "Yaml.parse: arena is NULL\n");
-        exit(1);
-    }
     if (text == NULL) {
         fprintf(stderr, "Yaml.parse: text is NULL\n");
         exit(1);
@@ -344,15 +284,11 @@ RtHandleV2 *sn_yaml_parse(RtArenaV2 *arena, const char *text)
     yaml_document_delete(&document);
     yaml_parser_delete(&parser);
 
-    return sn_yaml_wrap(arena, tree, tree, 1);
+    return sn_yaml_wrap(tree, tree, 1);
 }
 
-RtHandleV2 *sn_yaml_parse_file(RtArenaV2 *arena, const char *path)
+__sn__Yaml *sn_yaml_parse_file(char *path)
 {
-    if (arena == NULL) {
-        fprintf(stderr, "Yaml.parseFile: arena is NULL\n");
-        exit(1);
-    }
     if (path == NULL) {
         fprintf(stderr, "Yaml.parseFile: path is NULL\n");
         exit(1);
@@ -396,118 +332,103 @@ RtHandleV2 *sn_yaml_parse_file(RtArenaV2 *arena, const char *path)
     yaml_parser_delete(&parser);
     fclose(f);
 
-    return sn_yaml_wrap(arena, tree, tree, 1);
+    return sn_yaml_wrap(tree, tree, 1);
 }
 
 /* ============================================================================
  * Creation Functions
  * ============================================================================ */
 
-RtHandleV2 *sn_yaml_scalar(RtArenaV2 *arena, const char *value)
+__sn__Yaml *sn_yaml_scalar(char *value)
 {
-    if (arena == NULL) {
-        fprintf(stderr, "Yaml.scalar: arena is NULL\n");
-        exit(1);
-    }
     SnYamlNode *node = sn_yaml_node_new_scalar(value ? value : "");
-    return sn_yaml_wrap(arena, node, node, 1);
+    return sn_yaml_wrap(node, node, 1);
 }
 
-RtHandleV2 *sn_yaml_sequence(RtArenaV2 *arena)
+__sn__Yaml *sn_yaml_sequence(void)
 {
-    if (arena == NULL) {
-        fprintf(stderr, "Yaml.sequence: arena is NULL\n");
-        exit(1);
-    }
     SnYamlNode *node = sn_yaml_node_new_sequence();
-    return sn_yaml_wrap(arena, node, node, 1);
+    return sn_yaml_wrap(node, node, 1);
 }
 
-RtHandleV2 *sn_yaml_mapping(RtArenaV2 *arena)
+__sn__Yaml *sn_yaml_mapping(void)
 {
-    if (arena == NULL) {
-        fprintf(stderr, "Yaml.mapping: arena is NULL\n");
-        exit(1);
-    }
     SnYamlNode *node = sn_yaml_node_new_mapping();
-    return sn_yaml_wrap(arena, node, node, 1);
+    return sn_yaml_wrap(node, node, 1);
 }
 
 /* ============================================================================
  * Type Checking Functions
  * ============================================================================ */
 
-bool sn_yaml_is_scalar(RtHandleV2 *y)
+bool sn_yaml_is_scalar(__sn__Yaml *y)
 {
     if (y == NULL) return false;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL) return false;
-    return _y->node->type == SN_YAML_SCALAR;
+    if (YAML_NODE(y) == NULL) return false;
+    return (YAML_NODE(y))->type == SN_YAML_SCALAR;
 }
 
-bool sn_yaml_is_sequence(RtHandleV2 *y)
+bool sn_yaml_is_sequence(__sn__Yaml *y)
 {
     if (y == NULL) return false;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL) return false;
-    return _y->node->type == SN_YAML_SEQUENCE;
+    if (YAML_NODE(y) == NULL) return false;
+    return (YAML_NODE(y))->type == SN_YAML_SEQUENCE;
 }
 
-bool sn_yaml_is_mapping(RtHandleV2 *y)
+bool sn_yaml_is_mapping(__sn__Yaml *y)
 {
     if (y == NULL) return false;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL) return false;
-    return _y->node->type == SN_YAML_MAPPING;
+    if (YAML_NODE(y) == NULL) return false;
+    return (YAML_NODE(y))->type == SN_YAML_MAPPING;
 }
 
 /* ============================================================================
  * Value Access Functions (Scalars)
  * ============================================================================ */
 
-RtHandleV2 *sn_yaml_value(RtArenaV2 *arena, RtHandleV2 *y)
+char *sn_yaml_value(__sn__Yaml *y)
 {
-    if (y == NULL) return rt_arena_v2_strdup(arena, "");
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || _y->node->type != SN_YAML_SCALAR) {
-        return rt_arena_v2_strdup(arena, "");
+    if (y == NULL) return strdup("");
+    if (YAML_NODE(y) == NULL || (YAML_NODE(y))->type != SN_YAML_SCALAR) {
+        return strdup("");
     }
-    return rt_arena_v2_strdup(arena, _y->node->scalar_value ? _y->node->scalar_value : "");
+    SnYamlNode *node = YAML_NODE(y);
+    return strdup(node->scalar_value ? node->scalar_value : "");
 }
 
-int64_t sn_yaml_as_int(RtHandleV2 *y)
+long long sn_yaml_as_int(__sn__Yaml *y)
 {
     if (y == NULL) return 0;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || _y->node->type != SN_YAML_SCALAR) return 0;
-    if (_y->node->scalar_value == NULL) return 0;
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || node->type != SN_YAML_SCALAR) return 0;
+    if (node->scalar_value == NULL) return 0;
     char *end;
-    long long val = strtoll(_y->node->scalar_value, &end, 10);
-    if (end == _y->node->scalar_value) return 0;
-    return (int64_t)val;
+    long long val = strtoll(node->scalar_value, &end, 10);
+    if (end == node->scalar_value) return 0;
+    return val;
 }
 
-int64_t sn_yaml_as_long(RtHandleV2 *y)
+long long sn_yaml_as_long(__sn__Yaml *y)
 {
     if (y == NULL) return 0;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || _y->node->type != SN_YAML_SCALAR) return 0;
-    if (_y->node->scalar_value == NULL) return 0;
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || node->type != SN_YAML_SCALAR) return 0;
+    if (node->scalar_value == NULL) return 0;
     char *end;
-    long long val = strtoll(_y->node->scalar_value, &end, 10);
-    if (end == _y->node->scalar_value) return 0;
-    return (int64_t)val;
+    long long val = strtoll(node->scalar_value, &end, 10);
+    if (end == node->scalar_value) return 0;
+    return val;
 }
 
-double sn_yaml_as_float(RtHandleV2 *y)
+double sn_yaml_as_float(__sn__Yaml *y)
 {
     if (y == NULL) return 0.0;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || _y->node->type != SN_YAML_SCALAR) return 0.0;
-    if (_y->node->scalar_value == NULL) return 0.0;
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || node->type != SN_YAML_SCALAR) return 0.0;
+    if (node->scalar_value == NULL) return 0.0;
     char *end;
-    double val = strtod(_y->node->scalar_value, &end);
-    if (end == _y->node->scalar_value) return 0.0;
+    double val = strtod(node->scalar_value, &end);
+    if (end == node->scalar_value) return 0.0;
     return val;
 }
 
@@ -521,13 +442,13 @@ static bool sn_yaml_str_icase_eq(const char *a, const char *b)
     return *a == '\0' && *b == '\0';
 }
 
-bool sn_yaml_as_bool(RtHandleV2 *y)
+bool sn_yaml_as_bool(__sn__Yaml *y)
 {
     if (y == NULL) return false;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || _y->node->type != SN_YAML_SCALAR) return false;
-    if (_y->node->scalar_value == NULL) return false;
-    const char *s = _y->node->scalar_value;
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || node->type != SN_YAML_SCALAR) return false;
+    if (node->scalar_value == NULL) return false;
+    const char *s = node->scalar_value;
     if (sn_yaml_str_icase_eq(s, "true")) return true;
     if (sn_yaml_str_icase_eq(s, "yes")) return true;
     if (sn_yaml_str_icase_eq(s, "on")) return true;
@@ -539,54 +460,56 @@ bool sn_yaml_as_bool(RtHandleV2 *y)
  * Mapping Access Functions
  * ============================================================================ */
 
-RtHandleV2 *sn_yaml_get(RtArenaV2 *arena, RtHandleV2 *y, const char *key)
+__sn__Yaml *sn_yaml_get(__sn__Yaml *y, char *key)
 {
     if (y == NULL) {
-        return sn_yaml_wrap(arena, NULL, NULL, 0);
+        return sn_yaml_wrap(NULL, NULL, 0);
     }
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || key == NULL) {
-        return sn_yaml_wrap(arena, _y->root, NULL, 0);
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || key == NULL) {
+        return sn_yaml_wrap(YAML_ROOT(y), NULL, 0);
     }
-    if (_y->node->type != SN_YAML_MAPPING) {
-        return sn_yaml_wrap(arena, _y->root, NULL, 0);
+    if (node->type != SN_YAML_MAPPING) {
+        return sn_yaml_wrap(YAML_ROOT(y), NULL, 0);
     }
 
-    for (int i = 0; i < _y->node->map_count; i++) {
-        if (_y->node->map_pairs[i].key && strcmp(_y->node->map_pairs[i].key, key) == 0) {
-            return sn_yaml_wrap(arena, _y->root, _y->node->map_pairs[i].value, 0);
+    for (int i = 0; i < node->map_count; i++) {
+        if (node->map_pairs[i].key && strcmp(node->map_pairs[i].key, key) == 0) {
+            return sn_yaml_wrap(YAML_ROOT(y), node->map_pairs[i].value, 0);
         }
     }
-    return sn_yaml_wrap(arena, _y->root, NULL, 0);
+    return sn_yaml_wrap(YAML_ROOT(y), NULL, 0);
 }
 
-bool sn_yaml_has(RtHandleV2 *y, const char *key)
+bool sn_yaml_has(__sn__Yaml *y, char *key)
 {
     if (y == NULL) return false;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || key == NULL) return false;
-    if (_y->node->type != SN_YAML_MAPPING) return false;
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || key == NULL) return false;
+    if (node->type != SN_YAML_MAPPING) return false;
 
-    for (int i = 0; i < _y->node->map_count; i++) {
-        if (_y->node->map_pairs[i].key && strcmp(_y->node->map_pairs[i].key, key) == 0) {
+    for (int i = 0; i < node->map_count; i++) {
+        if (node->map_pairs[i].key && strcmp(node->map_pairs[i].key, key) == 0) {
             return true;
         }
     }
     return false;
 }
 
-RtHandleV2 *sn_yaml_keys(RtArenaV2 *arena, RtHandleV2 *y)
+SnArray *sn_yaml_keys(__sn__Yaml *y)
 {
-    if (y == NULL) return rt_array_create_string_v2(arena, 0, NULL);
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || _y->node->type != SN_YAML_MAPPING) {
-        return rt_array_create_string_v2(arena, 0, NULL);
-    }
+    SnArray *keys = sn_array_new(sizeof(char *), 16);
+    keys->elem_tag = SN_TAG_STRING;
+    keys->elem_release = (void (*)(void *))sn_cleanup_str;
+    keys->elem_copy = sn_copy_str;
 
-    RtHandleV2 *keys = rt_array_create_string_v2(arena, 0, NULL);
-    for (int i = 0; i < _y->node->map_count; i++) {
-        RtHandleV2 *dup = rt_arena_v2_strdup(arena, _y->node->map_pairs[i].key ? _y->node->map_pairs[i].key : "");
-        keys = rt_array_push_string_v2(arena, keys, dup);
+    if (y == NULL) return keys;
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || node->type != SN_YAML_MAPPING) return keys;
+
+    for (int i = 0; i < node->map_count; i++) {
+        char *dup = strdup(node->map_pairs[i].key ? node->map_pairs[i].key : "");
+        sn_array_push(keys, &dup);
     }
     return keys;
 }
@@ -595,59 +518,59 @@ RtHandleV2 *sn_yaml_keys(RtArenaV2 *arena, RtHandleV2 *y)
  * Sequence Access Functions
  * ============================================================================ */
 
-RtHandleV2 *sn_yaml_get_at(RtArenaV2 *arena, RtHandleV2 *y, int64_t index)
+__sn__Yaml *sn_yaml_get_at(__sn__Yaml *y, long long index)
 {
     if (y == NULL) {
-        return sn_yaml_wrap(arena, NULL, NULL, 0);
+        return sn_yaml_wrap(NULL, NULL, 0);
     }
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL) {
-        return sn_yaml_wrap(arena, _y->root, NULL, 0);
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL) {
+        return sn_yaml_wrap(YAML_ROOT(y), NULL, 0);
     }
-    if (_y->node->type != SN_YAML_SEQUENCE) {
-        return sn_yaml_wrap(arena, _y->root, NULL, 0);
+    if (node->type != SN_YAML_SEQUENCE) {
+        return sn_yaml_wrap(YAML_ROOT(y), NULL, 0);
     }
-    if (index < 0 || index >= _y->node->seq_count) {
-        return sn_yaml_wrap(arena, _y->root, NULL, 0);
+    if (index < 0 || index >= node->seq_count) {
+        return sn_yaml_wrap(YAML_ROOT(y), NULL, 0);
     }
-    return sn_yaml_wrap(arena, _y->root, _y->node->seq_items[index], 0);
+    return sn_yaml_wrap(YAML_ROOT(y), node->seq_items[index], 0);
 }
 
-RtHandleV2 *sn_yaml_first(RtArenaV2 *arena, RtHandleV2 *y)
+__sn__Yaml *sn_yaml_first(__sn__Yaml *y)
 {
     if (y == NULL) {
-        return sn_yaml_wrap(arena, NULL, NULL, 0);
+        return sn_yaml_wrap(NULL, NULL, 0);
     }
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || _y->node->type != SN_YAML_SEQUENCE || _y->node->seq_count == 0) {
-        return sn_yaml_wrap(arena, _y->root, NULL, 0);
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || node->type != SN_YAML_SEQUENCE || node->seq_count == 0) {
+        return sn_yaml_wrap(YAML_ROOT(y), NULL, 0);
     }
-    return sn_yaml_wrap(arena, _y->root, _y->node->seq_items[0], 0);
+    return sn_yaml_wrap(YAML_ROOT(y), node->seq_items[0], 0);
 }
 
-RtHandleV2 *sn_yaml_last(RtArenaV2 *arena, RtHandleV2 *y)
+__sn__Yaml *sn_yaml_last(__sn__Yaml *y)
 {
     if (y == NULL) {
-        return sn_yaml_wrap(arena, NULL, NULL, 0);
+        return sn_yaml_wrap(NULL, NULL, 0);
     }
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || _y->node->type != SN_YAML_SEQUENCE || _y->node->seq_count == 0) {
-        return sn_yaml_wrap(arena, _y->root, NULL, 0);
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || node->type != SN_YAML_SEQUENCE || node->seq_count == 0) {
+        return sn_yaml_wrap(YAML_ROOT(y), NULL, 0);
     }
-    return sn_yaml_wrap(arena, _y->root, _y->node->seq_items[_y->node->seq_count - 1], 0);
+    return sn_yaml_wrap(YAML_ROOT(y), node->seq_items[node->seq_count - 1], 0);
 }
 
 /* ============================================================================
  * Size Functions
  * ============================================================================ */
 
-int64_t sn_yaml_length(RtHandleV2 *y)
+long long sn_yaml_length(__sn__Yaml *y)
 {
     if (y == NULL) return 0;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL) return 0;
-    if (_y->node->type == SN_YAML_SEQUENCE) return (int64_t)_y->node->seq_count;
-    if (_y->node->type == SN_YAML_MAPPING) return (int64_t)_y->node->map_count;
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL) return 0;
+    if (node->type == SN_YAML_SEQUENCE) return (long long)node->seq_count;
+    if (node->type == SN_YAML_MAPPING) return (long long)node->map_count;
     return 0;
 }
 
@@ -655,43 +578,42 @@ int64_t sn_yaml_length(RtHandleV2 *y)
  * Mutation Functions (Mapping)
  * ============================================================================ */
 
-void sn_yaml_set(RtHandleV2 *y, const char *key, RtHandleV2 *value)
+void sn_yaml_set(__sn__Yaml *y, char *key, __sn__Yaml *value)
 {
     if (y == NULL || value == NULL || key == NULL) {
         fprintf(stderr, "Yaml.set: invalid arguments\n");
         return;
     }
-    SnYaml *_y = (SnYaml *)y->ptr;
-    SnYaml *_value = (SnYaml *)value->ptr;
-    if (_y->node == NULL) {
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL) {
         fprintf(stderr, "Yaml.set: invalid arguments\n");
         return;
     }
-    if (_y->node->type != SN_YAML_MAPPING) {
+    if (node->type != SN_YAML_MAPPING) {
         fprintf(stderr, "Yaml.set: not a mapping\n");
         return;
     }
-    sn_yaml_map_set(_y->node, key, _value->node);
+    sn_yaml_map_set(node, key, YAML_NODE(value));
     /* Transfer ownership: the node is now part of y's tree */
-    _value->is_root = 0;
-    _value->root = NULL;
+    value->is_root = 0;
+    YAML_SET_ROOT(value, NULL);
 }
 
-void sn_yaml_remove(RtHandleV2 *y, const char *key)
+void sn_yaml_remove(__sn__Yaml *y, char *key)
 {
     if (y == NULL) return;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || key == NULL) return;
-    if (_y->node->type != SN_YAML_MAPPING) return;
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL || key == NULL) return;
+    if (node->type != SN_YAML_MAPPING) return;
 
-    for (int i = 0; i < _y->node->map_count; i++) {
-        if (_y->node->map_pairs[i].key && strcmp(_y->node->map_pairs[i].key, key) == 0) {
-            free(_y->node->map_pairs[i].key);
+    for (int i = 0; i < node->map_count; i++) {
+        if (node->map_pairs[i].key && strcmp(node->map_pairs[i].key, key) == 0) {
+            free(node->map_pairs[i].key);
             /* Shift remaining pairs */
-            for (int j = i; j < _y->node->map_count - 1; j++) {
-                _y->node->map_pairs[j] = _y->node->map_pairs[j + 1];
+            for (int j = i; j < node->map_count - 1; j++) {
+                node->map_pairs[j] = node->map_pairs[j + 1];
             }
-            _y->node->map_count--;
+            node->map_count--;
             return;
         }
     }
@@ -701,79 +623,77 @@ void sn_yaml_remove(RtHandleV2 *y, const char *key)
  * Mutation Functions (Sequence)
  * ============================================================================ */
 
-void sn_yaml_append(RtHandleV2 *y, RtHandleV2 *value)
+void sn_yaml_append(__sn__Yaml *y, __sn__Yaml *value)
 {
     if (y == NULL || value == NULL) {
         fprintf(stderr, "Yaml.append: invalid arguments\n");
         return;
     }
-    SnYaml *_y = (SnYaml *)y->ptr;
-    SnYaml *_value = (SnYaml *)value->ptr;
-    if (_y->node == NULL) {
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL) {
         fprintf(stderr, "Yaml.append: invalid arguments\n");
         return;
     }
-    if (_y->node->type != SN_YAML_SEQUENCE) {
+    if (node->type != SN_YAML_SEQUENCE) {
         fprintf(stderr, "Yaml.append: not a sequence\n");
         return;
     }
-    sn_yaml_seq_append(_y->node, _value->node);
+    sn_yaml_seq_append(node, YAML_NODE(value));
     /* Transfer ownership: the node is now part of y's tree */
-    _value->is_root = 0;
-    _value->root = NULL;
+    value->is_root = 0;
+    YAML_SET_ROOT(value, NULL);
 }
 
-void sn_yaml_prepend(RtHandleV2 *y, RtHandleV2 *value)
+void sn_yaml_prepend(__sn__Yaml *y, __sn__Yaml *value)
 {
     if (y == NULL || value == NULL) {
         fprintf(stderr, "Yaml.prepend: invalid arguments\n");
         return;
     }
-    SnYaml *_y = (SnYaml *)y->ptr;
-    SnYaml *_value = (SnYaml *)value->ptr;
-    if (_y->node == NULL) {
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL) {
         fprintf(stderr, "Yaml.prepend: invalid arguments\n");
         return;
     }
-    if (_y->node->type != SN_YAML_SEQUENCE) {
+    if (node->type != SN_YAML_SEQUENCE) {
         fprintf(stderr, "Yaml.prepend: not a sequence\n");
         return;
     }
 
     /* Ensure capacity */
-    if (_y->node->seq_count >= _y->node->seq_capacity) {
-        _y->node->seq_capacity *= 2;
-        _y->node->seq_items = (SnYamlNode **)realloc(_y->node->seq_items,
-            _y->node->seq_capacity * sizeof(SnYamlNode *));
-        if (_y->node->seq_items == NULL) {
+    if (node->seq_count >= node->seq_capacity) {
+        node->seq_capacity *= 2;
+        node->seq_items = (SnYamlNode **)realloc(node->seq_items,
+            node->seq_capacity * sizeof(SnYamlNode *));
+        if (node->seq_items == NULL) {
             fprintf(stderr, "Yaml: memory allocation failed\n");
             exit(1);
         }
     }
     /* Shift all items right */
-    for (int i = _y->node->seq_count; i > 0; i--) {
-        _y->node->seq_items[i] = _y->node->seq_items[i - 1];
+    for (int i = node->seq_count; i > 0; i--) {
+        node->seq_items[i] = node->seq_items[i - 1];
     }
-    _y->node->seq_items[0] = _value->node;
-    _y->node->seq_count++;
+    node->seq_items[0] = YAML_NODE(value);
+    node->seq_count++;
     /* Transfer ownership: the node is now part of y's tree */
-    _value->is_root = 0;
-    _value->root = NULL;
+    value->is_root = 0;
+    YAML_SET_ROOT(value, NULL);
 }
 
-void sn_yaml_remove_at(RtHandleV2 *y, int64_t index)
+void sn_yaml_remove_at(__sn__Yaml *y, long long index)
 {
     if (y == NULL) return;
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL) return;
-    if (_y->node->type != SN_YAML_SEQUENCE) return;
-    if (index < 0 || index >= _y->node->seq_count) return;
+    SnYamlNode *node = YAML_NODE(y);
+    if (node == NULL) return;
+    if (node->type != SN_YAML_SEQUENCE) return;
+    if (index < 0 || index >= node->seq_count) return;
 
     /* Shift remaining items */
-    for (int i = (int)index; i < _y->node->seq_count - 1; i++) {
-        _y->node->seq_items[i] = _y->node->seq_items[i + 1];
+    for (int i = (int)index; i < node->seq_count - 1; i++) {
+        node->seq_items[i] = node->seq_items[i + 1];
     }
-    _y->node->seq_count--;
+    node->seq_count--;
 }
 
 /* ============================================================================
@@ -903,29 +823,24 @@ error:
     return sn_yaml_strdup("");
 }
 
-RtHandleV2 *sn_yaml_to_string(RtArenaV2 *arena, RtHandleV2 *y)
+char *sn_yaml_to_string(__sn__Yaml *y)
 {
-    if (y == NULL) return rt_arena_v2_strdup(arena, "");
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL) {
-        return rt_arena_v2_strdup(arena, "");
-    }
+    if (y == NULL) return strdup("");
+    if (YAML_NODE(y) == NULL) return strdup("");
 
     size_t len;
-    char *str = sn_yaml_serialize(_y->node, &len);
-    RtHandleV2 *result = rt_arena_v2_strdup(arena, str ? str : "");
-    free(str);
-    return result;
+    char *str = sn_yaml_serialize(YAML_NODE(y), &len);
+    /* sn_yaml_serialize already returns a malloc'd string, return it directly */
+    return str ? str : strdup("");
 }
 
-void sn_yaml_write_file(RtHandleV2 *y, const char *path)
+void sn_yaml_write_file(__sn__Yaml *y, char *path)
 {
     if (y == NULL) {
         fprintf(stderr, "Yaml.writeFile: invalid arguments\n");
         return;
     }
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL || path == NULL) {
+    if (YAML_NODE(y) == NULL || path == NULL) {
         fprintf(stderr, "Yaml.writeFile: invalid arguments\n");
         return;
     }
@@ -957,7 +872,7 @@ void sn_yaml_write_file(RtHandleV2 *y, const char *path)
     if (!yaml_emitter_emit(&emitter, &event)) goto write_error;
 
     /* Emit tree */
-    if (!sn_yaml_emit_node(&emitter, _y->node)) goto write_error;
+    if (!sn_yaml_emit_node(&emitter, YAML_NODE(y))) goto write_error;
 
     /* Document end */
     yaml_document_end_event_initialize(&event, 1);
@@ -1008,28 +923,39 @@ static SnYamlNode *sn_yaml_deep_copy_node(SnYamlNode *node)
     return sn_yaml_node_new_scalar("");
 }
 
-RtHandleV2 *sn_yaml_copy(RtArenaV2 *arena, RtHandleV2 *y)
+__sn__Yaml *sn_yaml_copy(__sn__Yaml *y)
 {
-    if (y == NULL) return sn_yaml_scalar(arena, "");
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL) {
-        return sn_yaml_scalar(arena, "");
-    }
-    SnYamlNode *copy = sn_yaml_deep_copy_node(_y->node);
-    return sn_yaml_wrap(arena, copy, copy, 1);
+    if (y == NULL) return sn_yaml_scalar("");
+    if (YAML_NODE(y) == NULL) return sn_yaml_scalar("");
+    SnYamlNode *copy = sn_yaml_deep_copy_node(YAML_NODE(y));
+    return sn_yaml_wrap(copy, copy, 1);
 }
 
-RtHandleV2 *sn_yaml_type_name(RtArenaV2 *arena, RtHandleV2 *y)
+char *sn_yaml_type_name(__sn__Yaml *y)
 {
-    if (y == NULL) return rt_arena_v2_strdup(arena, "scalar");
-    SnYaml *_y = (SnYaml *)y->ptr;
-    if (_y->node == NULL) {
-        return rt_arena_v2_strdup(arena, "scalar");
+    if (y == NULL) return strdup("scalar");
+    if (YAML_NODE(y) == NULL) return strdup("scalar");
+    switch ((YAML_NODE(y))->type) {
+        case SN_YAML_SCALAR: return strdup("scalar");
+        case SN_YAML_SEQUENCE: return strdup("sequence");
+        case SN_YAML_MAPPING: return strdup("mapping");
     }
-    switch (_y->node->type) {
-        case SN_YAML_SCALAR: return rt_arena_v2_strdup(arena, "scalar");
-        case SN_YAML_SEQUENCE: return rt_arena_v2_strdup(arena, "sequence");
-        case SN_YAML_MAPPING: return rt_arena_v2_strdup(arena, "mapping");
+    return strdup("scalar");
+}
+
+/* ============================================================================
+ * Dispose Function
+ * ============================================================================
+ * Releases the YAML node tree immediately. Only frees internal resources --
+ * the struct itself is freed by sn_auto_Yaml cleanup.
+ * ============================================================================ */
+
+void sn_yaml_dispose(__sn__Yaml *y)
+{
+    if (y == NULL) return;
+    if (y->is_root && YAML_ROOT(y) != NULL) {
+        sn_yaml_node_free(YAML_ROOT(y));
+        YAML_SET_ROOT(y, NULL);
+        YAML_SET_NODE(y, NULL);
     }
-    return rt_arena_v2_strdup(arena, "scalar");
 }

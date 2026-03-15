@@ -17,54 +17,116 @@
 # ==============================================================================
 
 # --- Trigonometric Functions ---
+@alias "sin"
 native fn sin(x: double): double
+
+@alias "cos"
 native fn cos(x: double): double
+
+@alias "tan"
 native fn tan(x: double): double
+
+@alias "asin"
 native fn asin(x: double): double
+
+@alias "acos"
 native fn acos(x: double): double
+
+@alias "atan"
 native fn atan(x: double): double
+
+@alias "atan2"
 native fn atan2(y: double, x: double): double
 
 # --- Hyperbolic Functions ---
+@alias "sinh"
 native fn sinh(x: double): double
+
+@alias "cosh"
 native fn cosh(x: double): double
+
+@alias "tanh"
 native fn tanh(x: double): double
+
+@alias "asinh"
 native fn asinh(x: double): double
+
+@alias "acosh"
 native fn acosh(x: double): double
+
+@alias "atanh"
 native fn atanh(x: double): double
 
 # --- Exponential and Logarithmic Functions ---
+@alias "exp"
 native fn exp(x: double): double
+
+@alias "exp2"
 native fn exp2(x: double): double
+
+@alias "log"
 native fn log(x: double): double
+
+@alias "log2"
 native fn log2(x: double): double
+
+@alias "log10"
 native fn log10(x: double): double
+
+@alias "log1p"
 native fn log1p(x: double): double
+
+@alias "expm1"
 native fn expm1(x: double): double
 
 # --- Power Functions ---
+@alias "pow"
 native fn pow(base: double, exp: double): double
+
+@alias "sqrt"
 native fn sqrt(x: double): double
+
+@alias "cbrt"
 native fn cbrt(x: double): double
+
+@alias "hypot"
 native fn hypot(x: double, y: double): double
 
 # --- Rounding Functions ---
+@alias "ceil"
 native fn ceil(x: double): double
+
+@alias "floor"
 native fn floor(x: double): double
+
+@alias "trunc"
 native fn trunc(x: double): double
+
+@alias "round"
 native fn round(x: double): double
 
 # --- Remainder and Modulo ---
+@alias "fmod"
 native fn fmod(x: double, y: double): double
+
+@alias "remainder"
 native fn remainder(x: double, y: double): double
 
 # --- Absolute Value ---
+@alias "fabs"
 native fn fabs(x: double): double
 
 # --- Floating-Point Manipulation ---
+@alias "copysign"
 native fn copysign(x: double, y: double): double
+
+@alias "fdim"
 native fn fdim(x: double, y: double): double
+
+@alias "fmax"
 native fn fmax(x: double, y: double): double
+
+@alias "fmin"
 native fn fmin(x: double, y: double): double
 
 # ==============================================================================

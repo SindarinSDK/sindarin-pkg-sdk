@@ -14,15 +14,15 @@
 #       var client: TcpStream = server.accept()
 #       var line: str = client.readLine()
 #       client.writeLine($"Echo: {line}")
-#       client.close()
-#   server.close()
+#       client.dispose()
+#   server.dispose()
 #
 #   # Client
 #   var conn: TcpStream = TcpStream.connect("example.com:80")
 #   conn.writeLine("GET / HTTP/1.0")
 #   conn.writeLine("")
 #   var response: byte[] = conn.readAll()
-#   conn.close()
+#   conn.dispose()
 #
 # ==============================================================================
 
@@ -98,9 +98,9 @@ native struct TcpStream as ref =>
     # Lifecycle Methods
     # ==========================================================================
 
-    # Close the connection
-    @alias "sn_tcp_stream_close"
-    native fn close(): void
+    # Dispose the connection (closes and frees resources)
+    fn dispose(): void =>
+        sn_tcp_stream_dispose(self)
 
 # ==============================================================================
 # TcpListener Native Struct Definition
@@ -143,27 +143,33 @@ native struct TcpListener as ref =>
     # Lifecycle Methods
     # ==========================================================================
 
-    # Close the listener
-    @alias "sn_tcp_listener_close"
-    native fn close(): void
+    # Dispose the listener (closes and frees resources)
+    fn dispose(): void =>
+        sn_tcp_listener_dispose(self)
 
 # ==============================================================================
 # Runtime Function Declarations
 # ==============================================================================
 
 # TcpStream factory functions
-native fn sn_tcp_stream_connect(arena, address: str): TcpStream
+native fn sn_tcp_stream_connect(address: str): TcpStream
 
 # TcpStream read functions
-native fn sn_tcp_stream_read(arena, s: TcpStream, maxBytes: int): byte[]
-native fn sn_tcp_stream_read_all(arena, s: TcpStream): byte[]
-native fn sn_tcp_stream_read_line(arena, s: TcpStream): str
+native fn sn_tcp_stream_read(s: TcpStream, maxBytes: int): byte[]
+native fn sn_tcp_stream_read_all(s: TcpStream): byte[]
+native fn sn_tcp_stream_read_line(s: TcpStream): str
 
 # TcpStream getter functions
-native fn sn_tcp_stream_get_remote_address(arena, s: TcpStream): str
+native fn sn_tcp_stream_get_remote_address(s: TcpStream): str
+
+# TcpStream lifecycle
+native fn sn_tcp_stream_dispose(s: TcpStream): void
 
 # TcpListener factory functions
-native fn sn_tcp_listener_bind(arena, address: str): TcpListener
+native fn sn_tcp_listener_bind(address: str): TcpListener
 
 # TcpListener accept function
-native fn sn_tcp_listener_accept(arena, listener: TcpListener): TcpStream
+native fn sn_tcp_listener_accept(listener: TcpListener): TcpStream
+
+# TcpListener lifecycle
+native fn sn_tcp_listener_dispose(listener: TcpListener): void

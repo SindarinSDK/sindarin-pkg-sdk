@@ -55,13 +55,13 @@
 @alias "SnXml"
 native struct Xml as ref =>
     @alias "doc"
-    _doc: *void
+    _doc: long
     @alias "node"
-    _node: *void
+    _node: long
     @alias "is_root"
     _is_root: int32
     @alias "handle"
-    _handle: *void
+    _handle: long
 
     # ==========================================================================
     # Static Parsing Methods
@@ -248,39 +248,39 @@ native struct Xml as ref =>
 # ==============================================================================
 
 # Parsing functions
-native fn sn_xml_parse(arena, text: str): Xml
-native fn sn_xml_parse_file(arena, path: str): Xml
+native fn sn_xml_parse(text: str): Xml
+native fn sn_xml_parse_file(path: str): Xml
 
 # Creation functions
-native fn sn_xml_element(arena, name: str): Xml
-native fn sn_xml_document(arena, rootName: str): Xml
+native fn sn_xml_element(name: str): Xml
+native fn sn_xml_document(rootName: str): Xml
 
 # Node info functions
-native fn sn_xml_name(arena, x: Xml): str
-native fn sn_xml_text(arena, x: Xml): str
-native fn sn_xml_type_name(arena, x: Xml): str
+native fn sn_xml_name(x: Xml): str
+native fn sn_xml_text(x: Xml): str
+native fn sn_xml_type_name(x: Xml): str
 
 # Attribute functions
-native fn sn_xml_attr(arena, x: Xml, name: str): str
-native fn sn_xml_attrs(arena, x: Xml): str[]
+native fn sn_xml_attr(x: Xml, name: str): str
+native fn sn_xml_attrs(x: Xml): str[]
 
 # Child navigation functions
-native fn sn_xml_children(arena, x: Xml): Xml[]
-native fn sn_xml_first_child(arena, x: Xml): Xml
-native fn sn_xml_last_child(arena, x: Xml): Xml
+native fn sn_xml_children(x: Xml): Xml[]
+native fn sn_xml_first_child(x: Xml): Xml
+native fn sn_xml_last_child(x: Xml): Xml
 
 # Sibling/Parent navigation functions
-native fn sn_xml_parent(arena, x: Xml): Xml
-native fn sn_xml_next(arena, x: Xml): Xml
-native fn sn_xml_prev(arena, x: Xml): Xml
+native fn sn_xml_parent(x: Xml): Xml
+native fn sn_xml_next(x: Xml): Xml
+native fn sn_xml_prev(x: Xml): Xml
 
 # XPath functions
-native fn sn_xml_find(arena, x: Xml, xpath: str): Xml
-native fn sn_xml_find_all(arena, x: Xml, xpath: str): Xml[]
+native fn sn_xml_find(x: Xml, xpath: str): Xml
+native fn sn_xml_find_all(x: Xml, xpath: str): Xml[]
 
 # Serialization functions
-native fn sn_xml_to_string(arena, x: Xml): str
-native fn sn_xml_to_pretty_string(arena, x: Xml): str
+native fn sn_xml_to_string(x: Xml): str
+native fn sn_xml_to_pretty_string(x: Xml): str
 
 # Utility functions
-native fn sn_xml_copy(arena, x: Xml): Xml
+native fn sn_xml_copy(x: Xml): Xml
