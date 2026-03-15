@@ -732,9 +732,9 @@ __sn__Xml *sn_xml_copy(__sn__Xml *x)
 void sn_xml_dispose(__sn__Xml *x)
 {
     if (x == NULL) return;
-    if (XML_DOC(x) != NULL) {
+    if (XML_DOC(x) != NULL && x->is_root) {
         xmlFreeDoc(XML_DOC(x));
-        XML_SET_DOC(x, NULL);
-        XML_SET_NODE(x, NULL);
     }
+    XML_SET_DOC(x, NULL);
+    XML_SET_NODE(x, NULL);
 }

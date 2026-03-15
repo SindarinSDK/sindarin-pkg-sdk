@@ -760,12 +760,11 @@ void sn_tcp_stream_dispose(__sn__TcpStream *stream) {
         free(internal);
     }
 
-    /* Free the stream struct and its owned strings */
+    /* Clear owned strings — struct itself is freed by __sn__TcpStream_release */
     if (stream->remote_addr) {
         free(stream->remote_addr);
         stream->remote_addr = NULL;
     }
-    free(stream);
 }
 
 /* ============================================================================
