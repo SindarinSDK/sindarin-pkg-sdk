@@ -759,6 +759,13 @@ void sn_tcp_stream_dispose(__sn__TcpStream *stream) {
         unregister_internal(stream);
         free(internal);
     }
+
+    /* Free the stream struct and its owned strings */
+    if (stream->remote_addr) {
+        free(stream->remote_addr);
+        stream->remote_addr = NULL;
+    }
+    free(stream);
 }
 
 /* ============================================================================
