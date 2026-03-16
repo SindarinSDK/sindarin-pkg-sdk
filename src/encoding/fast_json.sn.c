@@ -213,7 +213,7 @@ static __sn__Encoder *fje_append_object(__sn__Encoder *self) {
 
 static char *fje_result(__sn__Encoder *self) {
     FJEnc *j = (FJEnc *)self->__sn__ctx;
-    fjbuf_char(j->buf, '}');
+    fjbuf_char(j->buf, j->is_array ? ']' : '}');
     char *result = strdup(j->buf->data);
     fjbuf_free(j->buf);
     free(j);
@@ -258,6 +258,19 @@ __sn__Encoder *sn_fast_json_encoder(void) {
     j->buf = buf;
     j->first = 1;
     j->is_array = 0;
+    enc->__sn__vt = &fje_vt;
+    enc->__sn__ctx = j;
+    return enc;
+}
+
+__sn__Encoder *sn_fast_json_array_encoder(void) {
+    FJBuf *buf = fjbuf_new(256);
+    fjbuf_char(buf, '[');
+    __sn__Encoder *enc = (__sn__Encoder *)calloc(1, sizeof(__sn__Encoder));
+    FJEnc *j = (FJEnc *)calloc(1, sizeof(FJEnc));
+    j->buf = buf;
+    j->first = 1;
+    j->is_array = 1;
     enc->__sn__vt = &fje_vt;
     enc->__sn__ctx = j;
     return enc;
