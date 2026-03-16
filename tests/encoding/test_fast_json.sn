@@ -1,5 +1,5 @@
 // Tests for FastJson encoder/decoder with @serializable structs
-import "../../../src/encoding/fast/json"
+import "../../src/encoding/fast_json"
 
 @serializable
 struct Address =>

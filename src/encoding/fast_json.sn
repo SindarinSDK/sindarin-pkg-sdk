@@ -1,11 +1,11 @@
 # ==============================================================================
-# sdk/encoding/fast/json.sn - Fast JSON serialization via string manipulation
+# sdk/encoding/fast_json.sn - Fast JSON serialization via string manipulation
 # ==============================================================================
 # Zero-dependency JSON encoder/decoder for @serializable structs.
 # Uses direct string building (snprintf) — no json-c, no intermediate tree.
 #
 # Usage:
-#   import "sdk/encoding/fast/json"
+#   import "sdk/encoding/fast_json"
 #
 #   @serializable
 #   struct Person =>
@@ -24,7 +24,7 @@
 #   var p2: Person = Person.decode(FastJson.decoder(jsonStr))
 # ==============================================================================
 
-@source "json.sn.c"
+@source "fast_json.sn.c"
 
 struct FastJson =>
 
