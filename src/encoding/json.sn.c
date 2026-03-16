@@ -434,19 +434,16 @@ void sn_json_set(__sn__Json *j, char *key, __sn__Json *value)
         return;
     }
 
-    /* Deep copy the value (same value semantics as before) */
-    json_object *copy = NULL;
-    if (JSON_OBJ(value) != NULL) {
-        if (json_object_deep_copy(JSON_OBJ(value), &copy, NULL) != 0) {
-            fprintf(stderr, "Json.set: failed to copy value\n");
-            return;
-        }
+    /* Increment refcount — parent takes a shared reference */
+    json_object *obj = JSON_OBJ(value);
+    if (obj != NULL) {
+        json_object_get(obj);
     }
 
     /* Remove existing key if present, then add new.
      * json_object_object_del frees the old value via json_object_put. */
     json_object_object_del(JSON_OBJ(j), key);
-    json_object_object_add(JSON_OBJ(j), key, copy);
+    json_object_object_add(JSON_OBJ(j), key, obj);
 }
 
 void sn_json_remove(__sn__Json *j, char *key)
@@ -479,16 +476,14 @@ void sn_json_append(__sn__Json *j, __sn__Json *value)
         return;
     }
 
-    /* Deep copy the value - ownership transfers to parent array */
-    json_object *copy = NULL;
-    if (JSON_OBJ(value) != NULL) {
-        if (json_object_deep_copy(JSON_OBJ(value), &copy, NULL) != 0) {
-            fprintf(stderr, "Json.append: failed to copy value\n");
-            return;
-        }
+    /* Increment refcount — array takes a shared reference, caller keeps theirs.
+     * json_object_put on either side decrements independently. */
+    json_object *obj = JSON_OBJ(value);
+    if (obj != NULL) {
+        json_object_get(obj);
     }
 
-    json_object_array_add(JSON_OBJ(j), copy);
+    json_object_array_add(JSON_OBJ(j), obj);
 }
 
 void sn_json_prepend(__sn__Json *j, __sn__Json *value)
@@ -506,16 +501,12 @@ void sn_json_prepend(__sn__Json *j, __sn__Json *value)
         return;
     }
 
-    /* Deep copy the value - ownership transfers to parent array */
-    json_object *copy = NULL;
-    if (JSON_OBJ(value) != NULL) {
-        if (json_object_deep_copy(JSON_OBJ(value), &copy, NULL) != 0) {
-            fprintf(stderr, "Json.prepend: failed to copy value\n");
-            return;
-        }
+    json_object *obj = JSON_OBJ(value);
+    if (obj != NULL) {
+        json_object_get(obj);
     }
 
-    json_object_array_insert_idx(JSON_OBJ(j), 0, copy);
+    json_object_array_insert_idx(JSON_OBJ(j), 0, obj);
 }
 
 void sn_json_insert(__sn__Json *j, long long index, __sn__Json *value)
@@ -533,16 +524,12 @@ void sn_json_insert(__sn__Json *j, long long index, __sn__Json *value)
         return;
     }
 
-    /* Deep copy the value - ownership transfers to parent array */
-    json_object *copy = NULL;
-    if (JSON_OBJ(value) != NULL) {
-        if (json_object_deep_copy(JSON_OBJ(value), &copy, NULL) != 0) {
-            fprintf(stderr, "Json.insert: failed to copy value\n");
-            return;
-        }
+    json_object *obj = JSON_OBJ(value);
+    if (obj != NULL) {
+        json_object_get(obj);
     }
 
-    json_object_array_insert_idx(JSON_OBJ(j), (size_t)index, copy);
+    json_object_array_insert_idx(JSON_OBJ(j), (size_t)index, obj);
 }
 
 void sn_json_remove_at(__sn__Json *j, long long index)
