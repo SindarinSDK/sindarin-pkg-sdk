@@ -1,0 +1,80 @@
+# ==============================================================================
+# test_rwlock.sn - Tests for SDK RwLock Type
+# ==============================================================================
+
+import "../../src/sync/rwlock"
+import "../../src/time/time"
+
+fn test_basic_read_write(): void =>
+    print("test_basic_read_write: ")
+    var rw: RwLock = RwLock.new()
+
+    rw.readLock()
+    rw.readUnlock()
+
+    rw.writeLock()
+    rw.writeUnlock()
+
+    rw.dispose()
+    print("PASS\n")
+
+fn test_multiple_readers(): void =>
+    print("test_multiple_readers: ")
+    var rw: RwLock = RwLock.new()
+
+    rw.readLock()
+    rw.readUnlock()
+
+    rw.readLock()
+    rw.readUnlock()
+
+    rw.dispose()
+    print("PASS\n")
+
+var sharedRw: RwLock
+var sharedData: int = 0
+sync var doneCount: int = 0
+
+fn readerWork(): void =>
+    var i: int = 0
+    while i < 1000 =>
+        sharedRw.readLock()
+        var x: int = sharedData
+        sharedRw.readUnlock()
+        i = i + 1
+    doneCount++
+
+fn writerWork(): void =>
+    var i: int = 0
+    while i < 100 =>
+        sharedRw.writeLock()
+        sharedData = sharedData + 1
+        sharedRw.writeUnlock()
+        i = i + 1
+    doneCount++
+
+fn test_concurrent(): void =>
+    print("test_concurrent: ")
+    sharedRw = RwLock.new()
+    doneCount = 0
+    sharedData = 0
+
+    &readerWork()
+    &readerWork()
+    &readerWork()
+    &readerWork()
+    &writerWork()
+    &writerWork()
+
+    # Wait for all 6 threads
+    while doneCount < 6 =>
+        Time.sleep(1)
+
+    assert(sharedData == 200, $"Expected 200, got {sharedData}")
+    sharedRw.dispose()
+    print("PASS\n")
+
+fn main(): void =>
+    test_basic_read_write()
+    test_multiple_readers()
+    test_concurrent()
