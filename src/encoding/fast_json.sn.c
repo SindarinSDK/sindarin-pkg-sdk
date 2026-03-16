@@ -250,6 +250,15 @@ static __sn__Encoder *fje_make_sub(FJBuf *buf, int is_array) {
     return enc;
 }
 
+static void fje_cleanup(__sn__Encoder *self) {
+    FJEnc *j = (FJEnc *)self->__sn__ctx;
+    if (j) {
+        fjbuf_free(j->buf);
+        free(j);
+        self->__sn__ctx = NULL;
+    }
+}
+
 __sn__Encoder *sn_fast_json_encoder(void) {
     FJBuf *buf = fjbuf_new(256);
     fjbuf_char(buf, '{');
@@ -260,6 +269,7 @@ __sn__Encoder *sn_fast_json_encoder(void) {
     j->is_array = 0;
     enc->__sn__vt = &fje_vt;
     enc->__sn__ctx = j;
+    enc->__sn__cleanup = fje_cleanup;
     return enc;
 }
 
@@ -273,6 +283,7 @@ __sn__Encoder *sn_fast_json_array_encoder(void) {
     j->is_array = 1;
     enc->__sn__vt = &fje_vt;
     enc->__sn__ctx = j;
+    enc->__sn__cleanup = fje_cleanup;
     return enc;
 }
 
@@ -569,6 +580,15 @@ static __sn__DecoderVTable fjd_vt = {
     .atBool     = fjd_at_bool,
 };
 
+static void fjd_cleanup(__sn__Decoder *self) {
+    FJDec *d = (FJDec *)self->__sn__ctx;
+    if (d) {
+        if (d->root) fj_node_free(d->root);
+        free(d);
+        self->__sn__ctx = NULL;
+    }
+}
+
 static __sn__Decoder *fjd_make(FJNode *node, FJNode *root) {
     __sn__Decoder *dec = (__sn__Decoder *)calloc(1, sizeof(__sn__Decoder));
     FJDec *d = (FJDec *)calloc(1, sizeof(FJDec));
@@ -576,6 +596,7 @@ static __sn__Decoder *fjd_make(FJNode *node, FJNode *root) {
     d->root = root;
     dec->__sn__vt = &fjd_vt;
     dec->__sn__ctx = d;
+    dec->__sn__cleanup = fjd_cleanup;
     return dec;
 }
 
