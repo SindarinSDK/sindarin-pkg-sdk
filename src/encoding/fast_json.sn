@@ -40,6 +40,10 @@ struct FastJson =>
     static fn decoder(input: str): Decoder =>
         return sn_fast_json_decoder(input)
 
+    # Create a JSON decoder from a raw JSON array string (alias for decoder)
+    static fn arrayDecoder(input: str): Decoder =>
+        return sn_fast_json_decoder(input)
+
 # Native factory functions
 native fn sn_fast_json_encoder(): Encoder
 native fn sn_fast_json_array_encoder(): Encoder
