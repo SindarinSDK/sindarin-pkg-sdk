@@ -1,8 +1,15 @@
 /* ============================================================================
- * sdk/sync/rwlock.sn.c - Read-Write Lock implementation
+ * sdk/sync/rwlock.sn.c - Fair Read-Write Lock implementation
  * ============================================================================
- * Wraps pthread_rwlock_t for POSIX systems.
- * Multiple readers can hold the lock concurrently; writers get exclusive access.
+ * Fair userspace RwLock using mutex + condition variables.
+ * When a writer is waiting, new readers block until the writer finishes.
+ * This prevents writer starvation under read-heavy workloads.
+ *
+ * Fairness policy (matches Go's sync.RWMutex):
+ *   - Multiple readers can hold the lock concurrently
+ *   - Writers get exclusive access
+ *   - When a writer is waiting, new readers block
+ *   - After a writer finishes, waiting writers take priority over readers
  * ============================================================================ */
 
 #include <stdlib.h>
@@ -15,9 +22,14 @@
 
 typedef __sn__RwLock RtRwLock;
 
-/* Internal state: the actual pthread rwlock */
+/* Fair RwLock internal state */
 typedef struct {
-    pthread_rwlock_t rwlock;
+    pthread_mutex_t mutex;
+    pthread_cond_t  readers_ok;
+    pthread_cond_t  writers_ok;
+    int             active_readers;
+    int             active_writers;     /* 0 or 1 */
+    int             waiting_writers;
 } RwLockInternal;
 
 /* ---- Internal state table ---- */
@@ -72,37 +84,80 @@ RtRwLock *sn_rwlock_new(void) {
         exit(1);
     }
 
-    pthread_rwlock_init(&internal->rwlock, NULL);
-    rwlock_register_internal(lock, internal);
+    pthread_mutex_init(&internal->mutex, NULL);
+    pthread_cond_init(&internal->readers_ok, NULL);
+    pthread_cond_init(&internal->writers_ok, NULL);
+    internal->active_readers = 0;
+    internal->active_writers = 0;
+    internal->waiting_writers = 0;
 
+    rwlock_register_internal(lock, internal);
     return lock;
 }
 
 void sn_rwlock_read_lock(RtRwLock *lock) {
-    RwLockInternal *internal = rwlock_get_internal(lock);
-    if (internal) pthread_rwlock_rdlock(&internal->rwlock);
+    RwLockInternal *rw = rwlock_get_internal(lock);
+    if (!rw) return;
+
+    pthread_mutex_lock(&rw->mutex);
+    /* Block if a writer is active or writers are waiting (fairness) */
+    while (rw->active_writers > 0 || rw->waiting_writers > 0) {
+        pthread_cond_wait(&rw->readers_ok, &rw->mutex);
+    }
+    rw->active_readers++;
+    pthread_mutex_unlock(&rw->mutex);
 }
 
 void sn_rwlock_read_unlock(RtRwLock *lock) {
-    RwLockInternal *internal = rwlock_get_internal(lock);
-    if (internal) pthread_rwlock_unlock(&internal->rwlock);
+    RwLockInternal *rw = rwlock_get_internal(lock);
+    if (!rw) return;
+
+    pthread_mutex_lock(&rw->mutex);
+    rw->active_readers--;
+    if (rw->active_readers == 0 && rw->waiting_writers > 0) {
+        /* Last reader — wake one waiting writer */
+        pthread_cond_signal(&rw->writers_ok);
+    }
+    pthread_mutex_unlock(&rw->mutex);
 }
 
 void sn_rwlock_write_lock(RtRwLock *lock) {
-    RwLockInternal *internal = rwlock_get_internal(lock);
-    if (internal) pthread_rwlock_wrlock(&internal->rwlock);
+    RwLockInternal *rw = rwlock_get_internal(lock);
+    if (!rw) return;
+
+    pthread_mutex_lock(&rw->mutex);
+    rw->waiting_writers++;
+    while (rw->active_readers > 0 || rw->active_writers > 0) {
+        pthread_cond_wait(&rw->writers_ok, &rw->mutex);
+    }
+    rw->waiting_writers--;
+    rw->active_writers = 1;
+    pthread_mutex_unlock(&rw->mutex);
 }
 
 void sn_rwlock_write_unlock(RtRwLock *lock) {
-    RwLockInternal *internal = rwlock_get_internal(lock);
-    if (internal) pthread_rwlock_unlock(&internal->rwlock);
+    RwLockInternal *rw = rwlock_get_internal(lock);
+    if (!rw) return;
+
+    pthread_mutex_lock(&rw->mutex);
+    rw->active_writers = 0;
+    if (rw->waiting_writers > 0) {
+        /* Writers take priority — wake one writer */
+        pthread_cond_signal(&rw->writers_ok);
+    } else {
+        /* No waiting writers — wake all blocked readers */
+        pthread_cond_broadcast(&rw->readers_ok);
+    }
+    pthread_mutex_unlock(&rw->mutex);
 }
 
 void sn_rwlock_dispose(RtRwLock *lock) {
-    RwLockInternal *internal = rwlock_get_internal(lock);
-    if (internal) {
-        pthread_rwlock_destroy(&internal->rwlock);
+    RwLockInternal *rw = rwlock_get_internal(lock);
+    if (rw) {
+        pthread_mutex_destroy(&rw->mutex);
+        pthread_cond_destroy(&rw->readers_ok);
+        pthread_cond_destroy(&rw->writers_ok);
         rwlock_unregister_internal(lock);
-        free(internal);
+        free(rw);
     }
 }
