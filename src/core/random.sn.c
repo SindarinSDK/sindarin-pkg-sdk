@@ -153,7 +153,7 @@ static void xoshiro256_seed(uint64_t *state, uint64_t seed) {
 
 static uint64_t sn_random_next_u64(RtRandom *rng) {
     if (rng->is_seeded) {
-        return xoshiro256_next((uint64_t *)rng->state);
+        return xoshiro256_next((uint64_t *)(intptr_t)rng->state);
     } else {
         uint64_t result;
         sn_random_fill_entropy((uint8_t *)&result, sizeof(result));
@@ -178,9 +178,9 @@ RtRandom *sn_random_create(void)
         return NULL;
     }
     rng->is_seeded = 0;
-    rng->state = (unsigned char *)calloc(4, sizeof(uint64_t));
+    rng->state = (long long)(intptr_t)calloc(4, sizeof(uint64_t));
 
-    sn_random_fill_entropy((uint8_t *)rng->state, 4 * sizeof(uint64_t));
+    sn_random_fill_entropy((uint8_t *)(intptr_t)rng->state, 4 * sizeof(uint64_t));
 
     return rng;
 }
@@ -192,9 +192,9 @@ RtRandom *sn_random_create_with_seed(long long seed)
         return NULL;
     }
     rng->is_seeded = 1;
-    rng->state = (unsigned char *)calloc(4, sizeof(uint64_t));
+    rng->state = (long long)(intptr_t)calloc(4, sizeof(uint64_t));
 
-    xoshiro256_seed((uint64_t *)rng->state, (uint64_t)seed);
+    xoshiro256_seed((uint64_t *)(intptr_t)rng->state, (uint64_t)seed);
 
     return rng;
 }
