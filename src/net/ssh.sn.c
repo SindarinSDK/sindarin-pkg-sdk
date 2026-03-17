@@ -71,24 +71,14 @@ typedef struct {
     char *authorized_keys_dir;
 } SshServerConfigInternal;
 
-/* Internal data stored alongside structs that need extra fields */
-static SshServerConfigInternal *g_ssh_config_internals[16] = {0};
-static __sn__SshServerConfig *g_ssh_configs[16] = {0};
-static int g_ssh_config_count = 0;
-
-static void ssh_register_config(__sn__SshServerConfig *cfg, SshServerConfigInternal *internal) {
-    if (g_ssh_config_count < 16) {
-        g_ssh_configs[g_ssh_config_count] = cfg;
-        g_ssh_config_internals[g_ssh_config_count] = internal;
-        g_ssh_config_count++;
-    }
-}
+/* Internal is stored directly in config->users (typed as *byte in Sindarin).
+ * This avoids a global pointer registry whose stale entries caused heap
+ * corruption on Windows when Sindarin's as-ref cleanup freed config structs
+ * and new allocations reused their addresses. */
 
 static SshServerConfigInternal *ssh_find_config_internal(__sn__SshServerConfig *cfg) {
-    for (int i = 0; i < g_ssh_config_count; i++) {
-        if (g_ssh_configs[i] == cfg) return g_ssh_config_internals[i];
-    }
-    return NULL;
+    if (!cfg) return NULL;
+    return (SshServerConfigInternal *)cfg->users;
 }
 
 /* ============================================================================
@@ -623,7 +613,10 @@ __sn__SshServerConfig *sn_ssh_server_config_defaults(void) {
     SshServerConfigInternal *internal = (SshServerConfigInternal *)calloc(1, sizeof(SshServerConfigInternal));
     internal->users = (SshUserCredential *)calloc(SSH_MAX_USERS, sizeof(SshUserCredential));
     internal->user_count = 0;
-    ssh_register_config(config, internal);
+    /* Store internal directly in config->users so lifetime is tied to the
+     * config struct. Sindarin's as-ref cleanup will free this pointer when
+     * the config goes out of scope, which is correct. */
+    config->users = (char *)internal;
     return config;
 }
 
@@ -781,6 +774,11 @@ void sn_ssh_listener_close(__sn__SshListener *listener) {
         ssh_bind_free(sshbind);
     }
     listener->bind_ptr = NULL;
+    /* Null out config_ptr so Sindarin's as-ref cleanup (which treats *byte
+     * fields as heap strings and calls free on them) does not double-free the
+     * SshServerConfigInternal — its lifetime is owned by the SshServerConfig
+     * struct via config->users. */
+    listener->config_ptr = NULL;
 }
 
 /* ============================================================================
