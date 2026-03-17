@@ -38,7 +38,7 @@
 #       print($"{key}: {doc.get(key).toString()}\n")
 #
 # Requirements:
-#   - json-c library must be installed (provided by sindarin-pkg-libs-v2)
+#   - json-c library must be installed (provided by sindarin-pkg-libs)
 # ==============================================================================
 
 @include <json-c/json.h>

@@ -5,7 +5,7 @@ description: A package which is decoupled from the sdk shipped with the sindarin
 license: MIT
 dependencies:
 - name: sindarin-pkg-libs
-  git: https://github.com/SindarinSDK/sindarin-pkg-libs-v2.git
+  git: https://github.com/SindarinSDK/sindarin-pkg-libs.git
   branch: main
 - name: sindarin-pkg-test
   git: https://github.com/SindarinSDK/sindarin-pkg-test.git
