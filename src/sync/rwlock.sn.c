@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <stdatomic.h>
-#include <sched.h>
 
 /* ============================================================================
  * RtRwLock — maps to the Sindarin RwLock struct
@@ -112,12 +111,10 @@ void sn_rwlock_read_unlock(RtRwLock *lock) {
     RwLockInternal *rw = rwlock_get_internal(lock);
     if (!rw) return;
 
-    int writers_waiting = 0;
     pthread_mutex_lock(&rw->mutex);
     rw->reader_count--;
     if (rw->reader_count < 0) {
         /* Writer is pending. Decrement departing count. */
-        writers_waiting = 1;
         rw->reader_wait--;
         if (rw->reader_wait == 0) {
             /* Last departing reader — wake the writer */
@@ -125,11 +122,6 @@ void sn_rwlock_read_unlock(RtRwLock *lock) {
         }
     }
     pthread_mutex_unlock(&rw->mutex);
-
-    /* Yield to give waiting writers a scheduling opportunity */
-    if (writers_waiting) {
-        sched_yield();
-    }
 }
 
 void sn_rwlock_write_lock(RtRwLock *lock) {
