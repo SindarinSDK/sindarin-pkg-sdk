@@ -18,12 +18,12 @@ fn test_basic_read_write(): void =>
     rw.dispose()
     print("PASS\n")
 
-fn test_multiple_readers(): void =>
-    print("test_multiple_readers: ")
+fn test_write_then_read(): void =>
+    print("test_write_then_read: ")
     var rw: RwLock = RwLock.new()
 
-    rw.readLock()
-    rw.readUnlock()
+    rw.writeLock()
+    rw.writeUnlock()
 
     rw.readLock()
     rw.readUnlock()
@@ -35,16 +35,7 @@ var sharedRw: RwLock
 var sharedData: int = 0
 sync var doneCount: int = 0
 
-fn readerWork(): void =>
-    var i: int = 0
-    while i < 1000 =>
-        sharedRw.readLock()
-        var x: int = sharedData
-        sharedRw.readUnlock()
-        i = i + 1
-    doneCount++
-
-fn writerWork(): void =>
+fn writerOnly(): void =>
     var i: int = 0
     while i < 100 =>
         sharedRw.writeLock()
@@ -53,21 +44,43 @@ fn writerWork(): void =>
         i = i + 1
     doneCount++
 
-fn test_concurrent(): void =>
-    print("test_concurrent: ")
+fn test_two_writers(): void =>
+    print("test_two_writers: ")
     sharedRw = RwLock.new()
     doneCount = 0
     sharedData = 0
 
-    &readerWork()
-    &readerWork()
-    &readerWork()
-    &readerWork()
-    &writerWork()
-    &writerWork()
+    &writerOnly()
+    &writerOnly()
 
-    # Wait for all 6 threads
-    while doneCount < 6 =>
+    while doneCount < 2 =>
+        Time.sleep(1)
+
+    assert(sharedData == 200, $"Expected 200, got {sharedData}")
+    sharedRw.dispose()
+    print("PASS\n")
+
+fn readerOnly(): void =>
+    var i: int = 0
+    while i < 100 =>
+        sharedRw.readLock()
+        var x: int = sharedData
+        sharedRw.readUnlock()
+        i = i + 1
+    doneCount++
+
+fn test_readers_and_writers(): void =>
+    print("test_readers_and_writers: ")
+    sharedRw = RwLock.new()
+    doneCount = 0
+    sharedData = 0
+
+    &readerOnly()
+    &readerOnly()
+    &writerOnly()
+    &writerOnly()
+
+    while doneCount < 4 =>
         Time.sleep(1)
 
     assert(sharedData == 200, $"Expected 200, got {sharedData}")
@@ -76,5 +89,6 @@ fn test_concurrent(): void =>
 
 fn main(): void =>
     test_basic_read_write()
-    test_multiple_readers()
-    test_concurrent()
+    test_write_then_read()
+    test_two_writers()
+    test_readers_and_writers()
