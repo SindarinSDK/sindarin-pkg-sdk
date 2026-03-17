@@ -53,17 +53,21 @@ static RtProcess *sn_process_create(int exit_code,
  * Windows Implementation using CreateProcess
  * ============================================================================ */
 
-/* Read all data from a Windows HANDLE until EOF.
- * Returns a null-terminated malloc'd string.
- * Closes the handle after reading.
- */
-static char *read_handle_to_string(HANDLE handle)
+/* Context for threaded pipe reading */
+typedef struct {
+    HANDLE handle;
+    char *result;
+} PipeReadCtx;
+
+/* Thread function: read all data from a pipe handle until EOF */
+static DWORD WINAPI read_pipe_thread(LPVOID param)
 {
+    PipeReadCtx *ctx = (PipeReadCtx *)param;
+    HANDLE handle = ctx->handle;
+
     if (handle == NULL || handle == INVALID_HANDLE_VALUE) {
-        if (handle != NULL && handle != INVALID_HANDLE_VALUE) {
-            CloseHandle(handle);
-        }
-        return strdup("");
+        ctx->result = strdup("");
+        return 0;
     }
 
     size_t capacity = READ_BUFFER_INITIAL_SIZE;
@@ -71,7 +75,8 @@ static char *read_handle_to_string(HANDLE handle)
     char *buffer = (char *)malloc(capacity);
     if (buffer == NULL) {
         CloseHandle(handle);
-        return strdup("");
+        ctx->result = strdup("");
+        return 0;
     }
 
     while (1) {
@@ -79,9 +84,7 @@ static char *read_handle_to_string(HANDLE handle)
             size_t new_capacity = capacity * 2;
             char *new_buffer = (char *)realloc(buffer, new_capacity);
             if (new_buffer == NULL) {
-                buffer[length] = '\0';
-                CloseHandle(handle);
-                return buffer;
+                break;
             }
             buffer = new_buffer;
             capacity = new_capacity;
@@ -100,7 +103,8 @@ static char *read_handle_to_string(HANDLE handle)
 
     buffer[length] = '\0';
     CloseHandle(handle);
-    return buffer;
+    ctx->result = buffer;
+    return 0;
 }
 
 /* Build a command line string from command and args for CreateProcess.
@@ -217,16 +221,30 @@ static RtProcess *sn_process_run_internal(const char *cmd, char **args, size_t a
 
     free(cmdline);
 
-    char *stdout_data = read_handle_to_string(stdout_read);
-    char *stderr_data = read_handle_to_string(stderr_read);
+    /* Read stdout and stderr concurrently on separate threads to avoid
+     * pipe deadlock. Windows pipes have a 4KB buffer — if the child fills
+     * stderr while we're blocked reading stdout, both sides deadlock. */
+    PipeReadCtx stdout_ctx = { stdout_read, NULL };
+    PipeReadCtx stderr_ctx = { stderr_read, NULL };
+
+    HANDLE stdout_thread = CreateThread(NULL, 0, read_pipe_thread, &stdout_ctx, 0, NULL);
+    HANDLE stderr_thread = CreateThread(NULL, 0, read_pipe_thread, &stderr_ctx, 0, NULL);
 
     WaitForSingleObject(pi.hProcess, INFINITE);
+    WaitForSingleObject(stdout_thread, INFINITE);
+    WaitForSingleObject(stderr_thread, INFINITE);
+
+    CloseHandle(stdout_thread);
+    CloseHandle(stderr_thread);
 
     DWORD exit_code = 0;
     GetExitCodeProcess(pi.hProcess, &exit_code);
 
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
+
+    char *stdout_data = stdout_ctx.result ? stdout_ctx.result : strdup("");
+    char *stderr_data = stderr_ctx.result ? stderr_ctx.result : strdup("");
 
     RtProcess *proc = sn_process_create((int)exit_code, stdout_data, stderr_data);
     free(stdout_data);
