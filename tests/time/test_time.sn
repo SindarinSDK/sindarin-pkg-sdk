@@ -4,7 +4,7 @@
 # Tests the Time struct and its methods.
 # ==============================================================================
 
-import "../../src/time/time"
+import "sindarin-pkg-sdk/src/time/time"
 
 fn test_now(): void =>
     print("test_now: ")

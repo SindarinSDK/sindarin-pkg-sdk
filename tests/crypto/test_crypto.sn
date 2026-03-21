@@ -1,6 +1,6 @@
 // Test SDK crypto module
 
-import "../../src/crypto/crypto"
+import "sindarin-pkg-sdk/src/crypto/crypto"
 
 fn test_sha256_str(): void =>
     print("test_sha256_str: ")

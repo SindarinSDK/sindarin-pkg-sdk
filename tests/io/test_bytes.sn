@@ -4,7 +4,7 @@
 # Tests the Bytes struct and its methods.
 # ==============================================================================
 
-import "../../src/io/bytes"
+import "sindarin-pkg-sdk/src/io/bytes"
 
 fn test_from_hex(): void =>
     print("test_from_hex: ")

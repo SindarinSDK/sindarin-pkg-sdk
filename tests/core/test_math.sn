@@ -1,6 +1,6 @@
 # Test sdk/math module
 
-import "../../src/core/math" as math
+import "sindarin-pkg-sdk/src/core/math" as math
 
 fn main(): int =>
     print("=== SDK Math Module Test ===\n\n")

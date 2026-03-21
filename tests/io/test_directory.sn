@@ -4,9 +4,9 @@
 # Tests the Directory struct and its methods.
 # ==============================================================================
 
-import "../../src/io/directory"
-import "../../src/io/textfile"
-import "../../src/io/path"
+import "sindarin-pkg-sdk/src/io/directory"
+import "sindarin-pkg-sdk/src/io/textfile"
+import "sindarin-pkg-sdk/src/io/path"
 
 fn test_create_and_delete(): void =>
     print("test_create_and_delete: ")

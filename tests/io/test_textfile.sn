@@ -4,7 +4,7 @@
 # Tests the TextFile struct and its methods.
 # ==============================================================================
 
-import "../../src/io/textfile"
+import "sindarin-pkg-sdk/src/io/textfile"
 
 fn test_static_write_and_read(): void =>
     print("test_static_write_and_read: ")

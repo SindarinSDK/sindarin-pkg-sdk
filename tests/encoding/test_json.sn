@@ -1,7 +1,7 @@
 // Test SDK JSON module
 
-import "../../src/encoding/json"
-import "../../src/os/env"
+import "sindarin-pkg-sdk/src/encoding/json"
+import "sindarin-pkg-sdk/src/os/env"
 
 fn test_create_object(): void =>
     print("test_create_object: ")

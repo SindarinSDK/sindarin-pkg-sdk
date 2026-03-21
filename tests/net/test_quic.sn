@@ -5,7 +5,7 @@
 # Self-contained: starts a listener, connects a client, tests streams.
 # ==============================================================================
 
-import "../../src/net/quic"
+import "sindarin-pkg-sdk/src/net/quic"
 
 fn test_listener_bind(): void =>
     print("test_listener_bind: ")

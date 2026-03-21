@@ -4,7 +4,7 @@
 # Tests the Random struct and its methods.
 # ==============================================================================
 
-import "../../src/core/random"
+import "sindarin-pkg-sdk/src/core/random"
 
 fn test_create(): void =>
     print("test_create: ")

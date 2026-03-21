@@ -5,11 +5,11 @@
 # Uses a generated ED25519 host key and password authentication.
 # ==============================================================================
 
-import "../../src/net/ssh"
-import "../../src/os/process"
-import "../../src/os/env"
-import "../../src/io/textfile"
-import "../../src/io/path"
+import "sindarin-pkg-sdk/src/net/ssh"
+import "sindarin-pkg-sdk/src/os/process"
+import "sindarin-pkg-sdk/src/os/env"
+import "sindarin-pkg-sdk/src/io/textfile"
+import "sindarin-pkg-sdk/src/io/path"
 
 fn getTempDir(): str =>
     return Environment.getOr("TEMP", Environment.getOr("TMPDIR", "/tmp")).replace("\\", "/")

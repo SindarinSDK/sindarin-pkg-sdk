@@ -5,8 +5,8 @@
 # Cross-platform: works on Windows, Linux, and macOS
 # ==============================================================================
 
-import "../../src/os/process"
-import "../../src/os/env"
+import "sindarin-pkg-sdk/src/os/process"
+import "sindarin-pkg-sdk/src/os/env"
 
 # Check if running on Windows by looking for COMSPEC environment variable
 fn isWindows(): bool =>

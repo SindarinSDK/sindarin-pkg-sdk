@@ -5,7 +5,7 @@
 # Cross-platform: works on Windows, Linux, and macOS
 # ==============================================================================
 
-import "../../src/os/os"
+import "sindarin-pkg-sdk/src/os/os"
 
 fn test_exactly_one_os(): void =>
     print("test_exactly_one_os: ")

@@ -1,4 +1,4 @@
-import "../../src/os/process"
+import "sindarin-pkg-sdk/src/os/process"
 
 fn main(): void =>
     var p: Process = Process.runArgs("echo", {"hello"})

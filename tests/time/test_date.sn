@@ -4,7 +4,7 @@
 # Tests the Date struct and its methods.
 # ==============================================================================
 
-import "../../src/time/date"
+import "sindarin-pkg-sdk/src/time/date"
 
 fn test_today(): void =>
     print("test_today: ")

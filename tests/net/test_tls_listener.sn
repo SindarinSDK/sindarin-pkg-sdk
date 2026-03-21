@@ -6,8 +6,8 @@
 # Uses threading since TLS handshake requires both sides to be active.
 # ==============================================================================
 
-import "../../src/net/tls"
-import "../../src/os/env"
+import "sindarin-pkg-sdk/src/net/tls"
+import "sindarin-pkg-sdk/src/os/env"
 
 # --- Client functions for threaded execution ---
 

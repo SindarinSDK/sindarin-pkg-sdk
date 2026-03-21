@@ -5,8 +5,8 @@
 # Cross-platform: works on Windows, Linux, and macOS
 # ==============================================================================
 
-import "../../src/io/path"
-import "../../src/os/env"
+import "sindarin-pkg-sdk/src/io/path"
+import "sindarin-pkg-sdk/src/os/env"
 
 # Cross-platform temp directory helper
 fn getTempDir(): str =>

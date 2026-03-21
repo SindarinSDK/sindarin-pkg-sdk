@@ -5,10 +5,10 @@
 # and GitTag structs and their methods using local repository operations.
 # ==============================================================================
 
-import "../../src/net/git"
-import "../../src/io/textfile"
-import "../../src/io/directory"
-import "../../src/io/path"
+import "sindarin-pkg-sdk/src/net/git"
+import "sindarin-pkg-sdk/src/io/textfile"
+import "sindarin-pkg-sdk/src/io/directory"
+import "sindarin-pkg-sdk/src/io/path"
 
 var repoDir: str = "_sn_git_test_repo"
 

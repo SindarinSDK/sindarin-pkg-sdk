@@ -5,7 +5,7 @@
 # NOTE: These tests require network access to connect to external HTTPS hosts.
 # ==============================================================================
 
-import "../../src/net/tls"
+import "sindarin-pkg-sdk/src/net/tls"
 
 fn test_tls_connect(): void =>
     print("test_tls_connect: ")

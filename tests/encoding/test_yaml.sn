@@ -1,7 +1,7 @@
 // Test SDK YAML module
 
-import "../../src/encoding/yaml"
-import "../../src/os/env"
+import "sindarin-pkg-sdk/src/encoding/yaml"
+import "sindarin-pkg-sdk/src/os/env"
 
 fn test_create_scalar(): void =>
     print("test_create_scalar: ")
