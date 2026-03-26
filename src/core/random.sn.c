@@ -173,7 +173,7 @@ static uint64_t sn_random_static_next_u64(void) {
 
 RtRandom *sn_random_create(void)
 {
-    RtRandom *rng = (RtRandom *)calloc(1, sizeof(RtRandom));
+    RtRandom *rng = __sn__Random__new();
     if (rng == NULL) {
         return NULL;
     }
@@ -187,7 +187,7 @@ RtRandom *sn_random_create(void)
 
 RtRandom *sn_random_create_with_seed(long long seed)
 {
-    RtRandom *rng = (RtRandom *)calloc(1, sizeof(RtRandom));
+    RtRandom *rng = __sn__Random__new();
     if (rng == NULL) {
         return NULL;
     }

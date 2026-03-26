@@ -152,7 +152,7 @@ static int sn_date_is_valid_ymd(int year, int month, int day)
 
 static __sn__Date *sn_date_create(int32_t days)
 {
-    __sn__Date *date = (__sn__Date *)calloc(1, sizeof(__sn__Date));
+    __sn__Date *date = __sn__Date__new();
     if (date == NULL) {
         fprintf(stderr, "sn_date_create: allocation failed\n");
         exit(1);
@@ -493,8 +493,9 @@ __sn__Date *sn_date_end_of_year(__sn__Date *date)
  * Date/Time Conversion
  * ============================================================================ */
 
-/* RtTime structure (must match sdk/time.sn.c definition) */
+/* RtTime layout — must match compiler-generated __sn__Time (as ref with __rc__) */
 typedef struct RtTime {
+    int __rc__;
     long long milliseconds;
 } RtTime;
 
@@ -507,10 +508,7 @@ void *sn_date_to_time(__sn__Date *date)
     long long ms = (long long)date->days * 24LL * 60LL * 60LL * 1000LL;
 
     RtTime *t = (RtTime *)calloc(1, sizeof(RtTime));
-    if (t == NULL) {
-        fprintf(stderr, "sn_date_to_time: allocation failed\n");
-        exit(1);
-    }
+    t->__rc__ = 1;
     t->milliseconds = ms;
     return t;
 }

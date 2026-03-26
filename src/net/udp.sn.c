@@ -333,7 +333,7 @@ __sn__UdpSocket *sn_udp_socket_bind(char *address) {
     }
     int actual_port = ntohs(bound_addr.sin_port);
 
-    __sn__UdpSocket *socket_obj = (__sn__UdpSocket *)calloc(1, sizeof(__sn__UdpSocket));
+    __sn__UdpSocket *socket_obj = __sn__UdpSocket__new();
     if (socket_obj == NULL) {
         CLOSE_SOCKET(sock);
         fprintf(stderr, "sn_udp_socket_bind: allocation failed\n");
@@ -387,7 +387,7 @@ long long sn_udp_socket_send_to(__sn__UdpSocket *socket_obj, SnArray *data, char
 
 /* Receive datagram and sender address */
 __sn__UdpReceiveResult *sn_udp_socket_receive_from(__sn__UdpSocket *socket_obj, long long maxBytes) {
-    __sn__UdpReceiveResult *result = (__sn__UdpReceiveResult *)calloc(1, sizeof(__sn__UdpReceiveResult));
+    __sn__UdpReceiveResult *result = __sn__UdpReceiveResult__new();
     if (result == NULL) {
         fprintf(stderr, "sn_udp_socket_receive_from: allocation failed\n");
         exit(1);

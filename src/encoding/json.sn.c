@@ -36,7 +36,7 @@ typedef __sn__Json SnJson;
  * Returns a heap-allocated SnJson pointer. */
 static __sn__Json *sn_json_wrap(json_object *obj, int is_root)
 {
-    __sn__Json *j = (__sn__Json *)calloc(1, sizeof(__sn__Json));
+    __sn__Json *j = __sn__Json__new();
     if (j == NULL) {
         fprintf(stderr, "Json: memory allocation failed\n");
         exit(1);

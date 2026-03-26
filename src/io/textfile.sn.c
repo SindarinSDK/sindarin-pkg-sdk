@@ -53,7 +53,7 @@ __sn__TextFile *sn_text_file_open(char *path)
         }
     }
 
-    __sn__TextFile *file = (__sn__TextFile *)calloc(1, sizeof(__sn__TextFile));
+    __sn__TextFile *file = __sn__TextFile__new();
     if (file == NULL) {
         fclose(fp);
         fprintf(stderr, "SnTextFile.open: memory allocation failed\n");

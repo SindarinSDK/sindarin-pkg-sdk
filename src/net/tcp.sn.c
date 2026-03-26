@@ -256,7 +256,7 @@ static inline void stream_consume(TcpStreamInternal *internal, size_t n) {
  * ============================================================================ */
 
 static __sn__TcpStream *sn_tcp_stream_create(socket_t sock, char *remote_addr) {
-    __sn__TcpStream *stream = (__sn__TcpStream *)calloc(1, sizeof(__sn__TcpStream));
+    __sn__TcpStream *stream = __sn__TcpStream__new();
     if (stream == NULL) {
         fprintf(stderr, "sn_tcp_stream_create: allocation failed\n");
         exit(1);
@@ -853,7 +853,7 @@ __sn__TcpListener *sn_tcp_listener_bind(char *address) {
         exit(1);
     }
 
-    __sn__TcpListener *listener = (__sn__TcpListener *)calloc(1, sizeof(__sn__TcpListener));
+    __sn__TcpListener *listener = __sn__TcpListener__new();
     if (listener == NULL) {
         CLOSE_SOCKET(sock);
         fprintf(stderr, "sn_tcp_listener_bind: allocation failed\n");

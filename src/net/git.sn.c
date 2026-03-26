@@ -215,7 +215,7 @@ __sn__GitRepo *sn_git_repo_open(char *path) {
     int rc = git_repository_open(&repo, path);
     check_git_error(rc, "GitRepo.open");
 
-    RtGitRepo *result = (RtGitRepo *)calloc(1, sizeof(RtGitRepo));
+    RtGitRepo *result = __sn__GitRepo__new();
     if (!result) {
         fprintf(stderr, "GitRepo.open: allocation failed\n");
         git_repository_free(repo);
@@ -242,7 +242,7 @@ __sn__GitRepo *sn_git_repo_clone(char *url, char *path) {
     int rc = git_clone(&repo, url, path, &opts);
     check_git_error(rc, "GitRepo.clone");
 
-    RtGitRepo *result = (RtGitRepo *)calloc(1, sizeof(RtGitRepo));
+    RtGitRepo *result = __sn__GitRepo__new();
     if (!result) {
         fprintf(stderr, "GitRepo.clone: allocation failed\n");
         git_repository_free(repo);
@@ -265,7 +265,7 @@ __sn__GitRepo *sn_git_repo_init(char *path) {
     int rc = git_repository_init(&repo, path, 0);
     check_git_error(rc, "GitRepo.init");
 
-    RtGitRepo *result = (RtGitRepo *)calloc(1, sizeof(RtGitRepo));
+    RtGitRepo *result = __sn__GitRepo__new();
     if (!result) {
         fprintf(stderr, "GitRepo.init: allocation failed\n");
         git_repository_free(repo);
@@ -288,7 +288,7 @@ __sn__GitRepo *sn_git_repo_init_bare(char *path) {
     int rc = git_repository_init(&repo, path, 1);
     check_git_error(rc, "GitRepo.initBare");
 
-    RtGitRepo *result = (RtGitRepo *)calloc(1, sizeof(RtGitRepo));
+    RtGitRepo *result = __sn__GitRepo__new();
     if (!result) {
         fprintf(stderr, "GitRepo.initBare: allocation failed\n");
         git_repository_free(repo);

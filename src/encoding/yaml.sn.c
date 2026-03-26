@@ -187,7 +187,7 @@ static void sn_yaml_node_free(SnYamlNode *node)
  * Returns a heap-allocated __sn__Yaml pointer. */
 static __sn__Yaml *sn_yaml_wrap(SnYamlNode *root, SnYamlNode *node, int is_root)
 {
-    __sn__Yaml *y = (__sn__Yaml *)calloc(1, sizeof(__sn__Yaml));
+    __sn__Yaml *y = __sn__Yaml__new();
     if (y == NULL) {
         fprintf(stderr, "Yaml: memory allocation failed\n");
         exit(1);

@@ -367,7 +367,7 @@ static void sha1_final(SHA1_Context *ctx, uint8_t digest[SHA1_DIGEST_SIZE]) {
  * ============================================================================ */
 
 RtUuid *sn_uuid_v4(void) {
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -411,7 +411,7 @@ RtUuid *sn_uuid_v5(RtUuid *namespace_uuid, char *name) {
         return NULL;
     }
 
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -475,7 +475,7 @@ RtUuid *sn_uuid_v5(RtUuid *namespace_uuid, char *name) {
  * ============================================================================ */
 
 RtUuid *sn_uuid_v7(void) {
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -695,7 +695,7 @@ bool sn_uuid_is_greater_than(RtUuid *uuid, RtUuid *other) {
  * ============================================================================ */
 
 RtUuid *sn_uuid_nil(void) {
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -706,7 +706,7 @@ RtUuid *sn_uuid_nil(void) {
 }
 
 RtUuid *sn_uuid_max(void) {
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -721,7 +721,7 @@ RtUuid *sn_uuid_max(void) {
  * ============================================================================ */
 
 RtUuid *sn_uuid_namespace_dns(void) {
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -731,7 +731,7 @@ RtUuid *sn_uuid_namespace_dns(void) {
 }
 
 RtUuid *sn_uuid_namespace_url(void) {
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -741,7 +741,7 @@ RtUuid *sn_uuid_namespace_url(void) {
 }
 
 RtUuid *sn_uuid_namespace_oid(void) {
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -751,7 +751,7 @@ RtUuid *sn_uuid_namespace_oid(void) {
 }
 
 RtUuid *sn_uuid_namespace_x500(void) {
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -804,7 +804,7 @@ RtUuid *sn_uuid_from_string(char *str) {
         bytes[i] = (uint8_t)((high_nibble << 4) | low_nibble);
     }
 
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -852,7 +852,7 @@ RtUuid *sn_uuid_from_hex(char *str) {
         bytes[i] = (uint8_t)((high_nibble << 4) | low_nibble);
     }
 
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }
@@ -892,7 +892,7 @@ static RtUuid *sn_uuid_from_bytes(const unsigned char *bytes) {
         return NULL;
     }
 
-    RtUuid *uuid = (RtUuid *)calloc(1, sizeof(RtUuid));
+    RtUuid *uuid = __sn__UUID__new();
     if (uuid == NULL) {
         return NULL;
     }

@@ -35,7 +35,7 @@ typedef __sn__Process RtProcess;
 static RtProcess *sn_process_create(int exit_code,
                                     const char *stdout_str, const char *stderr_str)
 {
-    RtProcess *proc = (RtProcess *)calloc(1, sizeof(RtProcess));
+    RtProcess *proc = __sn__Process__new();
     if (proc == NULL) {
         fprintf(stderr, "sn_process_create: allocation failed\n");
         exit(1);

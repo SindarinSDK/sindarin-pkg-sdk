@@ -9,7 +9,7 @@
  *   - One I/O thread per connection handles packet processing and timers
  *   - Mutex per connection protects ngtcp2_conn state
  *   - Per-stream condition variable for blocking read operations
- *   - Arena allocation for user-visible data
+ *   - Refcounted Sindarin structs via __sn__X__new() + internal state registries
  *   - Blocking API: connect/read/accept all block until complete
  * ============================================================================== */
 
@@ -175,14 +175,10 @@ static void ensure_winsock_initialized(void) {
  * Type Definitions
  * ============================================================================ */
 
-typedef struct RtQuicConfig {
-    int max_bidi_streams;
-    int max_uni_streams;
-    int max_stream_window;
-    int max_conn_window;
-    int idle_timeout_ms;
-} RtQuicConfig;
+/* QuicConfig: all fields match Sindarin — use compiler-generated typedef */
+typedef __sn__QuicConfig RtQuicConfig;
 
+/* Internal buffer for stream data */
 typedef struct RtQuicStreamBuf {
     uint8_t *data;
     size_t capacity;
@@ -191,103 +187,143 @@ typedef struct RtQuicStreamBuf {
     bool fin_received;
 } RtQuicStreamBuf;
 
-typedef struct RtQuicStream {
-    int64_t stream_id;
-    void *conn_ptr;             /* back-pointer to RtQuicConnection */
+/* QuicStream: Sindarin exposes stream_id and conn_ptr only */
+typedef __sn__QuicStream RtQuicStream;
+
+typedef struct QuicStreamInternal {
     RtQuicStreamBuf recv_buf;
     mutex_t stream_mutex;
     cond_t read_cond;
     bool closed;
     bool write_closed;
     bool is_uni;
-} RtQuicStream;
+} QuicStreamInternal;
 
-typedef struct RtQuicConnection {
-    void *conn_ptr;             /* ngtcp2_conn* */
-    socket_t socket_fd;
+/* QuicConnection: Sindarin exposes conn_ptr and socket_fd only */
+typedef __sn__QuicConnection RtQuicConnection;
 
-    /* ngtcp2 connection handle */
+typedef struct QuicConnectionInternal {
     ngtcp2_conn *qconn;
-
-    /* SSL */
     SSL *ssl;
     SSL_CTX *ssl_ctx;
     ngtcp2_crypto_ossl_ctx *ossl_ctx;
     ngtcp2_crypto_conn_ref conn_ref;
-
-    /* Remote address */
     struct sockaddr_storage remote_addr;
     socklen_t remote_addrlen;
     char *remote_addr_str;
-
-    /* Local address */
     struct sockaddr_storage local_addr;
     socklen_t local_addrlen;
-
-    /* Streams */
     RtQuicStream *streams[QUIC_MAX_STREAMS];
     int stream_count;
-
-    /* Incoming stream queue (for acceptStream) */
     int64_t incoming_streams[QUIC_MAX_INCOMING_STREAMS];
     int incoming_head;
     int incoming_tail;
     int incoming_count;
     cond_t accept_stream_cond;
-
-    /* Connection state */
     mutex_t conn_mutex;
     cond_t handshake_cond;
     bool handshake_complete;
     bool closed;
     bool is_server;
-
-    /* I/O thread */
     sn_thread_t io_thread;
     bool io_running;
-
-    /* Resumption token */
     uint8_t *resumption_token;
     size_t resumption_token_len;
+} QuicConnectionInternal;
 
-} RtQuicConnection;
+/* QuicListener: Sindarin exposes socket_fd and bound_port only */
+typedef __sn__QuicListener RtQuicListener;
 
-typedef __sn__QuicConfig SnQuicConfig;
-typedef __sn__QuicStream SnQuicStream;
-typedef __sn__QuicConnection SnQuicConnection;
-typedef __sn__QuicListener SnQuicListener;
-
-typedef struct RtQuicListener {
-    socket_t socket_fd;
-    int bound_port;
-
+typedef struct QuicListenerInternal {
     SSL_CTX *ssl_ctx;
-
-    /* Accepted connections queue */
     RtQuicConnection *accept_queue_conns[QUIC_MAX_INCOMING_STREAMS];
     int accept_head;
     int accept_tail;
     int accept_count;
     mutex_t accept_mutex;
     cond_t accept_cond;
-
-    /* Existing server connections (by DCID) */
     RtQuicConnection *connections[QUIC_MAX_STREAMS];
     int connection_count;
     mutex_t conn_list_mutex;
-
-    /* Listener thread */
     sn_thread_t listen_thread;
     bool running;
-
-    /* Config */
     RtQuicConfig config;
-
-    /* Local address */
     struct sockaddr_storage local_addr;
     socklen_t local_addrlen;
+} QuicListenerInternal;
 
-} RtQuicListener;
+/* ============================================================================
+ * Internal State Registries
+ * ============================================================================
+ * Maps Sindarin-visible struct pointers to their internal state.
+ * Same pattern as TcpStreamInternal in tcp.sn.c.
+ * ============================================================================ */
+
+/* Stream internal registry */
+typedef struct { RtQuicStream *key; QuicStreamInternal *val; } QStreamEntry;
+static QStreamEntry g_stream_reg[512];
+static int g_stream_reg_count = 0;
+
+static QuicStreamInternal *stream_internal(RtQuicStream *s) {
+    for (int i = 0; i < g_stream_reg_count; i++)
+        if (g_stream_reg[i].key == s) return g_stream_reg[i].val;
+    return NULL;
+}
+static void stream_register(RtQuicStream *s, QuicStreamInternal *si) {
+    g_stream_reg[g_stream_reg_count++] = (QStreamEntry){s, si};
+}
+static void stream_unregister(RtQuicStream *s) {
+    for (int i = 0; i < g_stream_reg_count; i++) {
+        if (g_stream_reg[i].key == s) {
+            g_stream_reg[i] = g_stream_reg[--g_stream_reg_count];
+            return;
+        }
+    }
+}
+
+/* Connection internal registry */
+typedef struct { RtQuicConnection *key; QuicConnectionInternal *val; } QConnEntry;
+static QConnEntry g_conn_reg[128];
+static int g_conn_reg_count = 0;
+
+static QuicConnectionInternal *conn_internal(RtQuicConnection *c) {
+    for (int i = 0; i < g_conn_reg_count; i++)
+        if (g_conn_reg[i].key == c) return g_conn_reg[i].val;
+    return NULL;
+}
+static void conn_register(RtQuicConnection *c, QuicConnectionInternal *ci) {
+    g_conn_reg[g_conn_reg_count++] = (QConnEntry){c, ci};
+}
+static void conn_unregister(RtQuicConnection *c) {
+    for (int i = 0; i < g_conn_reg_count; i++) {
+        if (g_conn_reg[i].key == c) {
+            g_conn_reg[i] = g_conn_reg[--g_conn_reg_count];
+            return;
+        }
+    }
+}
+
+/* Listener internal registry */
+typedef struct { RtQuicListener *key; QuicListenerInternal *val; } QListenerEntry;
+static QListenerEntry g_listener_reg[16];
+static int g_listener_reg_count = 0;
+
+static QuicListenerInternal *listener_internal(RtQuicListener *l) {
+    for (int i = 0; i < g_listener_reg_count; i++)
+        if (g_listener_reg[i].key == l) return g_listener_reg[i].val;
+    return NULL;
+}
+static void listener_register(RtQuicListener *l, QuicListenerInternal *li) {
+    g_listener_reg[g_listener_reg_count++] = (QListenerEntry){l, li};
+}
+static void listener_unregister(RtQuicListener *l) {
+    for (int i = 0; i < g_listener_reg_count; i++) {
+        if (g_listener_reg[i].key == l) {
+            g_listener_reg[i] = g_listener_reg[--g_listener_reg_count];
+            return;
+        }
+    }
+}
 
 /* ============================================================================
  * Forward Declarations
@@ -372,9 +408,10 @@ static void set_socket_nonblocking(socket_t sock) {
  * Client sockets are connected, so we use send() to avoid EISCONN on macOS/BSD.
  * Server sockets are unconnected (shared listener socket), so we use sendto(). */
 static ssize_t quic_send_packet(RtQuicConnection *conn, const uint8_t *buf, size_t len) {
-    if (conn->is_server) {
+    QuicConnectionInternal *ci = conn_internal(conn);
+    if (ci->is_server) {
         return sendto(conn->socket_fd, (const char *)buf, len, 0,
-                      (struct sockaddr *)&conn->remote_addr, conn->remote_addrlen);
+                      (struct sockaddr *)&ci->remote_addr, ci->remote_addrlen);
     } else {
         return send(conn->socket_fd, (const char *)buf, len, 0);
     }
@@ -494,22 +531,24 @@ static int quic_recv_stream_data_cb(ngtcp2_conn *conn, uint32_t flags,
     (void)offset;
     (void)stream_user_data;
     RtQuicConnection *qc = (RtQuicConnection *)user_data;
+    QuicConnectionInternal *qci = conn_internal(qc);
 
     RtQuicStream *stream = quic_find_or_create_stream(qc, stream_id);
     if (!stream) return 0;
 
-    MUTEX_LOCK(&stream->stream_mutex);
+    QuicStreamInternal *si = stream_internal(stream);
+    MUTEX_LOCK(&si->stream_mutex);
     if (datalen > 0) {
-        stream_buf_append(&stream->recv_buf, data, datalen);
+        stream_buf_append(&si->recv_buf, data, datalen);
     }
     if (flags & NGTCP2_STREAM_DATA_FLAG_FIN) {
-        stream->recv_buf.fin_received = true;
+        si->recv_buf.fin_received = true;
     }
-    COND_SIGNAL(&stream->read_cond);
-    MUTEX_UNLOCK(&stream->stream_mutex);
+    COND_SIGNAL(&si->read_cond);
+    MUTEX_UNLOCK(&si->stream_mutex);
 
-    ngtcp2_conn_extend_max_stream_offset(qc->qconn, stream_id, datalen);
-    ngtcp2_conn_extend_max_offset(qc->qconn, datalen);
+    ngtcp2_conn_extend_max_stream_offset(qci->qconn, stream_id, datalen);
+    ngtcp2_conn_extend_max_offset(qci->qconn, datalen);
 
     return 0;
 }
@@ -517,16 +556,17 @@ static int quic_recv_stream_data_cb(ngtcp2_conn *conn, uint32_t flags,
 static int quic_stream_open_cb(ngtcp2_conn *conn, int64_t stream_id, void *user_data) {
     (void)conn;
     RtQuicConnection *qc = (RtQuicConnection *)user_data;
+    QuicConnectionInternal *qci = conn_internal(qc);
 
     /* Create stream entry */
     quic_find_or_create_stream(qc, stream_id);
 
     /* Add to incoming queue */
-    if (qc->incoming_count < QUIC_MAX_INCOMING_STREAMS) {
-        qc->incoming_streams[qc->incoming_tail] = stream_id;
-        qc->incoming_tail = (qc->incoming_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
-        qc->incoming_count++;
-        COND_SIGNAL(&qc->accept_stream_cond);
+    if (qci->incoming_count < QUIC_MAX_INCOMING_STREAMS) {
+        qci->incoming_streams[qci->incoming_tail] = stream_id;
+        qci->incoming_tail = (qci->incoming_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
+        qci->incoming_count++;
+        COND_SIGNAL(&qci->accept_stream_cond);
     }
 
     return 0;
@@ -540,14 +580,16 @@ static int quic_stream_close_cb(ngtcp2_conn *conn, uint32_t flags,
     (void)app_error_code;
     (void)stream_user_data;
     RtQuicConnection *qc = (RtQuicConnection *)user_data;
+    QuicConnectionInternal *qci = conn_internal(qc);
 
-    for (int i = 0; i < qc->stream_count; i++) {
-        if (qc->streams[i] && qc->streams[i]->stream_id == stream_id) {
-            MUTEX_LOCK(&qc->streams[i]->stream_mutex);
-            qc->streams[i]->closed = true;
-            qc->streams[i]->recv_buf.fin_received = true;
-            COND_SIGNAL(&qc->streams[i]->read_cond);
-            MUTEX_UNLOCK(&qc->streams[i]->stream_mutex);
+    for (int i = 0; i < qci->stream_count; i++) {
+        if (qci->streams[i] && qci->streams[i]->stream_id == stream_id) {
+            QuicStreamInternal *si = stream_internal(qci->streams[i]);
+            MUTEX_LOCK(&si->stream_mutex);
+            si->closed = true;
+            si->recv_buf.fin_received = true;
+            COND_SIGNAL(&si->read_cond);
+            MUTEX_UNLOCK(&si->stream_mutex);
             break;
         }
     }
@@ -558,22 +600,23 @@ static int quic_stream_close_cb(ngtcp2_conn *conn, uint32_t flags,
 static int quic_handshake_completed_cb(ngtcp2_conn *conn, void *user_data) {
     (void)conn;
     RtQuicConnection *qc = (RtQuicConnection *)user_data;
+    QuicConnectionInternal *qci = conn_internal(qc);
 
-    qc->handshake_complete = true;
-    COND_SIGNAL(&qc->handshake_cond);
+    qci->handshake_complete = true;
+    COND_SIGNAL(&qci->handshake_cond);
 
     /* Extract session ticket for 0-RTT */
-    SSL_SESSION *session = SSL_get1_session(qc->ssl);
+    SSL_SESSION *session = SSL_get1_session(qci->ssl);
     if (session) {
         unsigned char *buf = NULL;
         size_t len = 0;
         /* Serialize session for later use */
         len = i2d_SSL_SESSION(session, &buf);
         if (buf && len > 0) {
-            qc->resumption_token = (uint8_t *)malloc(len);
-            if (qc->resumption_token) {
-                memcpy(qc->resumption_token, buf, len);
-                qc->resumption_token_len = len;
+            qci->resumption_token = (uint8_t *)malloc(len);
+            if (qci->resumption_token) {
+                memcpy(qci->resumption_token, buf, len);
+                qci->resumption_token_len = len;
             }
             OPENSSL_free(buf);
         }
@@ -590,40 +633,45 @@ static int quic_handshake_completed_cb(ngtcp2_conn *conn, void *user_data) {
  * ============================================================================ */
 
 static RtQuicStream *quic_find_or_create_stream(RtQuicConnection *conn, int64_t stream_id) {
+    QuicConnectionInternal *ci = conn_internal(conn);
     /* Search existing streams */
-    for (int i = 0; i < conn->stream_count; i++) {
-        if (conn->streams[i] && conn->streams[i]->stream_id == stream_id) {
-            return conn->streams[i];
+    for (int i = 0; i < ci->stream_count; i++) {
+        if (ci->streams[i] && ci->streams[i]->stream_id == stream_id) {
+            return ci->streams[i];
         }
     }
 
     /* Create new stream */
-    if (conn->stream_count >= QUIC_MAX_STREAMS) return NULL;
+    if (ci->stream_count >= QUIC_MAX_STREAMS) return NULL;
 
-    RtQuicStream *stream = (RtQuicStream *)calloc(1, sizeof(RtQuicStream));
-    memset(stream, 0, sizeof(RtQuicStream));
+    RtQuicStream *stream = __sn__QuicStream__new();
+    QuicStreamInternal *si = (QuicStreamInternal *)calloc(1, sizeof(QuicStreamInternal));
+    stream_register(stream, si);
 
     stream->stream_id = stream_id;
-    stream->conn_ptr = conn;
-    /* no handle */
-    stream_buf_init(&stream->recv_buf);
-    MUTEX_INIT(&stream->stream_mutex);
-    COND_INIT(&stream->read_cond);
-    stream->closed = false;
-    stream->write_closed = false;
+    stream->conn_ptr = (long long)(uintptr_t)conn;
+    stream_buf_init(&si->recv_buf);
+    MUTEX_INIT(&si->stream_mutex);
+    COND_INIT(&si->read_cond);
+    si->closed = false;
+    si->write_closed = false;
     /* Unidirectional streams: bit 1 of stream_id indicates uni */
-    stream->is_uni = (stream_id & 0x2) != 0;
+    si->is_uni = (stream_id & 0x2) != 0;
 
-    conn->streams[conn->stream_count++] = stream;
+    ci->streams[ci->stream_count++] = stream;
     return stream;
 }
 
 static void quic_stream_free(RtQuicStream *stream) {
     if (!stream) return;
-    stream_buf_destroy(&stream->recv_buf);
-    MUTEX_DESTROY(&stream->stream_mutex);
-    COND_DESTROY(&stream->read_cond);
-    /* Stream struct is arena-allocated (conn->arena), not freed here */
+    QuicStreamInternal *si = stream_internal(stream);
+    if (si) {
+        stream_buf_destroy(&si->recv_buf);
+        MUTEX_DESTROY(&si->stream_mutex);
+        COND_DESTROY(&si->read_cond);
+        free(si);
+    }
+    stream_unregister(stream);
 }
 
 /* ============================================================================
@@ -693,7 +741,8 @@ static void load_certificates(SSL_CTX *ctx) {
 /* Connection ref callback - returns ngtcp2_conn from SSL app_data */
 static ngtcp2_conn *quic_get_conn_cb(ngtcp2_crypto_conn_ref *conn_ref) {
     RtQuicConnection *qc = (RtQuicConnection *)conn_ref->user_data;
-    return qc->qconn;
+    QuicConnectionInternal *ci = conn_internal(qc);
+    return ci->qconn;
 }
 
 static int quic_ssl_alpn_select_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
@@ -762,6 +811,7 @@ static SSL_CTX *create_server_ssl_ctx(const char *cert_file, const char *key_fil
 }
 
 static SSL *create_client_ssl(SSL_CTX *ctx, const char *hostname, RtQuicConnection *conn) {
+    QuicConnectionInternal *ci = conn_internal(conn);
     SSL *ssl = SSL_new(ctx);
     if (!ssl) return NULL;
 
@@ -775,9 +825,9 @@ static SSL *create_client_ssl(SSL_CTX *ctx, const char *hostname, RtQuicConnecti
     ngtcp2_crypto_ossl_configure_client_session(ssl);
 
     /* Set conn_ref as app data for ngtcp2 crypto callbacks */
-    conn->conn_ref.get_conn = quic_get_conn_cb;
-    conn->conn_ref.user_data = conn;
-    SSL_set_app_data(ssl, &conn->conn_ref);
+    ci->conn_ref.get_conn = quic_get_conn_cb;
+    ci->conn_ref.user_data = conn;
+    SSL_set_app_data(ssl, &ci->conn_ref);
 
     SSL_set_connect_state(ssl);
 
@@ -785,6 +835,7 @@ static SSL *create_client_ssl(SSL_CTX *ctx, const char *hostname, RtQuicConnecti
 }
 
 static SSL *create_server_ssl(SSL_CTX *ctx, RtQuicConnection *conn) {
+    QuicConnectionInternal *ci = conn_internal(conn);
     SSL *ssl = SSL_new(ctx);
     if (!ssl) return NULL;
 
@@ -792,9 +843,9 @@ static SSL *create_server_ssl(SSL_CTX *ctx, RtQuicConnection *conn) {
     ngtcp2_crypto_ossl_configure_server_session(ssl);
 
     /* Set conn_ref as app data for ngtcp2 crypto callbacks */
-    conn->conn_ref.get_conn = quic_get_conn_cb;
-    conn->conn_ref.user_data = conn;
-    SSL_set_app_data(ssl, &conn->conn_ref);
+    ci->conn_ref.get_conn = quic_get_conn_cb;
+    ci->conn_ref.user_data = conn;
+    SSL_set_app_data(ssl, &ci->conn_ref);
 
     SSL_set_accept_state(ssl);
 
@@ -806,6 +857,7 @@ static SSL *create_server_ssl(SSL_CTX *ctx, RtQuicConnection *conn) {
  * ============================================================================ */
 
 static int quic_flush_tx(RtQuicConnection *conn) {
+    QuicConnectionInternal *ci = conn_internal(conn);
     uint8_t buf[QUIC_MAX_PACKET_SIZE];
     ngtcp2_path_storage ps;
     ngtcp2_path_storage_zero(&ps);
@@ -818,7 +870,7 @@ static int quic_flush_tx(RtQuicConnection *conn) {
 
         /* Try to find a stream with pending write data - for now just send ack-eliciting */
         ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
-            conn->qconn, &ps.path, &pi,
+            ci->qconn, &ps.path, &pi,
             buf, sizeof(buf),
             NULL, /* pdatalen */
             NGTCP2_WRITE_STREAM_FLAG_NONE,
@@ -854,19 +906,20 @@ static void *quic_io_thread_entry(void *arg) {
 }
 
 static void quic_io_thread_func(RtQuicConnection *conn) {
+    QuicConnectionInternal *ci = conn_internal(conn);
     uint8_t buf[QUIC_RECV_BUF_SIZE];
     struct pollfd pfd;
     pfd.fd = conn->socket_fd;
     pfd.events = POLLIN;
 
-    while (conn->io_running && !conn->closed) {
+    while (ci->io_running && !ci->closed) {
         /* Calculate timeout from ngtcp2 expiry */
         ngtcp2_tstamp now = quic_timestamp();
         ngtcp2_tstamp expiry;
 
-        MUTEX_LOCK(&conn->conn_mutex);
-        expiry = ngtcp2_conn_get_expiry(conn->qconn);
-        MUTEX_UNLOCK(&conn->conn_mutex);
+        MUTEX_LOCK(&ci->conn_mutex);
+        expiry = ngtcp2_conn_get_expiry(ci->qconn);
+        MUTEX_UNLOCK(&ci->conn_mutex);
 
         int timeout_ms;
         if (expiry <= now) {
@@ -880,10 +933,10 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
 
         int ret = POLL(&pfd, 1, timeout_ms);
 
-        MUTEX_LOCK(&conn->conn_mutex);
+        MUTEX_LOCK(&ci->conn_mutex);
 
-        if (conn->closed) {
-            MUTEX_UNLOCK(&conn->conn_mutex);
+        if (ci->closed) {
+            MUTEX_UNLOCK(&ci->conn_mutex);
             break;
         }
 
@@ -898,22 +951,22 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
             if (nread > 0) {
                 ngtcp2_path path;
                 memset(&path, 0, sizeof(path));
-                path.local.addr = (struct sockaddr *)&conn->local_addr;
-                path.local.addrlen = conn->local_addrlen;
+                path.local.addr = (struct sockaddr *)&ci->local_addr;
+                path.local.addrlen = ci->local_addrlen;
                 path.remote.addr = (struct sockaddr *)&from_addr;
                 path.remote.addrlen = from_len;
 
                 ngtcp2_pkt_info pi;
                 memset(&pi, 0, sizeof(pi));
 
-                int rv = ngtcp2_conn_read_pkt(conn->qconn, &path, &pi,
+                int rv = ngtcp2_conn_read_pkt(ci->qconn, &path, &pi,
                                                buf, (size_t)nread, quic_timestamp());
                 if (rv < 0) {
                     if (rv == NGTCP2_ERR_DRAINING || rv == NGTCP2_ERR_CLOSING) {
-                        conn->closed = true;
-                        COND_BROADCAST(&conn->handshake_cond);
-                        COND_BROADCAST(&conn->accept_stream_cond);
-                        MUTEX_UNLOCK(&conn->conn_mutex);
+                        ci->closed = true;
+                        COND_BROADCAST(&ci->handshake_cond);
+                        COND_BROADCAST(&ci->accept_stream_cond);
+                        MUTEX_UNLOCK(&ci->conn_mutex);
                         break;
                     }
                 }
@@ -922,13 +975,13 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
 
         /* Handle timer expiry */
         now = quic_timestamp();
-        expiry = ngtcp2_conn_get_expiry(conn->qconn);
+        expiry = ngtcp2_conn_get_expiry(ci->qconn);
         if (expiry <= now) {
-            int rv = ngtcp2_conn_handle_expiry(conn->qconn, now);
+            int rv = ngtcp2_conn_handle_expiry(ci->qconn, now);
             if (rv < 0) {
-                conn->closed = true;
-                COND_BROADCAST(&conn->handshake_cond);
-                MUTEX_UNLOCK(&conn->conn_mutex);
+                ci->closed = true;
+                COND_BROADCAST(&ci->handshake_cond);
+                MUTEX_UNLOCK(&ci->conn_mutex);
                 break;
             }
         }
@@ -936,7 +989,7 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
         /* Flush any pending TX */
         quic_flush_tx(conn);
 
-        MUTEX_UNLOCK(&conn->conn_mutex);
+        MUTEX_UNLOCK(&ci->conn_mutex);
     }
 }
 
@@ -990,26 +1043,26 @@ static RtQuicConnection *quic_connection_create(char *address,
     socklen_t local_len = sizeof(local_addr);
     getsockname(sock, (struct sockaddr *)&local_addr, &local_len);
 
-    /* Create private detached arena for connection — immune to GC compaction */
-    RtQuicConnection *conn = (RtQuicConnection *)calloc(1, sizeof(RtQuicConnection));
-    memset(conn, 0, sizeof(RtQuicConnection));
-    /* no arena */
-    /* no handle */
-    conn->socket_fd = sock;
-    conn->is_server = false;
+    /* Allocate Sindarin struct via compiler-generated __new() */
+    RtQuicConnection *conn = __sn__QuicConnection__new();
+    QuicConnectionInternal *ci = (QuicConnectionInternal *)calloc(1, sizeof(QuicConnectionInternal));
+    conn_register(conn, ci);
 
-    memcpy(&conn->remote_addr, res->ai_addr, res->ai_addrlen);
-    conn->remote_addrlen = (socklen_t)res->ai_addrlen;
-    memcpy(&conn->local_addr, &local_addr, local_len);
-    conn->local_addrlen = local_len;
-    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen);
+    conn->socket_fd = (long long)sock;
+    ci->is_server = false;
+
+    memcpy(&ci->remote_addr, res->ai_addr, res->ai_addrlen);
+    ci->remote_addrlen = (socklen_t)res->ai_addrlen;
+    memcpy(&ci->local_addr, &local_addr, local_len);
+    ci->local_addrlen = local_len;
+    ci->remote_addr_str = format_address(&ci->remote_addr, ci->remote_addrlen);
 
     freeaddrinfo(res);
 
     /* Initialize synchronization */
-    MUTEX_INIT(&conn->conn_mutex);
-    COND_INIT(&conn->handshake_cond);
-    COND_INIT(&conn->accept_stream_cond);
+    MUTEX_INIT(&ci->conn_mutex);
+    COND_INIT(&ci->handshake_cond);
+    COND_INIT(&ci->accept_stream_cond);
 
     /* Use provided config or defaults */
     RtQuicConfig cfg;
@@ -1069,10 +1122,10 @@ static RtQuicConnection *quic_connection_create(char *address,
     /* Create path */
     ngtcp2_path path;
     memset(&path, 0, sizeof(path));
-    path.local.addr = (struct sockaddr *)&conn->local_addr;
-    path.local.addrlen = conn->local_addrlen;
-    path.remote.addr = (struct sockaddr *)&conn->remote_addr;
-    path.remote.addrlen = conn->remote_addrlen;
+    path.local.addr = (struct sockaddr *)&ci->local_addr;
+    path.local.addrlen = ci->local_addrlen;
+    path.remote.addr = (struct sockaddr *)&ci->remote_addr;
+    path.remote.addrlen = ci->remote_addrlen;
 
     /* Setup ngtcp2 settings */
     ngtcp2_settings settings;
@@ -1081,7 +1134,7 @@ static RtQuicConnection *quic_connection_create(char *address,
     settings.max_tx_udp_payload_size = QUIC_MAX_PACKET_SIZE;
 
     /* Create ngtcp2 client connection */
-    int rv = ngtcp2_conn_client_new(&conn->qconn, &dcid, &scid, &path,
+    int rv = ngtcp2_conn_client_new(&ci->qconn, &dcid, &scid, &path,
                                      NGTCP2_PROTO_VER_V1, &callbacks, &settings,
                                      &params, NULL, conn);
     if (rv != 0) {
@@ -1090,78 +1143,78 @@ static RtQuicConnection *quic_connection_create(char *address,
         return NULL;
     }
 
-    conn->conn_ptr = conn->qconn;
+    conn->conn_ptr = (long long)(uintptr_t)ci->qconn;
 
     /* Create SSL context and connection */
-    conn->ssl_ctx = create_client_ssl_ctx();
-    if (!conn->ssl_ctx) {
+    ci->ssl_ctx = create_client_ssl_ctx();
+    if (!ci->ssl_ctx) {
         fprintf(stderr, "QUIC: Failed to create SSL context\n");
-        ngtcp2_conn_del(conn->qconn);
+        ngtcp2_conn_del(ci->qconn);
         CLOSE_SOCKET(sock);
         return NULL;
     }
 
-    conn->ssl = create_client_ssl(conn->ssl_ctx, host, conn);
-    if (!conn->ssl) {
+    ci->ssl = create_client_ssl(ci->ssl_ctx, host, conn);
+    if (!ci->ssl) {
         fprintf(stderr, "QUIC: Failed to create SSL\n");
-        SSL_CTX_free(conn->ssl_ctx);
-        ngtcp2_conn_del(conn->qconn);
+        SSL_CTX_free(ci->ssl_ctx);
+        ngtcp2_conn_del(ci->qconn);
         CLOSE_SOCKET(sock);
         return NULL;
     }
 
     /* Create ngtcp2 crypto ossl context and set as native handle */
-    if (ngtcp2_crypto_ossl_ctx_new(&conn->ossl_ctx, conn->ssl) != 0) {
+    if (ngtcp2_crypto_ossl_ctx_new(&ci->ossl_ctx, ci->ssl) != 0) {
         fprintf(stderr, "QUIC: Failed to create ossl ctx\n");
-        SSL_free(conn->ssl);
-        SSL_CTX_free(conn->ssl_ctx);
-        ngtcp2_conn_del(conn->qconn);
+        SSL_free(ci->ssl);
+        SSL_CTX_free(ci->ssl_ctx);
+        ngtcp2_conn_del(ci->qconn);
         CLOSE_SOCKET(sock);
         return NULL;
     }
-    ngtcp2_conn_set_tls_native_handle(conn->qconn, conn->ossl_ctx);
+    ngtcp2_conn_set_tls_native_handle(ci->qconn, ci->ossl_ctx);
 
     /* Restore session for 0-RTT if token provided */
     if (early && token && token_len > 0) {
         const unsigned char *p = token;
         SSL_SESSION *session = d2i_SSL_SESSION(NULL, &p, (long)token_len);
         if (session) {
-            SSL_set_session(conn->ssl, session);
+            SSL_set_session(ci->ssl, session);
             SSL_SESSION_free(session);
         }
     }
 
     /* Start I/O thread */
-    conn->io_running = true;
+    ci->io_running = true;
 
 #ifdef _WIN32
-    conn->io_thread = (HANDLE)_beginthreadex(NULL, 0,
+    ci->io_thread = (HANDLE)_beginthreadex(NULL, 0,
         (unsigned (__stdcall *)(void *))quic_io_thread_entry, conn, 0, NULL);
 #else
-    pthread_create(&conn->io_thread, NULL, quic_io_thread_entry, conn);
+    pthread_create(&ci->io_thread, NULL, quic_io_thread_entry, conn);
 #endif
 
     /* Perform initial flush to send client hello */
-    MUTEX_LOCK(&conn->conn_mutex);
+    MUTEX_LOCK(&ci->conn_mutex);
     quic_flush_tx(conn);
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    MUTEX_UNLOCK(&ci->conn_mutex);
 
     /* Wait for handshake to complete */
-    MUTEX_LOCK(&conn->conn_mutex);
-    while (!conn->handshake_complete && !conn->closed) {
-        COND_WAIT(&conn->handshake_cond, &conn->conn_mutex);
+    MUTEX_LOCK(&ci->conn_mutex);
+    while (!ci->handshake_complete && !ci->closed) {
+        COND_WAIT(&ci->handshake_cond, &ci->conn_mutex);
     }
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    MUTEX_UNLOCK(&ci->conn_mutex);
 
-    if (conn->closed && !conn->handshake_complete) {
+    if (ci->closed && !ci->handshake_complete) {
         fprintf(stderr, "QUIC: Handshake failed\n");
-        conn->io_running = false;
+        ci->io_running = false;
 #ifndef _WIN32
-        pthread_join(conn->io_thread, NULL);
+        pthread_join(ci->io_thread, NULL);
 #endif
-        SSL_free(conn->ssl);
-        SSL_CTX_free(conn->ssl_ctx);
-        ngtcp2_conn_del(conn->qconn);
+        SSL_free(ci->ssl);
+        SSL_CTX_free(ci->ssl_ctx);
+        ngtcp2_conn_del(ci->qconn);
         CLOSE_SOCKET(sock);
         return NULL;
     }
@@ -1182,25 +1235,24 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
                                                    const uint8_t *pkt, size_t pktlen,
                                                    const ngtcp2_pkt_hd *hd,
                                                    RtQuicConfig *config) {
-    /* Create private detached arena for server connection — immune to GC compaction */
-      /* caller arena not used for internal allocations */
-    RtQuicConnection *conn = (RtQuicConnection *)calloc(1, sizeof(RtQuicConnection));
-    memset(conn, 0, sizeof(RtQuicConnection));
-    /* no arena */
-    /* no handle */
-    conn->is_server = true;
+    /* Allocate Sindarin struct via compiler-generated __new() */
+    RtQuicConnection *conn = __sn__QuicConnection__new();
+    QuicConnectionInternal *ci = (QuicConnectionInternal *)calloc(1, sizeof(QuicConnectionInternal));
+    conn_register(conn, ci);
+
+    ci->is_server = true;
 
     /* Server connections share the listener's socket */
-    conn->socket_fd = sock;
-    memcpy(&conn->remote_addr, remote, remote_len);
-    conn->remote_addrlen = remote_len;
-    memcpy(&conn->local_addr, local, local_len);
-    conn->local_addrlen = local_len;
-    conn->remote_addr_str = format_address(&conn->remote_addr, conn->remote_addrlen);
+    conn->socket_fd = (long long)sock;
+    memcpy(&ci->remote_addr, remote, remote_len);
+    ci->remote_addrlen = remote_len;
+    memcpy(&ci->local_addr, local, local_len);
+    ci->local_addrlen = local_len;
+    ci->remote_addr_str = format_address(&ci->remote_addr, ci->remote_addrlen);
 
-    MUTEX_INIT(&conn->conn_mutex);
-    COND_INIT(&conn->handshake_cond);
-    COND_INIT(&conn->accept_stream_cond);
+    MUTEX_INIT(&ci->conn_mutex);
+    COND_INIT(&ci->handshake_cond);
+    COND_INIT(&ci->accept_stream_cond);
 
     RtQuicConfig cfg;
     if (config) {
@@ -1259,10 +1311,10 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
     /* Path */
     ngtcp2_path path;
     memset(&path, 0, sizeof(path));
-    path.local.addr = (struct sockaddr *)&conn->local_addr;
-    path.local.addrlen = conn->local_addrlen;
-    path.remote.addr = (struct sockaddr *)&conn->remote_addr;
-    path.remote.addrlen = conn->remote_addrlen;
+    path.local.addr = (struct sockaddr *)&ci->local_addr;
+    path.local.addrlen = ci->local_addrlen;
+    path.remote.addr = (struct sockaddr *)&ci->remote_addr;
+    path.remote.addrlen = ci->remote_addrlen;
 
     /* Settings */
     ngtcp2_settings settings;
@@ -1271,7 +1323,7 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
     settings.max_tx_udp_payload_size = QUIC_MAX_PACKET_SIZE;
 
     /* Create ngtcp2 server connection */
-    int rv = ngtcp2_conn_server_new(&conn->qconn, &hd->scid, &scid, &path,
+    int rv = ngtcp2_conn_server_new(&ci->qconn, &hd->scid, &scid, &path,
                                      NGTCP2_PROTO_VER_V1, &callbacks, &settings,
                                      &params, NULL, conn);
     if (rv != 0) {
@@ -1279,41 +1331,41 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
         return NULL;
     }
 
-    conn->conn_ptr = conn->qconn;
-    conn->ssl_ctx = ssl_ctx; /* Shared with listener */
+    conn->conn_ptr = (long long)(uintptr_t)ci->qconn;
+    ci->ssl_ctx = ssl_ctx; /* Shared with listener */
 
     /* Create server SSL */
-    conn->ssl = create_server_ssl(ssl_ctx, conn);
-    if (!conn->ssl) {
+    ci->ssl = create_server_ssl(ssl_ctx, conn);
+    if (!ci->ssl) {
         fprintf(stderr, "QUIC: Failed to create server SSL\n");
-        ngtcp2_conn_del(conn->qconn);
+        ngtcp2_conn_del(ci->qconn);
         return NULL;
     }
 
     /* Create ngtcp2 crypto ossl context and set as native handle */
-    if (ngtcp2_crypto_ossl_ctx_new(&conn->ossl_ctx, conn->ssl) != 0) {
+    if (ngtcp2_crypto_ossl_ctx_new(&ci->ossl_ctx, ci->ssl) != 0) {
         fprintf(stderr, "QUIC: Failed to create server ossl ctx\n");
-        SSL_free(conn->ssl);
-        ngtcp2_conn_del(conn->qconn);
+        SSL_free(ci->ssl);
+        ngtcp2_conn_del(ci->qconn);
         return NULL;
     }
-    ngtcp2_conn_set_tls_native_handle(conn->qconn, conn->ossl_ctx);
+    ngtcp2_conn_set_tls_native_handle(ci->qconn, ci->ossl_ctx);
 
     /* Process the initial packet */
     ngtcp2_pkt_info pi;
     memset(&pi, 0, sizeof(pi));
-    rv = ngtcp2_conn_read_pkt(conn->qconn, &path, &pi, pkt, pktlen, quic_timestamp());
+    rv = ngtcp2_conn_read_pkt(ci->qconn, &path, &pi, pkt, pktlen, quic_timestamp());
     if (rv < 0) {
         fprintf(stderr, "QUIC: Failed to process initial packet: %s\n", ngtcp2_strerror(rv));
-        SSL_free(conn->ssl);
-        ngtcp2_conn_del(conn->qconn);
+        SSL_free(ci->ssl);
+        ngtcp2_conn_del(ci->qconn);
         return NULL;
     }
 
     /* Server connections do NOT have their own I/O thread.
      * The listener thread handles all packet routing and timer processing.
      * Handshake completion is detected by the listener thread. */
-    conn->io_running = false;
+    ci->io_running = false;
 
     return conn;
 }
@@ -1329,6 +1381,7 @@ static void *quic_listener_thread_entry(void *arg) {
 }
 
 static void quic_server_flush_tx(RtQuicConnection *conn, socket_t sock) {
+    QuicConnectionInternal *ci = conn_internal(conn);
     /* Flush TX for a server connection using the listener's socket */
     uint8_t buf[QUIC_MAX_PACKET_SIZE];
     ngtcp2_path_storage ps;
@@ -1337,7 +1390,7 @@ static void quic_server_flush_tx(RtQuicConnection *conn, socket_t sock) {
 
     for (;;) {
         ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
-            conn->qconn, &ps.path, &pi,
+            ci->qconn, &ps.path, &pi,
             buf, sizeof(buf),
             NULL, NGTCP2_WRITE_STREAM_FLAG_NONE,
             -1, NULL, 0, quic_timestamp());
@@ -1349,28 +1402,31 @@ static void quic_server_flush_tx(RtQuicConnection *conn, socket_t sock) {
         if (nwrite == 0) break;
 
         sendto(sock, (const char *)buf, (size_t)nwrite, 0,
-               (struct sockaddr *)&conn->remote_addr, conn->remote_addrlen);
+               (struct sockaddr *)&ci->remote_addr, ci->remote_addrlen);
     }
 }
 
 static void quic_listener_thread_func(RtQuicListener *listener) {
+    QuicListenerInternal *li = listener_internal(listener);
     uint8_t buf[QUIC_RECV_BUF_SIZE];
     struct pollfd pfd;
     pfd.fd = listener->socket_fd;
     pfd.events = POLLIN;
 
-    while (listener->running) {
+    while (li->running) {
         /* Calculate minimum timeout across all server connections */
         int timeout_ms = 50; /* Default 50ms for responsiveness */
         ngtcp2_tstamp now = quic_timestamp();
 
-        MUTEX_LOCK(&listener->conn_list_mutex);
-        for (int i = 0; i < listener->connection_count; i++) {
-            RtQuicConnection *c = listener->connections[i];
-            if (!c || c->closed) continue;
-            MUTEX_LOCK(&c->conn_mutex);
-            ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry(c->qconn);
-            MUTEX_UNLOCK(&c->conn_mutex);
+        MUTEX_LOCK(&li->conn_list_mutex);
+        for (int i = 0; i < li->connection_count; i++) {
+            RtQuicConnection *c = li->connections[i];
+            if (!c) continue;
+            QuicConnectionInternal *cci = conn_internal(c);
+            if (cci->closed) continue;
+            MUTEX_LOCK(&cci->conn_mutex);
+            ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry(cci->qconn);
+            MUTEX_UNLOCK(&cci->conn_mutex);
             if (expiry <= now) {
                 timeout_ms = 0;
                 break;
@@ -1379,13 +1435,13 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
                 if (ms < timeout_ms) timeout_ms = ms;
             }
         }
-        MUTEX_UNLOCK(&listener->conn_list_mutex);
+        MUTEX_UNLOCK(&li->conn_list_mutex);
 
         if (timeout_ms < 1) timeout_ms = 1;
 
         int ret = POLL(&pfd, 1, timeout_ms);
 
-        if (!listener->running) break;
+        if (!li->running) break;
 
         if (ret > 0 && (pfd.revents & POLLIN)) {
             struct sockaddr_storage from_addr;
@@ -1397,51 +1453,53 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
 
             /* Try to route to existing connection */
             bool found = false;
-            MUTEX_LOCK(&listener->conn_list_mutex);
-            for (int i = 0; i < listener->connection_count; i++) {
-                RtQuicConnection *existing = listener->connections[i];
-                if (!existing || existing->closed) continue;
+            MUTEX_LOCK(&li->conn_list_mutex);
+            for (int i = 0; i < li->connection_count; i++) {
+                RtQuicConnection *existing = li->connections[i];
+                if (!existing) continue;
+                QuicConnectionInternal *eci = conn_internal(existing);
+                if (eci->closed) continue;
 
-                MUTEX_LOCK(&existing->conn_mutex);
+                MUTEX_LOCK(&eci->conn_mutex);
                 ngtcp2_path path;
                 memset(&path, 0, sizeof(path));
-                path.local.addr = (struct sockaddr *)&listener->local_addr;
-                path.local.addrlen = listener->local_addrlen;
+                path.local.addr = (struct sockaddr *)&li->local_addr;
+                path.local.addrlen = li->local_addrlen;
                 path.remote.addr = (struct sockaddr *)&from_addr;
                 path.remote.addrlen = from_len;
 
                 ngtcp2_pkt_info pi;
                 memset(&pi, 0, sizeof(pi));
 
-                int read_rv = ngtcp2_conn_read_pkt(existing->qconn, &path, &pi,
+                int read_rv = ngtcp2_conn_read_pkt(eci->qconn, &path, &pi,
                                                     buf, (size_t)nread, quic_timestamp());
                 if (read_rv == 0) {
                     quic_server_flush_tx(existing, listener->socket_fd);
                     found = true;
 
                     /* Check if handshake just completed - push to accept queue */
-                    if (existing->handshake_complete && !existing->io_running) {
-                        existing->io_running = true; /* Mark as 'accepted' */
-                        MUTEX_UNLOCK(&existing->conn_mutex);
-                        MUTEX_UNLOCK(&listener->conn_list_mutex);
+                    if (eci->handshake_complete && !eci->io_running) {
+                        eci->io_running = true; /* Mark as 'accepted' */
+                        MUTEX_UNLOCK(&eci->conn_mutex);
+                        MUTEX_UNLOCK(&li->conn_list_mutex);
 
-                        MUTEX_LOCK(&listener->accept_mutex);
-                        if (listener->accept_count < QUIC_MAX_INCOMING_STREAMS) {
-                            listener->accept_queue_conns[listener->accept_tail] = existing;
-                            listener->accept_tail = (listener->accept_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
-                            listener->accept_count++;
-                            COND_SIGNAL(&listener->accept_cond);
+                        MUTEX_LOCK(&li->accept_mutex);
+                        if (li->accept_count < QUIC_MAX_INCOMING_STREAMS) {
+                            li->accept_queue_conns[li->accept_tail] = existing;
+                            li->accept_tail = (li->accept_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
+                            li->accept_count++;
+                            COND_SIGNAL(&li->accept_cond);
                         }
-                        MUTEX_UNLOCK(&listener->accept_mutex);
+                        MUTEX_UNLOCK(&li->accept_mutex);
                         goto handle_timers;
                     }
 
-                    MUTEX_UNLOCK(&existing->conn_mutex);
+                    MUTEX_UNLOCK(&eci->conn_mutex);
                     break;
                 }
-                MUTEX_UNLOCK(&existing->conn_mutex);
+                MUTEX_UNLOCK(&eci->conn_mutex);
             }
-            MUTEX_UNLOCK(&listener->conn_list_mutex);
+            MUTEX_UNLOCK(&li->conn_list_mutex);
 
             if (found) goto handle_timers;
 
@@ -1452,37 +1510,38 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
 
             /* Create new server connection (non-blocking, no I/O thread) */
             RtQuicConnection *new_conn_result = quic_server_connection_create(
-                listener->socket_fd, listener->ssl_ctx,
+                listener->socket_fd, li->ssl_ctx,
                 &from_addr, from_len,
-                &listener->local_addr, listener->local_addrlen,
-                buf, (size_t)nread, &hd, &listener->config);
+                &li->local_addr, li->local_addrlen,
+                buf, (size_t)nread, &hd, &li->config);
 
             if (new_conn_result) {
                 RtQuicConnection *new_conn = new_conn_result;
+                QuicConnectionInternal *nci = conn_internal(new_conn);
 
                 /* Flush initial server response (ServerHello etc.) */
-                MUTEX_LOCK(&new_conn->conn_mutex);
+                MUTEX_LOCK(&nci->conn_mutex);
                 quic_server_flush_tx(new_conn, listener->socket_fd);
-                MUTEX_UNLOCK(&new_conn->conn_mutex);
+                MUTEX_UNLOCK(&nci->conn_mutex);
 
                 /* Add to connection list for future packet routing */
-                MUTEX_LOCK(&listener->conn_list_mutex);
-                if (listener->connection_count < QUIC_MAX_STREAMS) {
-                    listener->connections[listener->connection_count++] = new_conn;
+                MUTEX_LOCK(&li->conn_list_mutex);
+                if (li->connection_count < QUIC_MAX_STREAMS) {
+                    li->connections[li->connection_count++] = new_conn;
                 }
-                MUTEX_UNLOCK(&listener->conn_list_mutex);
+                MUTEX_UNLOCK(&li->conn_list_mutex);
 
                 /* If handshake already completed (unlikely for initial), push to accept */
-                if (new_conn->handshake_complete) {
-                    new_conn->io_running = true;
-                    MUTEX_LOCK(&listener->accept_mutex);
-                    if (listener->accept_count < QUIC_MAX_INCOMING_STREAMS) {
-                        listener->accept_queue_conns[listener->accept_tail] = new_conn;
-                        listener->accept_tail = (listener->accept_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
-                        listener->accept_count++;
-                        COND_SIGNAL(&listener->accept_cond);
+                if (nci->handshake_complete) {
+                    nci->io_running = true;
+                    MUTEX_LOCK(&li->accept_mutex);
+                    if (li->accept_count < QUIC_MAX_INCOMING_STREAMS) {
+                        li->accept_queue_conns[li->accept_tail] = new_conn;
+                        li->accept_tail = (li->accept_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
+                        li->accept_count++;
+                        COND_SIGNAL(&li->accept_cond);
                     }
-                    MUTEX_UNLOCK(&listener->accept_mutex);
+                    MUTEX_UNLOCK(&li->accept_mutex);
                 }
             }
         }
@@ -1490,24 +1549,26 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
 handle_timers:
         /* Handle timer expiry for all server connections */
         now = quic_timestamp();
-        MUTEX_LOCK(&listener->conn_list_mutex);
-        for (int i = 0; i < listener->connection_count; i++) {
-            RtQuicConnection *c = listener->connections[i];
-            if (!c || c->closed) continue;
-            MUTEX_LOCK(&c->conn_mutex);
-            ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry(c->qconn);
+        MUTEX_LOCK(&li->conn_list_mutex);
+        for (int i = 0; i < li->connection_count; i++) {
+            RtQuicConnection *c = li->connections[i];
+            if (!c) continue;
+            QuicConnectionInternal *cci = conn_internal(c);
+            if (cci->closed) continue;
+            MUTEX_LOCK(&cci->conn_mutex);
+            ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry(cci->qconn);
             if (expiry <= now) {
-                int rv = ngtcp2_conn_handle_expiry(c->qconn, now);
+                int rv = ngtcp2_conn_handle_expiry(cci->qconn, now);
                 if (rv < 0) {
-                    c->closed = true;
-                    COND_BROADCAST(&c->accept_stream_cond);
+                    cci->closed = true;
+                    COND_BROADCAST(&cci->accept_stream_cond);
                 } else {
                     quic_server_flush_tx(c, listener->socket_fd);
                 }
             }
-            MUTEX_UNLOCK(&c->conn_mutex);
+            MUTEX_UNLOCK(&cci->conn_mutex);
         }
-        MUTEX_UNLOCK(&listener->conn_list_mutex);
+        MUTEX_UNLOCK(&li->conn_list_mutex);
     }
 }
 
@@ -1516,63 +1577,53 @@ handle_timers:
  * ============================================================================ */
 
 __sn__QuicConfig *sn_quic_config_defaults(void) {
-    RtQuicConfig *config = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
+    RtQuicConfig *config = __sn__QuicConfig__new();
     config->max_bidi_streams = QUIC_DEFAULT_MAX_BIDI_STREAMS;
     config->max_uni_streams = QUIC_DEFAULT_MAX_UNI_STREAMS;
     config->max_stream_window = QUIC_DEFAULT_MAX_STREAM_WINDOW;
     config->max_conn_window = QUIC_DEFAULT_MAX_CONN_WINDOW;
     config->idle_timeout_ms = QUIC_DEFAULT_IDLE_TIMEOUT_MS;
-    return (__sn__QuicConfig *)config;
+    return config;
 }
 
 __sn__QuicConfig *sn_quic_config_set_max_bidi_streams(__sn__QuicConfig *config, int n) {
     if (config == NULL) return NULL;
-    /* config is already the right type */
-    RtQuicConfig *_config = (RtQuicConfig *)config;
-    _config->max_bidi_streams = n;
-    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
-    memcpy(ret, _config, sizeof(RtQuicConfig));
-    return (__sn__QuicConfig *)ret;
+    config->max_bidi_streams = n;
+    RtQuicConfig *ret = __sn__QuicConfig__new();
+    memcpy(ret, config, sizeof(RtQuicConfig));
+    return ret;
 }
 
 __sn__QuicConfig *sn_quic_config_set_max_uni_streams(__sn__QuicConfig *config, int n) {
     if (config == NULL) return NULL;
-    /* config is already the right type */
-    RtQuicConfig *_config = (RtQuicConfig *)config;
-    _config->max_uni_streams = n;
-    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
-    memcpy(ret, _config, sizeof(RtQuicConfig));
-    return (__sn__QuicConfig *)ret;
+    config->max_uni_streams = n;
+    RtQuicConfig *ret = __sn__QuicConfig__new();
+    memcpy(ret, config, sizeof(RtQuicConfig));
+    return ret;
 }
 
 __sn__QuicConfig *sn_quic_config_set_max_stream_window(__sn__QuicConfig *config, int bytes) {
     if (config == NULL) return NULL;
-    /* config is already the right type */
-    RtQuicConfig *_config = (RtQuicConfig *)config;
-    _config->max_stream_window = bytes;
-    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
-    memcpy(ret, _config, sizeof(RtQuicConfig));
-    return (__sn__QuicConfig *)ret;
+    config->max_stream_window = bytes;
+    RtQuicConfig *ret = __sn__QuicConfig__new();
+    memcpy(ret, config, sizeof(RtQuicConfig));
+    return ret;
 }
 
 __sn__QuicConfig *sn_quic_config_set_max_conn_window(__sn__QuicConfig *config, int bytes) {
     if (config == NULL) return NULL;
-    /* config is already the right type */
-    RtQuicConfig *_config = (RtQuicConfig *)config;
-    _config->max_conn_window = bytes;
-    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
-    memcpy(ret, _config, sizeof(RtQuicConfig));
-    return (__sn__QuicConfig *)ret;
+    config->max_conn_window = bytes;
+    RtQuicConfig *ret = __sn__QuicConfig__new();
+    memcpy(ret, config, sizeof(RtQuicConfig));
+    return ret;
 }
 
 __sn__QuicConfig *sn_quic_config_set_idle_timeout(__sn__QuicConfig *config, int ms) {
     if (config == NULL) return NULL;
-    /* config is already the right type */
-    RtQuicConfig *_config = (RtQuicConfig *)config;
-    _config->idle_timeout_ms = ms;
-    RtQuicConfig *ret = (RtQuicConfig *)calloc(1, sizeof(RtQuicConfig));
-    memcpy(ret, _config, sizeof(RtQuicConfig));
-    return (__sn__QuicConfig *)ret;
+    config->idle_timeout_ms = ms;
+    RtQuicConfig *ret = __sn__QuicConfig__new();
+    memcpy(ret, config, sizeof(RtQuicConfig));
+    return ret;
 }
 
 /* ============================================================================
@@ -1583,30 +1634,30 @@ SnArray *sn_quic_stream_read(__sn__QuicStream *stream, long long maxBytes) {
     if (!stream || maxBytes <= 0) {
         { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
     }
-    /* stream is already the right type */
     RtQuicStream *_stream = (RtQuicStream *)stream;
+    QuicStreamInternal *si = stream_internal(_stream);
 
-    MUTEX_LOCK(&_stream->stream_mutex);
+    MUTEX_LOCK(&si->stream_mutex);
 
     /* Wait for data or FIN */
-    while (stream_buf_available(&_stream->recv_buf) == 0 &&
-           !_stream->recv_buf.fin_received && !_stream->closed) {
-        COND_WAIT(&_stream->read_cond, &_stream->stream_mutex);
+    while (stream_buf_available(&si->recv_buf) == 0 &&
+           !si->recv_buf.fin_received && !si->closed) {
+        COND_WAIT(&si->read_cond, &si->stream_mutex);
     }
 
-    size_t avail = stream_buf_available(&_stream->recv_buf);
+    size_t avail = stream_buf_available(&si->recv_buf);
     if (avail == 0) {
-        MUTEX_UNLOCK(&_stream->stream_mutex);
+        MUTEX_UNLOCK(&si->stream_mutex);
         { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
     }
 
     size_t to_read = avail < (size_t)maxBytes ? avail : (size_t)maxBytes;
     SnArray *result = sn_array_new(sizeof(unsigned char), (long long)to_read);
     result->elem_tag = SN_TAG_BYTE;
-    { unsigned char *src = (unsigned char *)_stream->recv_buf.data + _stream->recv_buf.read_pos; for (size_t _i = 0; _i < (size_t)to_read; _i++) sn_array_push(result, &src[_i]); }
-    _stream->recv_buf.read_pos += to_read;
+    { unsigned char *src = (unsigned char *)si->recv_buf.data + si->recv_buf.read_pos; for (size_t _i = 0; _i < (size_t)to_read; _i++) sn_array_push(result, &src[_i]); }
+    si->recv_buf.read_pos += to_read;
 
-    MUTEX_UNLOCK(&_stream->stream_mutex);
+    MUTEX_UNLOCK(&si->stream_mutex);
     return result;
 }
 
@@ -1614,30 +1665,30 @@ SnArray *sn_quic_stream_read_all(__sn__QuicStream *stream) {
     if (!stream) {
         { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
     }
-    /* stream is already the right type */
     RtQuicStream *_stream = (RtQuicStream *)stream;
+    QuicStreamInternal *si = stream_internal(_stream);
 
-    MUTEX_LOCK(&_stream->stream_mutex);
+    MUTEX_LOCK(&si->stream_mutex);
 
     /* Wait for FIN or close */
-    while (!_stream->recv_buf.fin_received && !_stream->closed) {
-        COND_WAIT(&_stream->read_cond, &_stream->stream_mutex);
+    while (!si->recv_buf.fin_received && !si->closed) {
+        COND_WAIT(&si->read_cond, &si->stream_mutex);
     }
 
-    size_t avail = stream_buf_available(&_stream->recv_buf);
+    size_t avail = stream_buf_available(&si->recv_buf);
     SnArray *result;
     if (avail > 0) {
         result = sn_array_new(sizeof(unsigned char), (long long)avail);
         result->elem_tag = SN_TAG_BYTE;
-        { unsigned char *src = (unsigned char *)_stream->recv_buf.data + _stream->recv_buf.read_pos; for (size_t _i = 0; _i < (size_t)avail; _i++) sn_array_push(result, &src[_i]); }
-        _stream->recv_buf.read_pos += avail;
+        { unsigned char *src = (unsigned char *)si->recv_buf.data + si->recv_buf.read_pos; for (size_t _i = 0; _i < (size_t)avail; _i++) sn_array_push(result, &src[_i]); }
+        si->recv_buf.read_pos += avail;
     } else {
         result = sn_array_new(sizeof(unsigned char), (long long)0);
         result->elem_tag = SN_TAG_BYTE;
         { unsigned char *src = (unsigned char *)NULL; for (size_t _i = 0; _i < (size_t)0; _i++) sn_array_push(result, &src[_i]); }
     }
 
-    MUTEX_UNLOCK(&_stream->stream_mutex);
+    MUTEX_UNLOCK(&si->stream_mutex);
     return result;
 }
 
@@ -1645,15 +1696,15 @@ char *sn_quic_stream_read_line(__sn__QuicStream *stream) {
     if (!stream) {
         return strdup("");
     }
-    /* stream is already the right type */
     RtQuicStream *_stream = (RtQuicStream *)stream;
+    QuicStreamInternal *si = stream_internal(_stream);
 
-    MUTEX_LOCK(&_stream->stream_mutex);
+    MUTEX_LOCK(&si->stream_mutex);
 
     /* Wait for newline, FIN, or close */
     for (;;) {
-        size_t avail = stream_buf_available(&_stream->recv_buf);
-        uint8_t *start = _stream->recv_buf.data + _stream->recv_buf.read_pos;
+        size_t avail = stream_buf_available(&si->recv_buf);
+        uint8_t *start = si->recv_buf.data + si->recv_buf.read_pos;
 
         /* Search for newline */
         for (size_t i = 0; i < avail; i++) {
@@ -1666,39 +1717,40 @@ char *sn_quic_stream_read_line(__sn__QuicStream *stream) {
                 char *temp = (char *)malloc(line_len + 1);
                 memcpy(temp, start, line_len);
                 temp[line_len] = '\0';
-                _stream->recv_buf.read_pos += i + 1;
-                MUTEX_UNLOCK(&_stream->stream_mutex);
+                si->recv_buf.read_pos += i + 1;
+                MUTEX_UNLOCK(&si->stream_mutex);
                 { char *ret = strdup(temp); free(temp); return ret; }
             }
         }
 
-        if (_stream->recv_buf.fin_received || _stream->closed) {
+        if (si->recv_buf.fin_received || si->closed) {
             /* Return remaining data as last line */
             char *temp = (char *)malloc(avail + 1);
             if (avail > 0) memcpy(temp, start, avail);
             temp[avail] = '\0';
-            _stream->recv_buf.read_pos += avail;
-            MUTEX_UNLOCK(&_stream->stream_mutex);
+            si->recv_buf.read_pos += avail;
+            MUTEX_UNLOCK(&si->stream_mutex);
             { char *ret = strdup(temp); free(temp); return ret; }
         }
 
-        COND_WAIT(&_stream->read_cond, &_stream->stream_mutex);
+        COND_WAIT(&si->read_cond, &si->stream_mutex);
     }
 }
 
 long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
     if (!stream || !data) return 0;
-    /* stream is already the right type */
     RtQuicStream *_stream = (RtQuicStream *)stream;
+    QuicStreamInternal *si = stream_internal(_stream);
     size_t data_len = (size_t)data->len;
     if (data_len == 0) return 0;
 
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
+    QuicConnectionInternal *ci = conn_internal(conn);
 
-    MUTEX_LOCK(&conn->conn_mutex);
+    MUTEX_LOCK(&ci->conn_mutex);
 
-    if (conn->closed || _stream->write_closed) {
-        MUTEX_UNLOCK(&conn->conn_mutex);
+    if (ci->closed || si->write_closed) {
+        MUTEX_UNLOCK(&ci->conn_mutex);
         return 0;
     }
 
@@ -1716,7 +1768,7 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
 
         ngtcp2_ssize ndatalen = 0;
         ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
-            conn->qconn, &ps.path, &pi,
+            ci->qconn, &ps.path, &pi,
             buf, sizeof(buf),
             &ndatalen,
             NGTCP2_WRITE_STREAM_FLAG_NONE,
@@ -1739,14 +1791,14 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
         if (nwrite == 0) break;
     }
 
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    MUTEX_UNLOCK(&ci->conn_mutex);
     return (long)total_written;
 }
 
 void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
     if (!stream || !text) return;
-    /* stream is already the right type */
     RtQuicStream *_stream = (RtQuicStream *)stream;
+    QuicStreamInternal *si = stream_internal(_stream);
 
     size_t text_len = strlen(text);
     size_t total_len = text_len + 1; /* text + \n */
@@ -1756,10 +1808,11 @@ void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
     buf[text_len] = '\n';
 
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
-    MUTEX_LOCK(&conn->conn_mutex);
+    QuicConnectionInternal *ci = conn_internal(conn);
+    MUTEX_LOCK(&ci->conn_mutex);
 
-    if (conn->closed || _stream->write_closed) {
-        MUTEX_UNLOCK(&conn->conn_mutex);
+    if (ci->closed || si->write_closed) {
+        MUTEX_UNLOCK(&ci->conn_mutex);
         free(buf);
         return;
     }
@@ -1778,7 +1831,7 @@ void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
 
         ngtcp2_ssize ndatalen = 0;
         ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
-            conn->qconn, &ps.path, &pi,
+            ci->qconn, &ps.path, &pi,
             pkt, sizeof(pkt),
             &ndatalen,
             NGTCP2_WRITE_STREAM_FLAG_NONE,
@@ -1801,35 +1854,35 @@ void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
         if (nwrite == 0) break;
     }
 
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    MUTEX_UNLOCK(&ci->conn_mutex);
     free(buf);
 }
 
 long long sn_quic_stream_get_id(__sn__QuicStream *stream) {
     if (!stream) return -1;
-    /* stream is already the right type */
     RtQuicStream *_stream = (RtQuicStream *)stream;
     return _stream->stream_id;
 }
 
 bool sn_quic_stream_is_unidirectional(__sn__QuicStream *stream) {
     if (!stream) return false;
-    /* stream is already the right type */
     RtQuicStream *_stream = (RtQuicStream *)stream;
-    return _stream->is_uni;
+    QuicStreamInternal *si = stream_internal(_stream);
+    return si->is_uni;
 }
 
 void sn_quic_stream_close(__sn__QuicStream *stream) {
     if (!stream) return;
-    /* stream is already the right type */
     RtQuicStream *_stream = (RtQuicStream *)stream;
-    if (_stream->closed) return;
+    QuicStreamInternal *si = stream_internal(_stream);
+    if (si->closed) return;
 
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
+    QuicConnectionInternal *ci = conn_internal(conn);
 
-    MUTEX_LOCK(&conn->conn_mutex);
+    MUTEX_LOCK(&ci->conn_mutex);
 
-    if (!conn->closed) {
+    if (!ci->closed) {
         /* Send FIN on the stream */
         uint8_t buf[QUIC_MAX_PACKET_SIZE];
         ngtcp2_path_storage ps;
@@ -1838,7 +1891,7 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
         ngtcp2_ssize ndatalen;
 
         ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
-            conn->qconn, &ps.path, &pi,
+            ci->qconn, &ps.path, &pi,
             buf, sizeof(buf),
             &ndatalen,
             NGTCP2_WRITE_STREAM_FLAG_FIN,
@@ -1849,13 +1902,13 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
         }
     }
 
-    MUTEX_UNLOCK(&conn->conn_mutex);
+    MUTEX_UNLOCK(&ci->conn_mutex);
 
-    MUTEX_LOCK(&_stream->stream_mutex);
-    _stream->write_closed = true;
-    _stream->closed = true;
-    COND_BROADCAST(&_stream->read_cond);
-    MUTEX_UNLOCK(&_stream->stream_mutex);
+    MUTEX_LOCK(&si->stream_mutex);
+    si->write_closed = true;
+    si->closed = true;
+    COND_BROADCAST(&si->read_cond);
+    MUTEX_UNLOCK(&si->stream_mutex);
 }
 
 /* ============================================================================
@@ -1863,116 +1916,115 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
  * ============================================================================ */
 
 __sn__QuicConnection *sn_quic_connection_connect(char *address) {
-    return quic_connection_create(address, NULL, false, NULL, 0);
+    return (__sn__QuicConnection *)quic_connection_create(address, NULL, false, NULL, 0);
 }
 
 __sn__QuicConnection *sn_quic_connection_connect_with(char *address,
                                               __sn__QuicConfig *config) {
     if (config == NULL) return NULL;
-    /* config is already the right type */
     RtQuicConfig *_config = (RtQuicConfig *)config;
-    return quic_connection_create(address, _config, false, NULL, 0);
+    return (__sn__QuicConnection *)quic_connection_create(address, _config, false, NULL, 0);
 }
 
 __sn__QuicConnection *sn_quic_connection_connect_early(char *address,
                                                SnArray *token) {
     if (!token || token->len == 0) {
-        return quic_connection_create(address, NULL, false, NULL, 0);
+        return (__sn__QuicConnection *)quic_connection_create(address, NULL, false, NULL, 0);
     }
-    return quic_connection_create(address, NULL, true,
+    return (__sn__QuicConnection *)quic_connection_create(address, NULL, true,
                                    (const uint8_t *)token->data, token->len);
 }
 
 __sn__QuicStream *sn_quic_connection_open_stream(__sn__QuicConnection *conn) {
     if (conn == NULL) return NULL;
-    /* conn is already the right type */
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
-    if (_conn->closed) return NULL;
-    
+    QuicConnectionInternal *ci = conn_internal(_conn);
+    if (ci->closed) return NULL;
 
-    MUTEX_LOCK(&_conn->conn_mutex);
+    MUTEX_LOCK(&ci->conn_mutex);
 
     int64_t stream_id;
-    int rv = ngtcp2_conn_open_bidi_stream(_conn->qconn, &stream_id, NULL);
+    int rv = ngtcp2_conn_open_bidi_stream(ci->qconn, &stream_id, NULL);
     if (rv != 0) {
-        MUTEX_UNLOCK(&_conn->conn_mutex);
+        MUTEX_UNLOCK(&ci->conn_mutex);
         fprintf(stderr, "QUIC: Failed to open bidi stream: %s\n", ngtcp2_strerror(rv));
         return NULL;
     }
 
     RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
-    MUTEX_UNLOCK(&_conn->conn_mutex);
+    MUTEX_UNLOCK(&ci->conn_mutex);
     return stream ? (__sn__QuicStream *)stream : NULL;
 }
 
 __sn__QuicStream *sn_quic_connection_open_uni_stream(__sn__QuicConnection *conn) {
     if (conn == NULL) return NULL;
-    /* conn is already the right type */
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
-    if (_conn->closed) return NULL;
-    
+    QuicConnectionInternal *ci = conn_internal(_conn);
+    if (ci->closed) return NULL;
 
-    MUTEX_LOCK(&_conn->conn_mutex);
+    MUTEX_LOCK(&ci->conn_mutex);
 
     int64_t stream_id;
-    int rv = ngtcp2_conn_open_uni_stream(_conn->qconn, &stream_id, NULL);
+    int rv = ngtcp2_conn_open_uni_stream(ci->qconn, &stream_id, NULL);
     if (rv != 0) {
-        MUTEX_UNLOCK(&_conn->conn_mutex);
+        MUTEX_UNLOCK(&ci->conn_mutex);
         fprintf(stderr, "QUIC: Failed to open uni stream: %s\n", ngtcp2_strerror(rv));
         return NULL;
     }
 
     RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
-    if (stream) stream->is_uni = true;
-    MUTEX_UNLOCK(&_conn->conn_mutex);
+    if (stream) {
+        QuicStreamInternal *si = stream_internal(stream);
+        si->is_uni = true;
+    }
+    MUTEX_UNLOCK(&ci->conn_mutex);
     return stream ? (__sn__QuicStream *)stream : NULL;
 }
 
 __sn__QuicStream *sn_quic_connection_accept_stream(__sn__QuicConnection *conn) {
     if (conn == NULL) return NULL;
-    /* conn is already the right type */
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
-    
+    QuicConnectionInternal *ci = conn_internal(_conn);
 
-    MUTEX_LOCK(&_conn->conn_mutex);
+    MUTEX_LOCK(&ci->conn_mutex);
 
-    while (_conn->incoming_count == 0 && !_conn->closed) {
-        COND_WAIT(&_conn->accept_stream_cond, &_conn->conn_mutex);
+    while (ci->incoming_count == 0 && !ci->closed) {
+        COND_WAIT(&ci->accept_stream_cond, &ci->conn_mutex);
     }
 
-    if (_conn->closed || _conn->incoming_count == 0) {
-        MUTEX_UNLOCK(&_conn->conn_mutex);
+    if (ci->closed || ci->incoming_count == 0) {
+        MUTEX_UNLOCK(&ci->conn_mutex);
         return NULL;
     }
 
-    int64_t stream_id = _conn->incoming_streams[_conn->incoming_head];
-    _conn->incoming_head = (_conn->incoming_head + 1) % QUIC_MAX_INCOMING_STREAMS;
-    _conn->incoming_count--;
+    int64_t stream_id = ci->incoming_streams[ci->incoming_head];
+    ci->incoming_head = (ci->incoming_head + 1) % QUIC_MAX_INCOMING_STREAMS;
+    ci->incoming_count--;
 
     RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
-    MUTEX_UNLOCK(&_conn->conn_mutex);
+    MUTEX_UNLOCK(&ci->conn_mutex);
     return stream ? (__sn__QuicStream *)stream : NULL;
 }
 
 SnArray *sn_quic_connection_resumption_token(__sn__QuicConnection *conn) {
     if (conn == NULL) { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
-    /* conn is already the right type */
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
-    if (!_conn->resumption_token || _conn->resumption_token_len == 0) {
+    QuicConnectionInternal *ci = conn_internal(_conn);
+    if (!ci->resumption_token || ci->resumption_token_len == 0) {
         { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
     }
 
-    { SnArray *tok = sn_array_new(sizeof(unsigned char), (long long)_conn->resumption_token_len);
+    { SnArray *tok = sn_array_new(sizeof(unsigned char), (long long)ci->resumption_token_len);
     tok->elem_tag = SN_TAG_BYTE;
-    for (size_t _i = 0; _i < _conn->resumption_token_len; _i++) sn_array_push(tok, &_conn->resumption_token[_i]);
+    for (size_t _i = 0; _i < ci->resumption_token_len; _i++) sn_array_push(tok, &ci->resumption_token[_i]);
     return tok; }
 }
 
 void sn_quic_connection_migrate(__sn__QuicConnection *conn, char *newLocalAddress) {
     if (conn == NULL) return;
-    /* conn is already the right type */
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
-    if (_conn->closed || !newLocalAddress) return;
+    QuicConnectionInternal *ci = conn_internal(_conn);
+    if (ci->closed || !newLocalAddress) return;
 
     char host[256], port[16];
     if (parse_address(newLocalAddress, host, sizeof(host), port, sizeof(port)) != 0) {
@@ -2003,7 +2055,7 @@ void sn_quic_connection_migrate(__sn__QuicConnection *conn, char *newLocalAddres
     }
 
     /* Connect to remote */
-    if (connect(new_sock, (struct sockaddr *)&_conn->remote_addr, _conn->remote_addrlen) != 0) {
+    if (connect(new_sock, (struct sockaddr *)&ci->remote_addr, ci->remote_addrlen) != 0) {
         CLOSE_SOCKET(new_sock);
         freeaddrinfo(res);
         return;
@@ -2016,27 +2068,27 @@ void sn_quic_connection_migrate(__sn__QuicConnection *conn, char *newLocalAddres
     socklen_t new_local_len = sizeof(new_local);
     getsockname(new_sock, (struct sockaddr *)&new_local, &new_local_len);
 
-    MUTEX_LOCK(&_conn->conn_mutex);
+    MUTEX_LOCK(&ci->conn_mutex);
 
     /* Tell ngtcp2 about migration */
     ngtcp2_path new_path;
     memset(&new_path, 0, sizeof(new_path));
     new_path.local.addr = (struct sockaddr *)&new_local;
     new_path.local.addrlen = new_local_len;
-    new_path.remote.addr = (struct sockaddr *)&_conn->remote_addr;
-    new_path.remote.addrlen = _conn->remote_addrlen;
+    new_path.remote.addr = (struct sockaddr *)&ci->remote_addr;
+    new_path.remote.addrlen = ci->remote_addrlen;
 
     ngtcp2_addr addr;
     addr.addr = (struct sockaddr *)&new_local;
     addr.addrlen = new_local_len;
 
-    int rv = ngtcp2_conn_initiate_immediate_migration(_conn->qconn, &new_path, quic_timestamp());
+    int rv = ngtcp2_conn_initiate_immediate_migration(ci->qconn, &new_path, quic_timestamp());
     if (rv == 0) {
         /* Swap sockets */
-        socket_t old_sock = _conn->socket_fd;
-        _conn->socket_fd = new_sock;
-        memcpy(&_conn->local_addr, &new_local, new_local_len);
-        _conn->local_addrlen = new_local_len;
+        socket_t old_sock = (socket_t)_conn->socket_fd;
+        _conn->socket_fd = (long long)new_sock;
+        memcpy(&ci->local_addr, &new_local, new_local_len);
+        ci->local_addrlen = new_local_len;
         CLOSE_SOCKET(old_sock);
 
         quic_flush_tx(_conn);
@@ -2044,30 +2096,30 @@ void sn_quic_connection_migrate(__sn__QuicConnection *conn, char *newLocalAddres
         CLOSE_SOCKET(new_sock);
     }
 
-    MUTEX_UNLOCK(&_conn->conn_mutex);
+    MUTEX_UNLOCK(&ci->conn_mutex);
     freeaddrinfo(res);
 }
 
 char *sn_quic_connection_remote_address(__sn__QuicConnection *conn) {
     if (conn == NULL) return strdup("");
-    /* conn is already the right type */
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
-    if (!_conn->remote_addr_str) {
+    QuicConnectionInternal *ci = conn_internal(_conn);
+    if (!ci->remote_addr_str) {
         return strdup("");
     }
-    return strdup(_conn->remote_addr_str);
+    return strdup(ci->remote_addr_str);
 }
 
 void sn_quic_connection_close(__sn__QuicConnection *conn) {
     if (conn == NULL) return;
-    /* conn is already the right type */
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
-    if (_conn->closed) return;
+    QuicConnectionInternal *ci = conn_internal(_conn);
+    if (ci->closed) return;
 
-    MUTEX_LOCK(&_conn->conn_mutex);
-    _conn->closed = true;
+    MUTEX_LOCK(&ci->conn_mutex);
+    ci->closed = true;
 
-    if (_conn->qconn) {
+    if (ci->qconn) {
         /* Send connection close frame */
         uint8_t buf[QUIC_MAX_PACKET_SIZE];
         ngtcp2_path_storage ps;
@@ -2077,7 +2129,7 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
         ngtcp2_ccerr_default(&ccerr);
 
         ngtcp2_ssize nwrite = ngtcp2_conn_write_connection_close(
-            _conn->qconn, &ps.path, &pi,
+            ci->qconn, &ps.path, &pi,
             buf, sizeof(buf), &ccerr, quic_timestamp());
 
         if (nwrite > 0) {
@@ -2085,19 +2137,20 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
         }
     }
 
-    MUTEX_UNLOCK(&_conn->conn_mutex);
+    MUTEX_UNLOCK(&ci->conn_mutex);
 
     /* Signal all waiting threads */
-    COND_BROADCAST(&_conn->handshake_cond);
-    COND_BROADCAST(&_conn->accept_stream_cond);
+    COND_BROADCAST(&ci->handshake_cond);
+    COND_BROADCAST(&ci->accept_stream_cond);
 
     /* Signal all streams */
-    for (int i = 0; i < _conn->stream_count; i++) {
-        if (_conn->streams[i]) {
-            MUTEX_LOCK(&_conn->streams[i]->stream_mutex);
-            _conn->streams[i]->closed = true;
-            COND_BROADCAST(&_conn->streams[i]->read_cond);
-            MUTEX_UNLOCK(&_conn->streams[i]->stream_mutex);
+    for (int i = 0; i < ci->stream_count; i++) {
+        if (ci->streams[i]) {
+            QuicStreamInternal *si = stream_internal(ci->streams[i]);
+            MUTEX_LOCK(&si->stream_mutex);
+            si->closed = true;
+            COND_BROADCAST(&si->read_cond);
+            MUTEX_UNLOCK(&si->stream_mutex);
         }
     }
 
@@ -2105,26 +2158,26 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
      * The listener thread may still be using qconn, SSL, and streams,
      * so cleanup is deferred to sn_quic_listener_close() after the
      * listener thread is joined. */
-    if (_conn->is_server) {
+    if (ci->is_server) {
         return;
     }
 
-    /* Save OS resources and arena pointer before destroying */
-    SSL *ssl = _conn->ssl;
-    ngtcp2_crypto_ossl_ctx *ossl_ctx = _conn->ossl_ctx;
-    SSL_CTX *ssl_ctx = _conn->ssl_ctx;
-    ngtcp2_conn *qconn = _conn->qconn;
-    socket_t sock = _conn->socket_fd;
-    uint8_t *token = _conn->resumption_token;
-    bool io_was_running = _conn->io_running;
-    sn_thread_t io_thread = _conn->io_thread;
-    int stream_count = _conn->stream_count;
+    /* Save OS resources before destroying */
+    SSL *ssl = ci->ssl;
+    ngtcp2_crypto_ossl_ctx *ossl_ctx = ci->ossl_ctx;
+    SSL_CTX *ssl_ctx = ci->ssl_ctx;
+    ngtcp2_conn *qconn = ci->qconn;
+    socket_t sock = (socket_t)_conn->socket_fd;
+    uint8_t *token = ci->resumption_token;
+    bool io_was_running = ci->io_running;
+    sn_thread_t io_thread = ci->io_thread;
+    int stream_count = ci->stream_count;
     RtQuicStream *streams_copy[QUIC_MAX_STREAMS];
-    for (int i = 0; i < stream_count; i++) streams_copy[i] = _conn->streams[i];
+    for (int i = 0; i < stream_count; i++) streams_copy[i] = ci->streams[i];
 
     /* Stop and join I/O thread (client connections only) */
     if (io_was_running) {
-        _conn->io_running = false;
+        ci->io_running = false;
 #ifdef _WIN32
         WaitForSingleObject(io_thread, 5000);
         CloseHandle(io_thread);
@@ -2151,7 +2204,7 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
         CLOSE_SOCKET(sock);
     }
 
-    /* Free streams (allocated with calloc/malloc, not from arena) */
+    /* Free streams */
     for (int i = 0; i < stream_count; i++) {
         quic_stream_free(streams_copy[i]);
     }
@@ -2161,12 +2214,13 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
         free(token);
     }
 
-    MUTEX_DESTROY(&_conn->conn_mutex);
-    COND_DESTROY(&_conn->handshake_cond);
-    COND_DESTROY(&_conn->accept_stream_cond);
+    MUTEX_DESTROY(&ci->conn_mutex);
+    COND_DESTROY(&ci->handshake_cond);
+    COND_DESTROY(&ci->accept_stream_cond);
 
-    /* Destroy private arena — frees connection struct and all internal allocations */
-
+    /* Free internal state and unregister */
+    free(ci);
+    conn_unregister(_conn);
 }
 
 /* ============================================================================
@@ -2238,40 +2292,39 @@ static __sn__QuicListener *quic_listener_create(char *address,
         bound_port = ntohs(((struct sockaddr_in6 *)&bound_addr)->sin6_port);
     }
 
-    /* Create private detached arena for listener — immune to GC compaction */
-      /* caller arena not used for internal allocations */
-    RtQuicListener *listener = (RtQuicListener *)calloc(1, sizeof(RtQuicListener));
-    memset(listener, 0, sizeof(RtQuicListener));
-    /* no arena */
-    /* no handle */
-    listener->socket_fd = sock;
-    listener->bound_port = bound_port;
-    listener->ssl_ctx = ssl_ctx;
-    listener->running = true;
+    /* Allocate Sindarin struct via compiler-generated __new() */
+    RtQuicListener *listener = __sn__QuicListener__new();
+    QuicListenerInternal *li = (QuicListenerInternal *)calloc(1, sizeof(QuicListenerInternal));
+    listener_register(listener, li);
 
-    memcpy(&listener->local_addr, &bound_addr, bound_len);
-    listener->local_addrlen = bound_len;
+    listener->socket_fd = (long long)sock;
+    listener->bound_port = bound_port;
+    li->ssl_ctx = ssl_ctx;
+    li->running = true;
+
+    memcpy(&li->local_addr, &bound_addr, bound_len);
+    li->local_addrlen = bound_len;
 
     if (config) {
-        listener->config = *config;
+        li->config = *config;
     } else {
-        listener->config.max_bidi_streams = QUIC_DEFAULT_MAX_BIDI_STREAMS;
-        listener->config.max_uni_streams = QUIC_DEFAULT_MAX_UNI_STREAMS;
-        listener->config.max_stream_window = QUIC_DEFAULT_MAX_STREAM_WINDOW;
-        listener->config.max_conn_window = QUIC_DEFAULT_MAX_CONN_WINDOW;
-        listener->config.idle_timeout_ms = QUIC_DEFAULT_IDLE_TIMEOUT_MS;
+        li->config.max_bidi_streams = QUIC_DEFAULT_MAX_BIDI_STREAMS;
+        li->config.max_uni_streams = QUIC_DEFAULT_MAX_UNI_STREAMS;
+        li->config.max_stream_window = QUIC_DEFAULT_MAX_STREAM_WINDOW;
+        li->config.max_conn_window = QUIC_DEFAULT_MAX_CONN_WINDOW;
+        li->config.idle_timeout_ms = QUIC_DEFAULT_IDLE_TIMEOUT_MS;
     }
 
-    MUTEX_INIT(&listener->accept_mutex);
-    COND_INIT(&listener->accept_cond);
-    MUTEX_INIT(&listener->conn_list_mutex);
+    MUTEX_INIT(&li->accept_mutex);
+    COND_INIT(&li->accept_cond);
+    MUTEX_INIT(&li->conn_list_mutex);
 
     /* Start listener thread */
 #ifdef _WIN32
-    listener->listen_thread = (HANDLE)_beginthreadex(NULL, 0,
+    li->listen_thread = (HANDLE)_beginthreadex(NULL, 0,
         (unsigned (__stdcall *)(void *))quic_listener_thread_entry, listener, 0, NULL);
 #else
-    pthread_create(&listener->listen_thread, NULL, quic_listener_thread_entry, listener);
+    pthread_create(&li->listen_thread, NULL, quic_listener_thread_entry, listener);
 #endif
 
     return listener;
@@ -2286,89 +2339,91 @@ __sn__QuicListener *sn_quic_listener_bind_with(char *address,
                                          char *certFile, char *keyFile,
                                          __sn__QuicConfig *config) {
     if (config == NULL) return NULL;
-    /* config is already the right type */
     RtQuicConfig *_config = (RtQuicConfig *)config;
     return quic_listener_create(address, certFile, keyFile, _config);
 }
 
 __sn__QuicConnection *sn_quic_listener_accept(__sn__QuicListener *listener) {
     if (listener == NULL) return NULL;
-    /* listener is already the right type */
     RtQuicListener *_listener = (RtQuicListener *)listener;
-    
+    QuicListenerInternal *li = listener_internal(_listener);
 
-    MUTEX_LOCK(&_listener->accept_mutex);
+    MUTEX_LOCK(&li->accept_mutex);
 
-    while (_listener->accept_count == 0 && _listener->running) {
-        COND_WAIT(&_listener->accept_cond, &_listener->accept_mutex);
+    while (li->accept_count == 0 && li->running) {
+        COND_WAIT(&li->accept_cond, &li->accept_mutex);
     }
 
-    if (!_listener->running || _listener->accept_count == 0) {
-        MUTEX_UNLOCK(&_listener->accept_mutex);
+    if (!li->running || li->accept_count == 0) {
+        MUTEX_UNLOCK(&li->accept_mutex);
         return NULL;
     }
 
-    RtQuicConnection *conn_q = _listener->accept_queue_conns[_listener->accept_head];
-    _listener->accept_head = (_listener->accept_head + 1) % QUIC_MAX_INCOMING_STREAMS;
-    _listener->accept_count--;
+    RtQuicConnection *conn_q = li->accept_queue_conns[li->accept_head];
+    li->accept_head = (li->accept_head + 1) % QUIC_MAX_INCOMING_STREAMS;
+    li->accept_count--;
 
-    MUTEX_UNLOCK(&_listener->accept_mutex);
+    MUTEX_UNLOCK(&li->accept_mutex);
     return (__sn__QuicConnection *)conn_q;
 }
 
 long long sn_quic_listener_get_port(__sn__QuicListener *listener) {
     if (listener == NULL) return 0;
-    /* listener is already the right type */
     RtQuicListener *_listener = (RtQuicListener *)listener;
     return _listener->bound_port;
 }
 
 void sn_quic_listener_close(__sn__QuicListener *listener) {
     if (listener == NULL) return;
-    /* listener is already the right type */
     RtQuicListener *_listener = (RtQuicListener *)listener;
-    if (!_listener->running) return;
+    QuicListenerInternal *li = listener_internal(_listener);
+    if (!li->running) return;
 
-    _listener->running = false;
+    li->running = false;
 
     /* Signal accept waiters */
-    MUTEX_LOCK(&_listener->accept_mutex);
-    COND_BROADCAST(&_listener->accept_cond);
-    MUTEX_UNLOCK(&_listener->accept_mutex);
+    MUTEX_LOCK(&li->accept_mutex);
+    COND_BROADCAST(&li->accept_cond);
+    MUTEX_UNLOCK(&li->accept_mutex);
 
     /* Wait for listener thread */
 #ifdef _WIN32
-    WaitForSingleObject(_listener->listen_thread, 5000);
-    CloseHandle(_listener->listen_thread);
+    WaitForSingleObject(li->listen_thread, 5000);
+    CloseHandle(li->listen_thread);
 #else
-    pthread_join(_listener->listen_thread, NULL);
+    pthread_join(li->listen_thread, NULL);
 #endif
 
     /* Mark all server connections as closed (sn_quic_connection_close for
      * server connections just sets closed=true and signals waiters). */
-    MUTEX_LOCK(&_listener->conn_list_mutex);
-    for (int i = 0; i < _listener->connection_count; i++) {
-        if (_listener->connections[i] && !_listener->connections[i]->closed) {
-            sn_quic_connection_close((__sn__QuicConnection *)_listener->connections[i]);
+    MUTEX_LOCK(&li->conn_list_mutex);
+    for (int i = 0; i < li->connection_count; i++) {
+        if (li->connections[i]) {
+            QuicConnectionInternal *cci = conn_internal(li->connections[i]);
+            if (!cci->closed) {
+                sn_quic_connection_close((__sn__QuicConnection *)li->connections[i]);
+            }
         }
     }
-    MUTEX_UNLOCK(&_listener->conn_list_mutex);
+    MUTEX_UNLOCK(&li->conn_list_mutex);
 
     /* Now that listener thread is stopped, do full cleanup for all server
      * connections. This was deferred because the listener thread was using
      * these resources (qconn, SSL, streams). */
-    for (int i = 0; i < _listener->connection_count; i++) {
-        RtQuicConnection *conn = _listener->connections[i];
-        if (!conn) continue;
+    for (int i = 0; i < li->connection_count; i++) {
+        RtQuicConnection *sconn = li->connections[i];
+        if (!sconn) continue;
 
-        /* Save OS resources and arena before destroying */
-            SSL *conn_ssl = conn->ssl;
-        ngtcp2_crypto_ossl_ctx *conn_ossl_ctx = conn->ossl_ctx;
-        ngtcp2_conn *conn_qconn = conn->qconn;
-        uint8_t *conn_token = conn->resumption_token;
-        int conn_stream_count = conn->stream_count;
+        QuicConnectionInternal *cci = conn_internal(sconn);
+
+        /* Save OS resources before destroying */
+        SSL *conn_ssl = cci->ssl;
+        ngtcp2_crypto_ossl_ctx *conn_ossl_ctx = cci->ossl_ctx;
+        ngtcp2_conn *conn_qconn = cci->qconn;
+        uint8_t *conn_token = cci->resumption_token;
+        int conn_stream_count = cci->stream_count;
         RtQuicStream *conn_streams[QUIC_MAX_STREAMS];
-        for (int j = 0; j < conn_stream_count; j++) conn_streams[j] = conn->streams[j];
+        for (int j = 0; j < conn_stream_count; j++) conn_streams[j] = cci->streams[j];
 
         /* Cleanup SSL (server connections share listener's ssl_ctx, don't free it) */
         if (conn_ssl) {
@@ -2384,7 +2439,7 @@ void sn_quic_listener_close(__sn__QuicListener *listener) {
             ngtcp2_conn_del(conn_qconn);
         }
 
-        /* Free streams (allocated with calloc/malloc, not from arena) */
+        /* Free streams */
         for (int j = 0; j < conn_stream_count; j++) {
             quic_stream_free(conn_streams[j]);
         }
@@ -2395,16 +2450,18 @@ void sn_quic_listener_close(__sn__QuicListener *listener) {
         }
 
         /* Destroy mutex/cond */
-        MUTEX_DESTROY(&conn->conn_mutex);
-        COND_DESTROY(&conn->handshake_cond);
-        COND_DESTROY(&conn->accept_stream_cond);
+        MUTEX_DESTROY(&cci->conn_mutex);
+        COND_DESTROY(&cci->handshake_cond);
+        COND_DESTROY(&cci->accept_stream_cond);
 
-        /* Don't free conn here — sn_auto_QuicConnection cleanup handles that */
+        /* Free internal state and unregister */
+        free(cci);
+        conn_unregister(sconn);
     }
 
-    /* Save listener OS resources and arena before destroying */
-    SSL_CTX *ssl_ctx = _listener->ssl_ctx;
-    socket_t sock = _listener->socket_fd;
+    /* Save listener OS resources before destroying */
+    SSL_CTX *ssl_ctx = li->ssl_ctx;
+    socket_t sock = (socket_t)_listener->socket_fd;
 
     /* Cleanup OS resources */
     if (ssl_ctx) {
@@ -2414,10 +2471,11 @@ void sn_quic_listener_close(__sn__QuicListener *listener) {
         CLOSE_SOCKET(sock);
     }
 
-    MUTEX_DESTROY(&_listener->accept_mutex);
-    COND_DESTROY(&_listener->accept_cond);
-    MUTEX_DESTROY(&_listener->conn_list_mutex);
+    MUTEX_DESTROY(&li->accept_mutex);
+    COND_DESTROY(&li->accept_cond);
+    MUTEX_DESTROY(&li->conn_list_mutex);
 
-    /* Destroy listener's private arena — frees listener struct and all internal allocs */
-
+    /* Free listener internal state and unregister */
+    free(li);
+    listener_unregister(_listener);
 }

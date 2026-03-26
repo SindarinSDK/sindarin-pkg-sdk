@@ -487,7 +487,7 @@ static int tls_parse_address(char *address, char *host, size_t host_len, int *po
 static __sn__TlsStream *sn_tls_stream_create(socket_t sock,
                                                SSL_CTX *ctx, SSL *ssl,
                                                char *remote_addr) {
-    __sn__TlsStream *stream = (__sn__TlsStream *)calloc(1, sizeof(__sn__TlsStream));
+    __sn__TlsStream *stream = __sn__TlsStream__new();
     if (stream == NULL) {
         fprintf(stderr, "TlsStream: allocation failed\n");
         exit(1);
@@ -1115,7 +1115,7 @@ __sn__TlsListener *sn_tls_listener_bind(char *address,
     }
 
     /* Create listener struct */
-    __sn__TlsListener *listener = (__sn__TlsListener *)calloc(1, sizeof(__sn__TlsListener));
+    __sn__TlsListener *listener = __sn__TlsListener__new();
     if (listener == NULL) {
         CLOSE_SOCKET(sock);
         SSL_CTX_free(ctx);

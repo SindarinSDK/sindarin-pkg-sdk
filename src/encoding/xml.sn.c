@@ -56,7 +56,7 @@ static void sn_xml_init(void)
  * Returns a heap-allocated __sn__Xml pointer. */
 static __sn__Xml *sn_xml_wrap(xmlDocPtr doc, xmlNodePtr node, int is_root)
 {
-    __sn__Xml *x = (__sn__Xml *)calloc(1, sizeof(__sn__Xml));
+    __sn__Xml *x = __sn__Xml__new();
     if (x == NULL) {
         fprintf(stderr, "Xml: memory allocation failed\n");
         exit(1);

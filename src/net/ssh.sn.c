@@ -258,7 +258,7 @@ static __sn__SshConnection *ssh_connect_and_handshake(const char *address) {
     ssh_verify_known_host(session);
 
     /* Allocate Connection Struct */
-    __sn__SshConnection *conn = (__sn__SshConnection *)calloc(1, sizeof(__sn__SshConnection));
+    __sn__SshConnection *conn = __sn__SshConnection__new();
     if (!conn) {
         fprintf(stderr, "SshConnection: allocation failed\n");
         ssh_disconnect(session);
@@ -508,7 +508,7 @@ static __sn__SshExecResult *ssh_exec_internal(RtSshConnection *conn,
     ssh_channel_free(channel);
 
     /* Allocate result */
-    RtSshExecResult *result = (RtSshExecResult *)calloc(1, sizeof(RtSshExecResult));
+    RtSshExecResult *result = __sn__SshExecResult__new();
     if (!result) {
         fprintf(stderr, "SshConnection.exec: result allocation failed\n");
         free(out_buf);
@@ -605,7 +605,7 @@ void sn_ssh_close(__sn__SshConnection *conn) {
 #define SSH_MAX_USERS 64
 
 __sn__SshServerConfig *sn_ssh_server_config_defaults(void) {
-    __sn__SshServerConfig *config = (__sn__SshServerConfig *)calloc(1, sizeof(__sn__SshServerConfig));
+    __sn__SshServerConfig *config = __sn__SshServerConfig__new();
     if (!config) {
         fprintf(stderr, "SshServerConfig.defaults: allocation failed\n");
         exit(1);
@@ -727,7 +727,7 @@ static __sn__SshListener *ssh_listener_bind_internal(const char *address,
     /* no arena needed */
 
     /* Allocate listener */
-    RtSshListener *listener = (RtSshListener *)calloc(1, sizeof(RtSshListener));
+    RtSshListener *listener = __sn__SshListener__new();
     if (!listener) {
         fprintf(stderr, "SshListener.bind: allocation failed\n");
         ssh_bind_free(sshbind);
@@ -910,7 +910,7 @@ __sn__SshSession *sn_ssh_listener_accept(__sn__SshListener *listener) {
     }
 
     /* Allocate session struct in private arena */
-    RtSshSession *sess = (RtSshSession *)calloc(1, sizeof(RtSshSession));
+    RtSshSession *sess = __sn__SshSession__new();
     if (!sess) {
         fprintf(stderr, "SshListener.accept: session allocation failed\n");
         ssh_disconnect(session);
@@ -1034,7 +1034,7 @@ __sn__SshChannel *sn_ssh_session_accept_channel(__sn__SshSession *session) {
     }
 
     /* Allocate channel struct in private arena */
-    RtSshChannel *ch = (RtSshChannel *)calloc(1, sizeof(RtSshChannel));
+    RtSshChannel *ch = __sn__SshChannel__new();
     if (!ch) {
         fprintf(stderr, "SshSession.acceptChannel: allocation failed\n");
         /* no arena to destroy */

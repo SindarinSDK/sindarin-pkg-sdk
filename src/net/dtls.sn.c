@@ -465,7 +465,7 @@ __sn__DtlsConnection *sn_dtls_connection_connect(char *address) {
     }
 
     /* Allocate and return connection */
-    __sn__DtlsConnection *conn = (__sn__DtlsConnection *)calloc(1, sizeof(__sn__DtlsConnection));
+    __sn__DtlsConnection *conn = __sn__DtlsConnection__new();
     if (conn == NULL) {
         fprintf(stderr, "DtlsConnection.connect: allocation failed\n");
         exit(1);
@@ -740,7 +740,7 @@ static void dtls_listener_thread_func(DtlsListenerData *ld) {
         }
 
         /* Create DtlsConnection */
-        __sn__DtlsConnection *conn = (__sn__DtlsConnection *)calloc(1, sizeof(__sn__DtlsConnection));
+        __sn__DtlsConnection *conn = __sn__DtlsConnection__new();
         if (conn == NULL) {
             SSL_shutdown(ssl);
             SSL_free(ssl);
@@ -928,7 +928,7 @@ __sn__DtlsListener *sn_dtls_listener_bind(char *address, char *cert_file, char *
 #endif
 
     /* Create the Sindarin-visible listener struct */
-    __sn__DtlsListener *listener = (__sn__DtlsListener *)calloc(1, sizeof(__sn__DtlsListener));
+    __sn__DtlsListener *listener = __sn__DtlsListener__new();
     if (listener == NULL) {
         fprintf(stderr, "DtlsListener.bind: allocation failed\n");
         exit(1);
