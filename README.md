@@ -13,7 +13,7 @@ dependencies:
   branch: main
 ```
 
-Then run `sn pkg install` to fetch the package.
+Then run `sn --install` to fetch the package.
 
 ## Quick Start
 
@@ -143,7 +143,11 @@ This will compile and run all tests with parallel execution. Use `make help` to 
 
 ## Dependencies
 
-The SDK depends on [sindarin-libs](https://github.com/SindarinSDK/sindarin-libs) for native library bindings (OpenSSL, zlib, etc.). Dependencies are automatically managed via the `sn.yaml` package manifest.
+The SDK depends on:
+- [sindarin-pkg-libs](https://github.com/SindarinSDK/sindarin-pkg-libs) — native library bindings (OpenSSL, zlib, etc.)
+- [sindarin-pkg-test](https://github.com/SindarinSDK/sindarin-pkg-test) — testing framework
+
+Dependencies are automatically managed via the `sn.yaml` package manifest.
 
 ## License
 
