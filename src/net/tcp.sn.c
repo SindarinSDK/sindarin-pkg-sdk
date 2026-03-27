@@ -662,6 +662,15 @@ char *sn_tcp_stream_read_line(__sn__TcpStream *stream) {
 }
 
 /* ============================================================================
+ * TcpStream Validation
+ * ============================================================================ */
+
+bool sn_tcp_stream_is_valid(__sn__TcpStream *stream) {
+    if (stream == NULL) return false;
+    return SOCK_FD(stream) != INVALID_SOCKET_VAL;
+}
+
+/* ============================================================================
  * TcpStream Configuration
  * ============================================================================ */
 
@@ -866,7 +875,74 @@ __sn__TcpListener *sn_tcp_listener_bind(char *address) {
 }
 
 /* ============================================================================
- * TcpListener Accept
+ * TcpListener Accept (cancellable via shutdown signal fd)
+ * ============================================================================ */
+
+__sn__TcpStream *sn_tcp_listener_accept_or_shutdown(
+        __sn__TcpListener *listener, long long signal_fd) {
+    if (listener == NULL) {
+        fprintf(stderr, "sn_tcp_listener_accept_or_shutdown: NULL listener\n");
+        exit(1);
+    }
+
+    socket_t listener_fd = SOCK_FD(listener);
+
+    while (1) {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(listener_fd, &readfds);
+        FD_SET((socket_t)signal_fd, &readfds);
+
+        int max_fd = (int)listener_fd;
+        if ((int)signal_fd > max_fd) max_fd = (int)signal_fd;
+
+        int ready = select(max_fd + 1, &readfds, NULL, NULL, NULL);
+        if (ready < 0) {
+#ifdef _WIN32
+            /* WSAEINTR */
+            if (GET_SOCKET_ERROR() == WSAEINTR) continue;
+#else
+            if (errno == EINTR) continue;
+#endif
+            fprintf(stderr, "sn_tcp_listener_accept_or_shutdown: select failed (%d)\n",
+                    GET_SOCKET_ERROR());
+            exit(1);
+        }
+
+        /* Shutdown signalled — return sentinel stream */
+        if (FD_ISSET((socket_t)signal_fd, &readfds)) {
+            return sn_tcp_stream_create((socket_t)INVALID_SOCKET_VAL, NULL);
+        }
+
+        /* Listener ready — accept normally */
+        if (FD_ISSET(listener_fd, &readfds)) {
+            struct sockaddr_in client_addr;
+            socklen_t client_len = sizeof(client_addr);
+            socket_t client_sock = accept(listener_fd,
+                (struct sockaddr *)&client_addr, &client_len);
+
+            if (client_sock == INVALID_SOCKET_VAL) {
+#ifndef _WIN32
+                if (errno == EINTR) continue;
+#endif
+                fprintf(stderr, "sn_tcp_listener_accept_or_shutdown: accept failed (%d)\n",
+                        GET_SOCKET_ERROR());
+                exit(1);
+            }
+
+            char remote_addr[64];
+            char ip_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, sizeof(ip_str));
+            snprintf(remote_addr, sizeof(remote_addr), "%s:%d",
+                     ip_str, ntohs(client_addr.sin_port));
+
+            return sn_tcp_stream_create(client_sock, remote_addr);
+        }
+    }
+}
+
+/* ============================================================================
+ * TcpListener Accept (blocking, original)
  * ============================================================================ */
 
 __sn__TcpStream *sn_tcp_listener_accept(__sn__TcpListener *listener) {

@@ -88,6 +88,14 @@ native struct TlsStream as ref =>
         return sn_tls_stream_get_remote_address(self)
 
     # ==========================================================================
+    # Validation Methods
+    # ==========================================================================
+
+    # Check if this stream represents a valid connection
+    @alias "sn_tls_stream_is_valid"
+    native fn isValid(): bool
+
+    # ==========================================================================
     # Lifecycle Methods
     # ==========================================================================
 
@@ -133,6 +141,10 @@ native struct TlsListener as ref =>
     fn accept(): TlsStream =>
         return sn_tls_listener_accept(self)
 
+    # Accept with shutdown support — returns invalid stream (isValid()==false) if signalled
+    fn acceptOrShutdown(signalFd: int): TlsStream =>
+        return sn_tls_listener_accept_or_shutdown(self, signalFd)
+
     # ==========================================================================
     # Getter Methods
     # ==========================================================================
@@ -170,8 +182,9 @@ native fn sn_tls_stream_dispose(s: TlsStream): void
 # TlsListener factory functions
 native fn sn_tls_listener_bind(address: str, certFile: str, keyFile: str): TlsListener
 
-# TlsListener accept function
+# TlsListener accept functions
 native fn sn_tls_listener_accept(listener: TlsListener): TlsStream
+native fn sn_tls_listener_accept_or_shutdown(listener: TlsListener, signalFd: int): TlsStream
 
 # TlsListener lifecycle
 native fn sn_tls_listener_dispose(listener: TlsListener): void

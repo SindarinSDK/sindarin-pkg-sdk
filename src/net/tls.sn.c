@@ -999,6 +999,15 @@ void sn_tls_stream_dispose(__sn__TlsStream *stream) {
 }
 
 /* ============================================================================
+ * TlsStream Validation
+ * ============================================================================ */
+
+bool sn_tls_stream_is_valid(__sn__TlsStream *stream) {
+    if (stream == NULL) return false;
+    return (socket_t)stream->socket_fd != INVALID_SOCKET_VAL;
+}
+
+/* ============================================================================
  * TlsListener Bind
  * ============================================================================ */
 
@@ -1142,7 +1151,120 @@ __sn__TlsListener *sn_tls_listener_bind(char *address,
 }
 
 /* ============================================================================
- * TlsListener Accept (blocks until a connection is available)
+ * TlsListener Accept (cancellable via shutdown signal fd)
+ * ============================================================================ */
+
+__sn__TlsStream *sn_tls_listener_accept_or_shutdown(
+        __sn__TlsListener *listener, long long signal_fd) {
+    if (listener == NULL) {
+        fprintf(stderr, "TlsListener.acceptOrShutdown: listener is NULL\n");
+        exit(1);
+    }
+
+    TlsListenerInternal *lint = tls_listener_get_internal(listener);
+    if (lint == NULL) {
+        fprintf(stderr, "TlsListener.acceptOrShutdown: internal state is NULL\n");
+        exit(1);
+    }
+
+    socket_t listener_fd = (socket_t)listener->socket_fd;
+
+    while (1) {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(listener_fd, &readfds);
+        FD_SET((socket_t)signal_fd, &readfds);
+
+        int max_fd = (int)listener_fd;
+        if ((int)signal_fd > max_fd) max_fd = (int)signal_fd;
+
+        int ready = select(max_fd + 1, &readfds, NULL, NULL, NULL);
+        if (ready < 0) {
+#ifdef _WIN32
+            if (GET_SOCKET_ERROR() == WSAEINTR) continue;
+#else
+            if (errno == EINTR) continue;
+#endif
+            fprintf(stderr, "TlsListener.acceptOrShutdown: select failed (%d)\n",
+                    GET_SOCKET_ERROR());
+            exit(1);
+        }
+
+        /* Shutdown signalled — return sentinel stream */
+        if (FD_ISSET((socket_t)signal_fd, &readfds)) {
+            return sn_tls_stream_create((socket_t)INVALID_SOCKET_VAL,
+                                         NULL, NULL, NULL);
+        }
+
+        /* Listener ready — accept TCP connection */
+        if (FD_ISSET(listener_fd, &readfds)) {
+            struct sockaddr_storage client_addr;
+            socklen_t client_len = sizeof(client_addr);
+
+            socket_t client_sock = accept(listener_fd,
+                (struct sockaddr *)&client_addr, &client_len);
+            if (client_sock == INVALID_SOCKET_VAL) {
+#ifndef _WIN32
+                if (errno == EINTR) continue;
+#endif
+                fprintf(stderr, "TlsListener.acceptOrShutdown: accept failed (%d)\n",
+                        GET_SOCKET_ERROR());
+                exit(1);
+            }
+
+            /* TLS handshake */
+            SSL *ssl = SSL_new(lint->ssl_ctx);
+            if (ssl == NULL) {
+                CLOSE_SOCKET(client_sock);
+                fprintf(stderr, "TlsListener.acceptOrShutdown: SSL_new failed\n");
+                exit(1);
+            }
+            if (SSL_set_fd(ssl, (int)client_sock) != 1) {
+                SSL_free(ssl);
+                CLOSE_SOCKET(client_sock);
+                fprintf(stderr, "TlsListener.acceptOrShutdown: SSL_set_fd failed\n");
+                exit(1);
+            }
+
+            int accept_ret = SSL_accept(ssl);
+            if (accept_ret != 1) {
+                int ssl_err = SSL_get_error(ssl, accept_ret);
+                unsigned long err_code = ERR_get_error();
+                char err_buf[256];
+                ERR_error_string_n(err_code, err_buf, sizeof(err_buf));
+                SSL_free(ssl);
+                CLOSE_SOCKET(client_sock);
+                if (ssl_err == SSL_ERROR_SSL) {
+                    fprintf(stderr, "TlsListener.acceptOrShutdown: TLS handshake failed: %s\n", err_buf);
+                } else {
+                    fprintf(stderr, "TlsListener.acceptOrShutdown: TLS handshake failed (error %d)\n", ssl_err);
+                }
+                exit(1);
+            }
+
+            /* Build remote address string */
+            char addr_str[256];
+            if (client_addr.ss_family == AF_INET) {
+                struct sockaddr_in *sin = (struct sockaddr_in *)&client_addr;
+                char ip[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &sin->sin_addr, ip, sizeof(ip));
+                snprintf(addr_str, sizeof(addr_str), "%s:%d", ip, ntohs(sin->sin_port));
+            } else if (client_addr.ss_family == AF_INET6) {
+                struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&client_addr;
+                char ip[INET6_ADDRSTRLEN];
+                inet_ntop(AF_INET6, &sin6->sin6_addr, ip, sizeof(ip));
+                snprintf(addr_str, sizeof(addr_str), "[%s]:%d", ip, ntohs(sin6->sin6_port));
+            } else {
+                snprintf(addr_str, sizeof(addr_str), "unknown:0");
+            }
+
+            return sn_tls_stream_create(client_sock, NULL, ssl, addr_str);
+        }
+    }
+}
+
+/* ============================================================================
+ * TlsListener Accept (blocking, original)
  * ============================================================================ */
 
 __sn__TlsStream *sn_tls_listener_accept(__sn__TlsListener *listener) {

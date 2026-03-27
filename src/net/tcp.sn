@@ -94,6 +94,10 @@ native struct TcpStream as ref =>
     @alias "sn_tcp_stream_set_timeout"
     native fn setTimeout(ms: int): void
 
+    # Check if this stream represents a valid connection
+    @alias "sn_tcp_stream_is_valid"
+    native fn isValid(): bool
+
     # ==========================================================================
     # Lifecycle Methods
     # ==========================================================================
@@ -130,6 +134,10 @@ native struct TcpListener as ref =>
     # Wait for and accept a connection, returns TcpStream
     fn accept(): TcpStream =>
         return sn_tcp_listener_accept(self)
+
+    # Accept with shutdown support — returns invalid stream (isValid()==false) if signalled
+    fn acceptOrShutdown(signalFd: int): TcpStream =>
+        return sn_tcp_listener_accept_or_shutdown(self, signalFd)
 
     # ==========================================================================
     # Getter Methods
@@ -168,8 +176,9 @@ native fn sn_tcp_stream_dispose(s: TcpStream): void
 # TcpListener factory functions
 native fn sn_tcp_listener_bind(address: str): TcpListener
 
-# TcpListener accept function
+# TcpListener accept functions
 native fn sn_tcp_listener_accept(listener: TcpListener): TcpStream
+native fn sn_tcp_listener_accept_or_shutdown(listener: TcpListener, signalFd: int): TcpStream
 
 # TcpListener lifecycle
 native fn sn_tcp_listener_dispose(listener: TcpListener): void
