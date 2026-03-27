@@ -5,12 +5,12 @@
 # Drop-in replacement for the builtin Bytes type.
 #
 # Usage:
-#   import "sdk/bytes"
+# import "sdk/bytes"
 #
-#   var bytes: byte[] = Bytes.fromHex("48656c6c6f")
-#   var text: str = bytes.toString()  # "Hello"
+# var bytes: byte[] = Bytes.fromHex("48656c6c6f")
+# var text: str = bytes.toString()  # "Hello"
 #
-#   var b64: byte[] = Bytes.fromBase64("SGVsbG8=")
+# var b64: byte[] = Bytes.fromBase64("SGVsbG8=")
 #
 # Note: The instance methods like .toString(), .toHex(), .toBase64()
 # are still handled by the builtin byte array methods. This SDK provides
@@ -29,19 +29,19 @@
 
 @alias "RtBytes"
 native struct Bytes =>
-    _unused: int32
+  _unused: int32
 
-    # ==========================================================================
-    # Static Decoding Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Decoding Methods
+  # ==========================================================================
 
-    # Decode a hexadecimal string to byte array
-    static fn fromHex(hexString: str): byte[] =>
-        return sn_bytes_from_hex(hexString)
+  # Decode a hexadecimal string to byte array
+  static fn fromHex(hexString: str): byte[] =>
+    return sn_bytes_from_hex(hexString)
 
-    # Decode a Base64 string to byte array
-    static fn fromBase64(base64String: str): byte[] =>
-        return sn_bytes_from_base64(base64String)
+  # Decode a Base64 string to byte array
+  static fn fromBase64(base64String: str): byte[] =>
+    return sn_bytes_from_base64(base64String)
 
 # ==============================================================================
 # Runtime Function Declarations

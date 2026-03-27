@@ -12,123 +12,123 @@ import "sindarin-pkg-sdk/src/os/env"
 # --- Client functions for threaded execution ---
 
 fn client_echo(port: int): str =>
-    var client: TlsStream = TlsStream.connect($"127.0.0.1:{port}")
+  var client: TlsStream = TlsStream.connect($"127.0.0.1:{port}")
 
-    # Send a line
-    client.writeLine("Hello TLS")
+  # Send a line
+  client.writeLine("Hello TLS")
 
-    # Read echo back
-    var echo: str = client.readLine()
+  # Read echo back
+  var echo: str = client.readLine()
 
-    client.dispose()
-    return echo
+  client.dispose()
+  return echo
 
 fn client_write_bytes(port: int): int =>
-    var client: TlsStream = TlsStream.connect($"127.0.0.1:{port}")
+  var client: TlsStream = TlsStream.connect($"127.0.0.1:{port}")
 
-    # Send bytes
-    var msg: byte[] = "Hello Bytes".toBytes()
-    var sent: int = client.write(msg)
+  # Send bytes
+  var msg: byte[] = "Hello Bytes".toBytes()
+  var sent: int = client.write(msg)
 
-    # Wait for server to acknowledge receipt before closing
-    client.readLine()
-    client.dispose()
-    return sent
+  # Wait for server to acknowledge receipt before closing
+  client.readLine()
+  client.dispose()
+  return sent
 
 # --- Tests ---
 
 fn test_listener_bind(): void =>
-    print("test_listener_bind: ")
-    var cert_path: str = "tests/net/test_tls_cert.pem"
-    var key_path: str = "tests/net/test_tls_key.pem"
+  print("test_listener_bind: ")
+  var cert_path: str = "tests/net/test_tls_cert.pem"
+  var key_path: str = "tests/net/test_tls_key.pem"
 
-    var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
-    var port: int = server.port()
+  var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
+  var port: int = server.port()
 
-    assert(port > 0, "Port should be assigned")
-    assert(port < 65536, "Port should be valid")
+  assert(port > 0, "Port should be assigned")
+  assert(port < 65536, "Port should be valid")
 
-    server.dispose()
-    print("PASS\n")
+  server.dispose()
+  print("PASS\n")
 
 fn test_tls_connect_and_echo(): void =>
-    print("test_tls_connect_and_echo: ")
-    var cert_path: str = "tests/net/test_tls_cert.pem"
-    var key_path: str = "tests/net/test_tls_key.pem"
+  print("test_tls_connect_and_echo: ")
+  var cert_path: str = "tests/net/test_tls_cert.pem"
+  var key_path: str = "tests/net/test_tls_key.pem"
 
-    # Set SN_CERTS so the client trusts our self-signed certificate
-    Environment.set("SN_CERTS", cert_path)
+  # Set SN_CERTS so the client trusts our self-signed certificate
+  Environment.set("SN_CERTS", cert_path)
 
-    var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
-    var port: int = server.port()
+  var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
+  var port: int = server.port()
 
-    # Spawn client in a thread
-    var client_result: str = &client_echo(port)
+  # Spawn client in a thread
+  var client_result: str = & client_echo(port)
 
-    # Server: accept connection
-    var serverConn: TlsStream = server.accept()
+  # Server: accept connection
+  var serverConn: TlsStream = server.accept()
 
-    # Check remote address
-    var remoteAddr: str = serverConn.remoteAddress()
-    assert(remoteAddr.startsWith("127.0.0.1:"), $"Remote should be localhost, got '{remoteAddr}'")
+  # Check remote address
+  var remoteAddr: str = serverConn.remoteAddress()
+  assert(remoteAddr.startsWith("127.0.0.1:"), $"Remote should be localhost, got '{remoteAddr}'")
 
-    # Server reads client's line
-    var received: str = serverConn.readLine()
-    assert(received == "Hello TLS", $"Should receive 'Hello TLS', got '{received}'")
+  # Server reads client's line
+  var received: str = serverConn.readLine()
+  assert(received == "Hello TLS", $"Should receive 'Hello TLS', got '{received}'")
 
-    # Server echoes back
-    serverConn.writeLine("Echo: " + received)
+  # Server echoes back
+  serverConn.writeLine("Echo: " + received)
 
-    # Sync with client
-    var echo: str = client_result!
-    assert(echo == "Echo: Hello TLS", $"Client should receive echo, got '{echo}'")
+  # Sync with client
+  var echo: str = client_result !
+  assert(echo == "Echo: Hello TLS", $"Client should receive echo, got '{echo}'")
 
-    # Clean up
-    serverConn.dispose()
-    server.dispose()
+  # Clean up
+  serverConn.dispose()
+  server.dispose()
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn test_tls_write_bytes(): void =>
-    print("test_tls_write_bytes: ")
-    var cert_path: str = "tests/net/test_tls_cert.pem"
-    var key_path: str = "tests/net/test_tls_key.pem"
+  print("test_tls_write_bytes: ")
+  var cert_path: str = "tests/net/test_tls_cert.pem"
+  var key_path: str = "tests/net/test_tls_key.pem"
 
-    # Set SN_CERTS so the client trusts our self-signed certificate
-    Environment.set("SN_CERTS", cert_path)
+  # Set SN_CERTS so the client trusts our self-signed certificate
+  Environment.set("SN_CERTS", cert_path)
 
-    var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
-    var port: int = server.port()
+  var server: TlsListener = TlsListener.bind(":0", cert_path, key_path)
+  var port: int = server.port()
 
-    # Spawn client in a thread
-    var client_result: int = &client_write_bytes(port)
+  # Spawn client in a thread
+  var client_result: int = & client_write_bytes(port)
 
-    # Server: accept connection
-    var serverConn: TlsStream = server.accept()
+  # Server: accept connection
+  var serverConn: TlsStream = server.accept()
 
-    # Server reads bytes
-    var received: byte[] = serverConn.read(1024)
-    assert(received.length == 11, $"Should receive 11 bytes, got {received.length}")
-    assert(received.toString() == "Hello Bytes", $"Should receive 'Hello Bytes', got '{received.toString()}'")
+  # Server reads bytes
+  var received: byte[] = serverConn.read(1024)
+  assert(received.length == 11, $"Should receive 11 bytes, got {received.length}")
+  assert(received.toString() == "Hello Bytes", $"Should receive 'Hello Bytes', got '{received.toString()}'")
 
-    # Acknowledge receipt so client can close cleanly
-    serverConn.writeLine("ok")
+  # Acknowledge receipt so client can close cleanly
+  serverConn.writeLine("ok")
 
-    # Sync with client
-    var sent: int = client_result!
-    assert(sent == 11, $"Client should send 11 bytes, got {sent}")
+  # Sync with client
+  var sent: int = client_result !
+  assert(sent == 11, $"Client should send 11 bytes, got {sent}")
 
-    # Clean up
-    serverConn.dispose()
-    server.dispose()
+  # Clean up
+  serverConn.dispose()
+  server.dispose()
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn main(): void =>
-    print("=== SDK TLS Listener Tests ===\n\n")
+  print("=== SDK TLS Listener Tests ===\n\n")
 
-    test_listener_bind()
-    test_tls_connect_and_echo()
-    test_tls_write_bytes()
+  test_listener_bind()
+  test_tls_connect_and_echo()
+  test_tls_write_bytes()
 
-    print("\nAll TLS listener tests passed!\n")
+  print("\nAll TLS listener tests passed!\n")

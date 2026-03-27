@@ -7,224 +7,224 @@
 import "sindarin-pkg-sdk/src/io/textfile"
 
 fn test_static_write_and_read(): void =>
-    print("test_static_write_and_read: ")
+  print("test_static_write_and_read: ")
 
-    var testPath: str = "sdk_textfile_test1.txt"
-    var content: str = "Hello, World!\nLine 2\nLine 3"
+  var testPath: str = "sdk_textfile_test1.txt"
+  var content: str = "Hello, World!\nLine 2\nLine 3"
 
-    # Write content
-    TextFile.writeAll(testPath, content)
+  # Write content
+  TextFile.writeAll(testPath, content)
 
-    # Read it back
-    var readContent: str = TextFile.readAll(testPath)
+  # Read it back
+  var readContent: str = TextFile.readAll(testPath)
 
-    assert(readContent == content, "Content should match")
+  assert(readContent == content, "Content should match")
 
-    # Clean up
-    TextFile.delete(testPath)
+  # Clean up
+  TextFile.delete(testPath)
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn test_exists(): void =>
-    print("test_exists: ")
+  print("test_exists: ")
 
-    var testPath: str = "sdk_textfile_test2.txt"
+  var testPath: str = "sdk_textfile_test2.txt"
 
-    # File should not exist yet
-    assert(!TextFile.exists(testPath), "File should not exist initially")
+  # File should not exist yet
+  assert(!TextFile.exists(testPath), "File should not exist initially")
 
-    # Create it
-    TextFile.writeAll(testPath, "test")
+  # Create it
+  TextFile.writeAll(testPath, "test")
 
-    # Now it should exist
-    assert(TextFile.exists(testPath), "File should exist after creation")
+  # Now it should exist
+  assert(TextFile.exists(testPath), "File should exist after creation")
 
-    # Clean up
-    TextFile.delete(testPath)
+  # Clean up
+  TextFile.delete(testPath)
 
-    # Should not exist anymore
-    assert(!TextFile.exists(testPath), "File should not exist after deletion")
+  # Should not exist anymore
+  assert(!TextFile.exists(testPath), "File should not exist after deletion")
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn test_instance_read_write(): void =>
-    print("test_instance_read_write: ")
+  print("test_instance_read_write: ")
 
-    var testPath: str = "sdk_textfile_test3.txt"
+  var testPath: str = "sdk_textfile_test3.txt"
 
-    # Open file and write
-    var f: TextFile = TextFile.open(testPath)
-    f.writeLine("Line 1")
-    f.writeLine("Line 2")
-    f.writeLine("Line 3")
-    f.dispose()
+  # Open file and write
+  var f: TextFile = TextFile.open(testPath)
+  f.writeLine("Line 1")
+  f.writeLine("Line 2")
+  f.writeLine("Line 3")
+  f.dispose()
 
-    # Open and read back
-    var f2: TextFile = TextFile.open(testPath)
-    var line1: str = f2.readLine()
-    var line2: str = f2.readLine()
-    var line3: str = f2.readLine()
-    f2.dispose()
+  # Open and read back
+  var f2: TextFile = TextFile.open(testPath)
+  var line1: str = f2.readLine()
+  var line2: str = f2.readLine()
+  var line3: str = f2.readLine()
+  f2.dispose()
 
-    assert(line1 == "Line 1", "First line should match")
-    assert(line2 == "Line 2", "Second line should match")
-    assert(line3 == "Line 3", "Third line should match")
+  assert(line1 == "Line 1", "First line should match")
+  assert(line2 == "Line 2", "Second line should match")
+  assert(line3 == "Line 3", "Third line should match")
 
-    # Clean up
-    TextFile.delete(testPath)
+  # Clean up
+  TextFile.delete(testPath)
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn test_read_lines(): void =>
-    print("test_read_lines: ")
+  print("test_read_lines: ")
 
-    var testPath: str = "sdk_textfile_test4.txt"
-    TextFile.writeAll(testPath, "Alpha\nBeta\nGamma")
+  var testPath: str = "sdk_textfile_test4.txt"
+  TextFile.writeAll(testPath, "Alpha\nBeta\nGamma")
 
-    var f: TextFile = TextFile.open(testPath)
-    var lines: str[] = f.readLines()
-    f.dispose()
+  var f: TextFile = TextFile.open(testPath)
+  var lines: str[] = f.readLines()
+  f.dispose()
 
-    assert(lines.length == 3, "Should have 3 lines")
-    assert(lines[0] == "Alpha", "First line")
-    assert(lines[1] == "Beta", "Second line")
-    assert(lines[2] == "Gamma", "Third line")
+  assert(lines.length == 3, "Should have 3 lines")
+  assert(lines[0] == "Alpha", "First line")
+  assert(lines[1] == "Beta", "Second line")
+  assert(lines[2] == "Gamma", "Third line")
 
-    TextFile.delete(testPath)
+  TextFile.delete(testPath)
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn test_read_word(): void =>
-    print("test_read_word: ")
+  print("test_read_word: ")
 
-    var testPath: str = "sdk_textfile_test5.txt"
-    TextFile.writeAll(testPath, "one two  three\nfour")
+  var testPath: str = "sdk_textfile_test5.txt"
+  TextFile.writeAll(testPath, "one two  three\nfour")
 
-    var f: TextFile = TextFile.open(testPath)
-    var w1: str = f.readWord()
-    var w2: str = f.readWord()
-    var w3: str = f.readWord()
-    var w4: str = f.readWord()
-    f.dispose()
+  var f: TextFile = TextFile.open(testPath)
+  var w1: str = f.readWord()
+  var w2: str = f.readWord()
+  var w3: str = f.readWord()
+  var w4: str = f.readWord()
+  f.dispose()
 
-    assert(w1 == "one", "First word")
-    assert(w2 == "two", "Second word")
-    assert(w3 == "three", "Third word")
-    assert(w4 == "four", "Fourth word")
+  assert(w1 == "one", "First word")
+  assert(w2 == "two", "Second word")
+  assert(w3 == "three", "Third word")
+  assert(w4 == "four", "Fourth word")
 
-    TextFile.delete(testPath)
+  TextFile.delete(testPath)
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn test_position_and_seek(): void =>
-    print("test_position_and_seek: ")
+  print("test_position_and_seek: ")
 
-    var testPath: str = "sdk_textfile_test6.txt"
-    TextFile.writeAll(testPath, "ABCDEFGHIJ")
+  var testPath: str = "sdk_textfile_test6.txt"
+  TextFile.writeAll(testPath, "ABCDEFGHIJ")
 
-    var f: TextFile = TextFile.open(testPath)
+  var f: TextFile = TextFile.open(testPath)
 
-    # Read first 3 chars
-    var c1: int = f.readChar()
-    var c2: int = f.readChar()
-    var c3: int = f.readChar()
+  # Read first 3 chars
+  var c1: int = f.readChar()
+  var c2: int = f.readChar()
+  var c3: int = f.readChar()
 
-    assert(c1 == 65, "First char should be 'A'")
-    assert(c2 == 66, "Second char should be 'B'")
-    assert(c3 == 67, "Third char should be 'C'")
+  assert(c1 == 65, "First char should be 'A'")
+  assert(c2 == 66, "Second char should be 'B'")
+  assert(c3 == 67, "Third char should be 'C'")
 
-    # Position should be 3
-    assert(f.position() == 3, "Position should be 3")
+  # Position should be 3
+  assert(f.position() == 3, "Position should be 3")
 
-    # Seek back to start
-    f.seek(0)
-    assert(f.position() == 0, "Position should be 0 after seek")
+  # Seek back to start
+  f.seek(0)
+  assert(f.position() == 0, "Position should be 0 after seek")
 
-    # Read first char again
-    var c4: int = f.readChar()
-    assert(c4 == 65, "First char after seek should be 'A'")
+  # Read first char again
+  var c4: int = f.readChar()
+  assert(c4 == 65, "First char after seek should be 'A'")
 
-    f.dispose()
-    TextFile.delete(testPath)
+  f.dispose()
+  TextFile.delete(testPath)
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn test_eof_and_has_chars(): void =>
-    print("test_eof_and_has_chars: ")
+  print("test_eof_and_has_chars: ")
 
-    var testPath: str = "sdk_textfile_test7.txt"
-    TextFile.writeAll(testPath, "AB")
+  var testPath: str = "sdk_textfile_test7.txt"
+  TextFile.writeAll(testPath, "AB")
 
-    var f: TextFile = TextFile.open(testPath)
+  var f: TextFile = TextFile.open(testPath)
 
-    assert(!f.isEof(), "Should not be at EOF initially")
-    assert(f.hasChars(), "Should have chars initially")
+  assert(!f.isEof(), "Should not be at EOF initially")
+  assert(f.hasChars(), "Should have chars initially")
 
-    f.readChar()
-    f.readChar()
+  f.readChar()
+  f.readChar()
 
-    assert(f.isEof(), "Should be at EOF after reading all")
-    assert(!f.hasChars(), "Should not have chars after reading all")
+  assert(f.isEof(), "Should be at EOF after reading all")
+  assert(!f.hasChars(), "Should not have chars after reading all")
 
-    f.dispose()
-    TextFile.delete(testPath)
+  f.dispose()
+  TextFile.delete(testPath)
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn test_copy_and_move(): void =>
-    print("test_copy_and_move: ")
+  print("test_copy_and_move: ")
 
-    var srcPath: str = "sdk_textfile_test_src.txt"
-    var dstPath: str = "sdk_textfile_test_dst.txt"
-    var movePath: str = "sdk_textfile_test_moved.txt"
+  var srcPath: str = "sdk_textfile_test_src.txt"
+  var dstPath: str = "sdk_textfile_test_dst.txt"
+  var movePath: str = "sdk_textfile_test_moved.txt"
 
-    TextFile.writeAll(srcPath, "Copy test content")
+  TextFile.writeAll(srcPath, "Copy test content")
 
-    # Test copy
-    TextFile.copy(srcPath, dstPath)
-    assert(TextFile.exists(srcPath), "Source should still exist after copy")
-    assert(TextFile.exists(dstPath), "Destination should exist after copy")
-    assert(TextFile.readAll(dstPath) == "Copy test content", "Copied content should match")
+  # Test copy
+  TextFile.copy(srcPath, dstPath)
+  assert(TextFile.exists(srcPath), "Source should still exist after copy")
+  assert(TextFile.exists(dstPath), "Destination should exist after copy")
+  assert(TextFile.readAll(dstPath) == "Copy test content", "Copied content should match")
 
-    # Test move
-    TextFile.move(dstPath, movePath)
-    assert(!TextFile.exists(dstPath), "Source should not exist after move")
-    assert(TextFile.exists(movePath), "Destination should exist after move")
-    assert(TextFile.readAll(movePath) == "Copy test content", "Moved content should match")
+  # Test move
+  TextFile.move(dstPath, movePath)
+  assert(!TextFile.exists(dstPath), "Source should not exist after move")
+  assert(TextFile.exists(movePath), "Destination should exist after move")
+  assert(TextFile.readAll(movePath) == "Copy test content", "Moved content should match")
 
-    # Clean up
-    TextFile.delete(srcPath)
-    TextFile.delete(movePath)
+  # Clean up
+  TextFile.delete(srcPath)
+  TextFile.delete(movePath)
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn test_properties(): void =>
-    print("test_properties: ")
+  print("test_properties: ")
 
-    var testPath: str = "sdk_textfile_test8.txt"
-    TextFile.writeAll(testPath, "1234567890")  # 10 bytes
+  var testPath: str = "sdk_textfile_test8.txt"
+  TextFile.writeAll(testPath, "1234567890") # 10 bytes
 
-    var f: TextFile = TextFile.open(testPath)
+  var f: TextFile = TextFile.open(testPath)
 
-    assert(f.size() == 10, "Size should be 10 bytes")
-    assert(f.name() == "sdk_textfile_test8.txt", "Name should be filename only")
+  assert(f.size() == 10, "Size should be 10 bytes")
+  assert(f.name() == "sdk_textfile_test8.txt", "Name should be filename only")
 
-    f.dispose()
-    TextFile.delete(testPath)
+  f.dispose()
+  TextFile.delete(testPath)
 
-    print("PASS\n")
+  print("PASS\n")
 
 fn main(): void =>
-    print("=== SDK TextFile Tests ===\n\n")
+  print("=== SDK TextFile Tests ===\n\n")
 
-    test_static_write_and_read()
-    test_exists()
-    test_instance_read_write()
-    test_read_lines()
-    test_read_word()
-    test_position_and_seek()
-    test_eof_and_has_chars()
-    test_copy_and_move()
-    test_properties()
+  test_static_write_and_read()
+  test_exists()
+  test_instance_read_write()
+  test_read_lines()
+  test_read_word()
+  test_position_and_seek()
+  test_eof_and_has_chars()
+  test_copy_and_move()
+  test_properties()
 
-    print("\nAll TextFile tests passed!\n")
+  print("\nAll TextFile tests passed!\n")

@@ -1,34 +1,34 @@
 # ==============================================================================
 # sdk/net/quic.sn - QUIC Types for Sindarin (QuicConnection, QuicListener,
-#                   QuicStream, QuicConfig)
+# QuicStream, QuicConfig)
 # ==============================================================================
 # Provides QUIC transport using ngtcp2 with OpenSSL crypto backend.
 # QUIC provides multiplexed streams over encrypted UDP with low latency.
 #
 # Usage:
-#   import "sdk/net/quic"
+# import "sdk/net/quic"
 #
-#   # Client
-#   var conn: QuicConnection = QuicConnection.connect("server:4433")
-#   var stream: QuicStream = conn.openStream()
-#   stream.writeLine("Hello, QUIC!")
-#   var response: str = stream.readLine()
-#   stream.close()
-#   conn.close()
+# # Client
+# var conn: QuicConnection = QuicConnection.connect("server:4433")
+# var stream: QuicStream = conn.openStream()
+# stream.writeLine("Hello, QUIC!")
+# var response: str = stream.readLine()
+# stream.close()
+# conn.close()
 #
-#   # Server
-#   var server: QuicListener = QuicListener.bind(":4433", "cert.pem", "key.pem")
-#   var client: QuicConnection = server.accept()
-#   var stream: QuicStream = client.acceptStream()
-#   var msg: str = stream.readLine()
-#   stream.writeLine($"Echo: {msg}")
-#   stream.close()
-#   client.close()
-#   server.close()
+# # Server
+# var server: QuicListener = QuicListener.bind(":4433", "cert.pem", "key.pem")
+# var client: QuicConnection = server.accept()
+# var stream: QuicStream = client.acceptStream()
+# var msg: str = stream.readLine()
+# stream.writeLine($"Echo: {msg}")
+# stream.close()
+# client.close()
+# server.close()
 #
 # Certificate loading:
-#   - Server: requires cert/key PEM files passed to bind()
-#   - Client: loads CA certs from SN_CERTS env var or platform store
+# - Server: requires cert/key PEM files passed to bind()
+# - Client: loads CA certs from SN_CERTS env var or platform store
 #
 # ==============================================================================
 
@@ -46,52 +46,52 @@
 
 @alias "RtQuicConfig"
 native struct QuicConfig as ref =>
-    @alias "max_bidi_streams"
-    _max_bidi_streams: int
+  @alias "max_bidi_streams"
+  _max_bidi_streams: int
 
-    @alias "max_uni_streams"
-    _max_uni_streams: int
+  @alias "max_uni_streams"
+  _max_uni_streams: int
 
-    @alias "max_stream_window"
-    _max_stream_window: int
+  @alias "max_stream_window"
+  _max_stream_window: int
 
-    @alias "max_conn_window"
-    _max_conn_window: int
+  @alias "max_conn_window"
+  _max_conn_window: int
 
-    @alias "idle_timeout_ms"
-    _idle_timeout_ms: int
+  @alias "idle_timeout_ms"
+  _idle_timeout_ms: int
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Factory Methods
+  # ==========================================================================
 
-    # Create a config with sensible defaults
-    static fn defaults(): QuicConfig =>
-        return sn_quic_config_defaults()
+  # Create a config with sensible defaults
+  static fn defaults(): QuicConfig =>
+    return sn_quic_config_defaults()
 
-    # ==========================================================================
-    # Builder Methods (return self for chaining)
-    # ==========================================================================
+  # ==========================================================================
+  # Builder Methods (return self for chaining)
+  # ==========================================================================
 
-    # Set maximum number of bidirectional streams
-    fn setMaxBidiStreams(n: int): QuicConfig =>
-        return sn_quic_config_set_max_bidi_streams(self, n)
+  # Set maximum number of bidirectional streams
+  fn setMaxBidiStreams(n: int): QuicConfig =>
+    return sn_quic_config_set_max_bidi_streams(self, n)
 
-    # Set maximum number of unidirectional streams
-    fn setMaxUniStreams(n: int): QuicConfig =>
-        return sn_quic_config_set_max_uni_streams(self, n)
+  # Set maximum number of unidirectional streams
+  fn setMaxUniStreams(n: int): QuicConfig =>
+    return sn_quic_config_set_max_uni_streams(self, n)
 
-    # Set per-stream flow control window (bytes)
-    fn setMaxStreamWindow(bytes: int): QuicConfig =>
-        return sn_quic_config_set_max_stream_window(self, bytes)
+  # Set per-stream flow control window (bytes)
+  fn setMaxStreamWindow(bytes: int): QuicConfig =>
+    return sn_quic_config_set_max_stream_window(self, bytes)
 
-    # Set per-connection flow control window (bytes)
-    fn setMaxConnWindow(bytes: int): QuicConfig =>
-        return sn_quic_config_set_max_conn_window(self, bytes)
+  # Set per-connection flow control window (bytes)
+  fn setMaxConnWindow(bytes: int): QuicConfig =>
+    return sn_quic_config_set_max_conn_window(self, bytes)
 
-    # Set idle timeout in milliseconds (0 = no timeout)
-    fn setIdleTimeout(ms: int): QuicConfig =>
-        return sn_quic_config_set_idle_timeout(self, ms)
+  # Set idle timeout in milliseconds (0 = no timeout)
+  fn setIdleTimeout(ms: int): QuicConfig =>
+    return sn_quic_config_set_idle_timeout(self, ms)
 
 # ==============================================================================
 # QuicStream Native Struct Definition
@@ -100,59 +100,59 @@ native struct QuicConfig as ref =>
 
 @alias "RtQuicStream"
 native struct QuicStream as ref =>
-    @alias "stream_id"
-    _stream_id: long
+  @alias "stream_id"
+  _stream_id: long
 
-    @alias "conn_ptr"
-    _conn_ptr: long
+  @alias "conn_ptr"
+  _conn_ptr: long
 
-    # ==========================================================================
-    # Read Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Read Methods
+  # ==========================================================================
 
-    # Read up to maxBytes from the stream
-    fn read(maxBytes: int): byte[] =>
-        return sn_quic_stream_read(self, maxBytes)
+  # Read up to maxBytes from the stream
+  fn read(maxBytes: int): byte[] =>
+    return sn_quic_stream_read(self, maxBytes)
 
-    # Read until stream is closed by peer
-    fn readAll(): byte[] =>
-        return sn_quic_stream_read_all(self)
+  # Read until stream is closed by peer
+  fn readAll(): byte[] =>
+    return sn_quic_stream_read_all(self)
 
-    # Read until newline
-    fn readLine(): str =>
-        return sn_quic_stream_read_line(self)
+  # Read until newline
+  fn readLine(): str =>
+    return sn_quic_stream_read_line(self)
 
-    # ==========================================================================
-    # Write Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Write Methods
+  # ==========================================================================
 
-    # Write bytes, return count written
-    @alias "sn_quic_stream_write"
-    native fn write(data: byte[]): int
+  # Write bytes, return count written
+  @alias "sn_quic_stream_write"
+  native fn write(data: byte[]): int
 
-    # Write string + newline
-    @alias "sn_quic_stream_write_line"
-    native fn writeLine(text: str): void
+  # Write string + newline
+  @alias "sn_quic_stream_write_line"
+  native fn writeLine(text: str): void
 
-    # ==========================================================================
-    # Getter Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Getter Methods
+  # ==========================================================================
 
-    # Get the stream ID
-    @alias "sn_quic_stream_get_id"
-    native fn id(): long
+  # Get the stream ID
+  @alias "sn_quic_stream_get_id"
+  native fn id(): long
 
-    # Check if this is a unidirectional stream
-    @alias "sn_quic_stream_is_unidirectional"
-    native fn isUnidirectional(): bool
+  # Check if this is a unidirectional stream
+  @alias "sn_quic_stream_is_unidirectional"
+  native fn isUnidirectional(): bool
 
-    # ==========================================================================
-    # Lifecycle Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Lifecycle Methods
+  # ==========================================================================
 
-    # Close the stream
-    @alias "sn_quic_stream_close"
-    native fn close(): void
+  # Close the stream
+  @alias "sn_quic_stream_close"
+  native fn close(): void
 
 # ==============================================================================
 # QuicConnection Native Struct Definition
@@ -161,67 +161,67 @@ native struct QuicStream as ref =>
 
 @alias "RtQuicConnection"
 native struct QuicConnection as ref =>
-    @alias "conn_ptr"
-    _conn_ptr: long
+  @alias "conn_ptr"
+  _conn_ptr: long
 
-    @alias "socket_fd"
-    _socket_fd: int
+  @alias "socket_fd"
+  _socket_fd: int
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Factory Methods
+  # ==========================================================================
 
-    # Connect to a remote QUIC server (host:port)
-    static fn connect(address: str): QuicConnection =>
-        return sn_quic_connection_connect(address)
+  # Connect to a remote QUIC server (host:port)
+  static fn connect(address: str): QuicConnection =>
+    return sn_quic_connection_connect(address)
 
-    # Connect with custom configuration
-    static fn connectWith(address: str, config: QuicConfig): QuicConnection =>
-        return sn_quic_connection_connect_with(address, config)
+  # Connect with custom configuration
+  static fn connectWith(address: str, config: QuicConfig): QuicConnection =>
+    return sn_quic_connection_connect_with(address, config)
 
-    # Connect with 0-RTT early data using a previously saved resumption token
-    static fn connectEarly(address: str, token: byte[]): QuicConnection =>
-        return sn_quic_connection_connect_early(address, token)
+  # Connect with 0-RTT early data using a previously saved resumption token
+  static fn connectEarly(address: str, token: byte[]): QuicConnection =>
+    return sn_quic_connection_connect_early(address, token)
 
-    # ==========================================================================
-    # Stream Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Stream Methods
+  # ==========================================================================
 
-    # Open a new bidirectional stream
-    fn openStream(): QuicStream =>
-        return sn_quic_connection_open_stream(self)
+  # Open a new bidirectional stream
+  fn openStream(): QuicStream =>
+    return sn_quic_connection_open_stream(self)
 
-    # Open a new unidirectional stream (write-only from this side)
-    fn openUnidirectionalStream(): QuicStream =>
-        return sn_quic_connection_open_uni_stream(self)
+  # Open a new unidirectional stream (write-only from this side)
+  fn openUnidirectionalStream(): QuicStream =>
+    return sn_quic_connection_open_uni_stream(self)
 
-    # Accept an incoming stream opened by the peer
-    fn acceptStream(): QuicStream =>
-        return sn_quic_connection_accept_stream(self)
+  # Accept an incoming stream opened by the peer
+  fn acceptStream(): QuicStream =>
+    return sn_quic_connection_accept_stream(self)
 
-    # ==========================================================================
-    # Connection Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Connection Methods
+  # ==========================================================================
 
-    # Get resumption token for 0-RTT reconnection
-    fn resumptionToken(): byte[] =>
-        return sn_quic_connection_resumption_token(self)
+  # Get resumption token for 0-RTT reconnection
+  fn resumptionToken(): byte[] =>
+    return sn_quic_connection_resumption_token(self)
 
-    # Migrate connection to a new local address
-    @alias "sn_quic_connection_migrate"
-    native fn migrate(newLocalAddress: str): void
+  # Migrate connection to a new local address
+  @alias "sn_quic_connection_migrate"
+  native fn migrate(newLocalAddress: str): void
 
-    # Get remote peer address
-    fn remoteAddress(): str =>
-        return sn_quic_connection_remote_address(self)
+  # Get remote peer address
+  fn remoteAddress(): str =>
+    return sn_quic_connection_remote_address(self)
 
-    # ==========================================================================
-    # Lifecycle Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Lifecycle Methods
+  # ==========================================================================
 
-    # Close the connection gracefully
-    @alias "sn_quic_connection_close"
-    native fn close(): void
+  # Close the connection gracefully
+  @alias "sn_quic_connection_close"
+  native fn close(): void
 
 # ==============================================================================
 # QuicListener Native Struct Definition
@@ -230,47 +230,47 @@ native struct QuicConnection as ref =>
 
 @alias "RtQuicListener"
 native struct QuicListener as ref =>
-    @alias "socket_fd"
-    _socket_fd: int
+  @alias "socket_fd"
+  _socket_fd: int
 
-    @alias "bound_port"
-    _bound_port: int
+  @alias "bound_port"
+  _bound_port: int
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Factory Methods
+  # ==========================================================================
 
-    # Create listener with certificate and key files
-    static fn bind(address: str, certFile: str, keyFile: str): QuicListener =>
-        return sn_quic_listener_bind(address, certFile, keyFile)
+  # Create listener with certificate and key files
+  static fn bind(address: str, certFile: str, keyFile: str): QuicListener =>
+    return sn_quic_listener_bind(address, certFile, keyFile)
 
-    # Create listener with custom configuration
-    static fn bindWith(address: str, certFile: str, keyFile: str, config: QuicConfig): QuicListener =>
-        return sn_quic_listener_bind_with(address, certFile, keyFile, config)
+  # Create listener with custom configuration
+  static fn bindWith(address: str, certFile: str, keyFile: str, config: QuicConfig): QuicListener =>
+    return sn_quic_listener_bind_with(address, certFile, keyFile, config)
 
-    # ==========================================================================
-    # Connection Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Connection Methods
+  # ==========================================================================
 
-    # Wait for and accept a new QUIC connection
-    fn accept(): QuicConnection =>
-        return sn_quic_listener_accept(self)
+  # Wait for and accept a new QUIC connection
+  fn accept(): QuicConnection =>
+    return sn_quic_listener_accept(self)
 
-    # ==========================================================================
-    # Getter Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Getter Methods
+  # ==========================================================================
 
-    # Get bound port number
-    @alias "sn_quic_listener_get_port"
-    native fn port(): int
+  # Get bound port number
+  @alias "sn_quic_listener_get_port"
+  native fn port(): int
 
-    # ==========================================================================
-    # Lifecycle Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Lifecycle Methods
+  # ==========================================================================
 
-    # Close the listener
-    @alias "sn_quic_listener_close"
-    native fn close(): void
+  # Close the listener
+  @alias "sn_quic_listener_close"
+  native fn close(): void
 
 # ==============================================================================
 # Runtime Function Declarations

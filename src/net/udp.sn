@@ -5,21 +5,21 @@
 # Drop-in replacement for the builtin UdpSocket type.
 #
 # Usage:
-#   import "sdk/net/udp"
+# import "sdk/net/udp"
 #
-#   # Server
-#   var socket: UdpSocket = UdpSocket.bind(":9000")
-#   while true =>
-#       var result: UdpReceiveResult = socket.receiveFrom(1024)
-#       print($"From {result.sender}: {result.data.toString()}\n")
-#       socket.sendTo(result.data, result.sender)  # echo back
+# # Server
+# var socket: UdpSocket = UdpSocket.bind(":9000")
+# while true =>
+# var result: UdpReceiveResult = socket.receiveFrom(1024)
+# print($"From {result.sender}: {result.data.toString()}\n")
+# socket.sendTo(result.data, result.sender)  # echo back
 #
-#   # Client
-#   var socket: UdpSocket = UdpSocket.bind(":0")  # OS assigns port
-#   socket.sendTo("Hello".toBytes(), "127.0.0.1:9000")
-#   var result: UdpReceiveResult = socket.receiveFrom(1024)
-#   print(result.data.toString())
-#   socket.dispose()
+# # Client
+# var socket: UdpSocket = UdpSocket.bind(":0")  # OS assigns port
+# socket.sendTo("Hello".toBytes(), "127.0.0.1:9000")
+# var result: UdpReceiveResult = socket.receiveFrom(1024)
+# print(result.data.toString())
+# socket.dispose()
 #
 # ==============================================================================
 
@@ -33,19 +33,19 @@
 
 @alias "RtUdpReceiveResult"
 native struct UdpReceiveResult as ref =>
-    @alias "data"
-    _data: byte[]
+  @alias "data"
+  _data: byte[]
 
-    @alias "sender"
-    _sender: str
+  @alias "sender"
+  _sender: str
 
-    # Getter for received data
-    fn data(): byte[] =>
-        return sn_udp_result_get_data(self)
+  # Getter for received data
+  fn data(): byte[] =>
+    return sn_udp_result_get_data(self)
 
-    # Getter for sender address
-    fn sender(): str =>
-        return sn_udp_result_get_sender(self)
+  # Getter for sender address
+  fn sender(): str =>
+    return sn_udp_result_get_sender(self)
 
 # ==============================================================================
 # UdpSocket Native Struct Definition
@@ -55,47 +55,47 @@ native struct UdpReceiveResult as ref =>
 
 @alias "RtUdpSocket"
 native struct UdpSocket as ref =>
-    @alias "socket_fd"
-    _socket_fd: int
+  @alias "socket_fd"
+  _socket_fd: int
 
-    @alias "bound_port"
-    _bound_port: int
+  @alias "bound_port"
+  _bound_port: int
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Factory Methods
+  # ==========================================================================
 
-    # Create socket bound to address (host:port or :port, use :0 for OS-assigned port)
-    static fn bind(address: str): UdpSocket =>
-        return sn_udp_socket_bind(address)
+  # Create socket bound to address (host:port or :port, use :0 for OS-assigned port)
+  static fn bind(address: str): UdpSocket =>
+    return sn_udp_socket_bind(address)
 
-    # ==========================================================================
-    # Send/Receive Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Send/Receive Methods
+  # ==========================================================================
 
-    # Send datagram to address, return bytes sent
-    @alias "sn_udp_socket_send_to"
-    native fn sendTo(data: byte[], address: str): int
+  # Send datagram to address, return bytes sent
+  @alias "sn_udp_socket_send_to"
+  native fn sendTo(data: byte[], address: str): int
 
-    # Receive datagram and sender address
-    fn receiveFrom(maxBytes: int): UdpReceiveResult =>
-        return sn_udp_socket_receive_from(self, maxBytes)
+  # Receive datagram and sender address
+  fn receiveFrom(maxBytes: int): UdpReceiveResult =>
+    return sn_udp_socket_receive_from(self, maxBytes)
 
-    # ==========================================================================
-    # Getter Methods (native - pass self by pointer)
-    # ==========================================================================
+  # ==========================================================================
+  # Getter Methods (native - pass self by pointer)
+  # ==========================================================================
 
-    # Get bound port number
-    @alias "sn_udp_socket_get_port"
-    native fn port(): int
+  # Get bound port number
+  @alias "sn_udp_socket_get_port"
+  native fn port(): int
 
-    # ==========================================================================
-    # Lifecycle Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Lifecycle Methods
+  # ==========================================================================
 
-    # Dispose the socket (closes and frees resources)
-    fn dispose(): void =>
-        sn_udp_socket_dispose(self)
+  # Dispose the socket (closes and frees resources)
+  fn dispose(): void =>
+    sn_udp_socket_dispose(self)
 
 # ==============================================================================
 # Runtime Function Declarations

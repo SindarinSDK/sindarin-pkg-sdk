@@ -7,28 +7,28 @@
 # remain built-in and do not require this import.
 #
 # Usage:
-#   import "sdk/io/stdio"
+# import "sdk/io/stdio"
 #
-#   # Read from standard input
-#   var line: str = Stdin.readLine()
-#   var ch: int = Stdin.readChar()
-#   var word: str = Stdin.readWord()
+# # Read from standard input
+# var line: str = Stdin.readLine()
+# var ch: int = Stdin.readChar()
+# var word: str = Stdin.readWord()
 #
-#   # Check input state
-#   if Stdin.hasChars() =>
-#       processInput()
-#   if Stdin.isEof() =>
-#       done()
+# # Check input state
+# if Stdin.hasChars() =>
+# processInput()
+# if Stdin.isEof() =>
+# done()
 #
-#   # Write to standard output
-#   Stdout.write("Hello ")
-#   Stdout.writeLine("World")
-#   Stdout.flush()
+# # Write to standard output
+# Stdout.write("Hello ")
+# Stdout.writeLine("World")
+# Stdout.flush()
 #
-#   # Write to standard error
-#   Stderr.write("Error: ")
-#   Stderr.writeLine("Something went wrong")
-#   Stderr.flush()
+# # Write to standard error
+# Stderr.write("Error: ")
+# Stderr.writeLine("Something went wrong")
+# Stderr.flush()
 #
 # ==============================================================================
 
@@ -42,31 +42,31 @@
 
 @alias "RtStdin"
 native struct Stdin =>
-    _unused: int
+  _unused: int
 
-    # Read a line from standard input (strips trailing newline)
-    static fn readLine(): str =>
-        return sn_stdin_read_line()
+  # Read a line from standard input (strips trailing newline)
+  static fn readLine(): str =>
+    return sn_stdin_read_line()
 
-    # Read a single character from standard input (returns -1 on EOF)
-    static fn readChar(): int =>
-        return sn_stdin_read_char()
+  # Read a single character from standard input (returns -1 on EOF)
+  static fn readChar(): int =>
+    return sn_stdin_read_char()
 
-    # Read a whitespace-delimited word from standard input
-    static fn readWord(): str =>
-        return sn_stdin_read_word()
+  # Read a whitespace-delimited word from standard input
+  static fn readWord(): str =>
+    return sn_stdin_read_word()
 
-    # Check if characters are available on stdin
-    static fn hasChars(): bool =>
-        return sn_stdin_has_chars() != 0
+  # Check if characters are available on stdin
+  static fn hasChars(): bool =>
+    return sn_stdin_has_chars() != 0
 
-    # Check if lines are available on stdin
-    static fn hasLines(): bool =>
-        return sn_stdin_has_lines() != 0
+  # Check if lines are available on stdin
+  static fn hasLines(): bool =>
+    return sn_stdin_has_lines() != 0
 
-    # Check if stdin is at EOF
-    static fn isEof(): bool =>
-        return sn_stdin_is_eof() != 0
+  # Check if stdin is at EOF
+  static fn isEof(): bool =>
+    return sn_stdin_is_eof() != 0
 
 # ==============================================================================
 # Stdout Static-Only Type Definition
@@ -75,19 +75,19 @@ native struct Stdin =>
 
 @alias "RtStdout"
 native struct Stdout =>
-    _unused: int
+  _unused: int
 
-    # Write text to standard output
-    static fn write(text: str): void =>
-        sn_stdout_write(text)
+  # Write text to standard output
+  static fn write(text: str): void =>
+    sn_stdout_write(text)
 
-    # Write text with newline to standard output
-    static fn writeLine(text: str): void =>
-        sn_stdout_write_line(text)
+  # Write text with newline to standard output
+  static fn writeLine(text: str): void =>
+    sn_stdout_write_line(text)
 
-    # Flush standard output
-    static fn flush(): void =>
-        sn_stdout_flush()
+  # Flush standard output
+  static fn flush(): void =>
+    sn_stdout_flush()
 
 # ==============================================================================
 # Stderr Static-Only Type Definition
@@ -96,19 +96,19 @@ native struct Stdout =>
 
 @alias "RtStderr"
 native struct Stderr =>
-    _unused: int
+  _unused: int
 
-    # Write text to standard error
-    static fn write(text: str): void =>
-        sn_stderr_write(text)
+  # Write text to standard error
+  static fn write(text: str): void =>
+    sn_stderr_write(text)
 
-    # Write text with newline to standard error
-    static fn writeLine(text: str): void =>
-        sn_stderr_write_line(text)
+  # Write text with newline to standard error
+  static fn writeLine(text: str): void =>
+    sn_stderr_write_line(text)
 
-    # Flush standard error
-    static fn flush(): void =>
-        sn_stderr_flush()
+  # Flush standard error
+  static fn flush(): void =>
+    sn_stderr_flush()
 
 # ==============================================================================
 # Native Function Declarations

@@ -4,21 +4,21 @@
 # Provides zlib compression/decompression bindings and high-level wrappers.
 #
 # Usage:
-#   import "sdk/encoding/zlib"
+# import "sdk/encoding/zlib"
 #
-#   // High-level API (recommended)
-#   var compressed: byte[] = compressData(data)
-#   var original: byte[] = decompressData(compressed, originalSize)
+# // High-level API (recommended)
+# var compressed: byte[] = compressData(data)
+# var original: byte[] = decompressData(compressed, originalSize)
 #
-#   // With compression level (0-9, default 6)
-#   var fast: byte[] = compressDataLevel(data, 1)      // Fastest
-#   var best: byte[] = compressDataLevel(data, 9)      // Best compression
+# // With compression level (0-9, default 6)
+# var fast: byte[] = compressDataLevel(data, 1)      // Fastest
+# var best: byte[] = compressDataLevel(data, 9)      // Best compression
 #
 # Requirements:
-#   - zlib library must be installed (libz)
-#   - Linux: sudo apt install zlib1g-dev
-#   - macOS: brew install zlib (usually pre-installed)
-#   - Windows: Install zlib via vcpkg or download from zlib.net
+# - zlib library must be installed (libz)
+# - Linux: sudo apt install zlib1g-dev
+# - macOS: brew install zlib (usually pre-installed)
+# - Windows: Install zlib via vcpkg or download from zlib.net
 # ==============================================================================
 
 @include <zlib.h>
@@ -75,25 +75,25 @@ native fn compressBound(sourceLen: uint): uint
 # ==============================================================================
 
 fn errorMessage(code: int): str =>
-    if code == zlibOk() =>
-        return "OK"
-    if code == zlibStreamEnd() =>
-        return "Stream end"
-    if code == zlibNeedDict() =>
-        return "Need dictionary"
-    if code == zlibErrno() =>
-        return "File error"
-    if code == zlibStreamError() =>
-        return "Stream error"
-    if code == zlibDataError() =>
-        return "Data error (corrupted or incomplete)"
-    if code == zlibMemError() =>
-        return "Memory error"
-    if code == zlibBufError() =>
-        return "Buffer error (output too small)"
-    if code == zlibVersionError() =>
-        return "Version error"
-    return "Unknown error"
+  if code == zlibOk() =>
+    return "OK"
+  if code == zlibStreamEnd() =>
+    return "Stream end"
+  if code == zlibNeedDict() =>
+    return "Need dictionary"
+  if code == zlibErrno() =>
+    return "File error"
+  if code == zlibStreamError() =>
+    return "Stream error"
+  if code == zlibDataError() =>
+    return "Data error (corrupted or incomplete)"
+  if code == zlibMemError() =>
+    return "Memory error"
+  if code == zlibBufError() =>
+    return "Buffer error (output too small)"
+  if code == zlibVersionError() =>
+    return "Version error"
+  return "Unknown error"
 
 # ==============================================================================
 # High-Level Compression API
@@ -102,29 +102,29 @@ fn errorMessage(code: int): str =>
 # compressTo - Compress data into provided buffer
 # Returns number of bytes written, or -1 on error
 native fn compressTo(source: byte[], dest: byte[]): int =>
-    var destLen: uint = dest.length.toUint()
-    var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
-    if result != 0 =>
-        return -1
-    return destLen.toInt()
+  var destLen: uint = dest.length.toUint()
+  var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
+  if result != 0 =>
+    return - 1
+  return destLen.toInt()
 
 # compressToLevel - Compress with specific level into provided buffer
 # Returns number of bytes written, or -1 on error
 native fn compressToLevel(source: byte[], dest: byte[], level: int): int =>
-    var destLen: uint = dest.length.toUint()
-    var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length.toUint(), level)
-    if result != 0 =>
-        return -1
-    return destLen.toInt()
+  var destLen: uint = dest.length.toUint()
+  var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length.toUint(), level)
+  if result != 0 =>
+    return - 1
+  return destLen.toInt()
 
 # decompressTo - Decompress data into provided buffer
 # Returns number of bytes written, or -1 on error
 native fn decompressTo(source: byte[], dest: byte[]): int =>
-    var destLen: uint = dest.length.toUint()
-    var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
-    if result != 0 =>
-        return -1
-    return destLen.toInt()
+  var destLen: uint = dest.length.toUint()
+  var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
+  if result != 0 =>
+    return - 1
+  return destLen.toInt()
 
 # maxCompressedSize - Calculate maximum possible compressed size
 fn maxCompressedSize(sourceLen: int): int => compressBound(sourceLen.toUint()).toInt()
@@ -136,56 +136,56 @@ fn maxCompressedSize(sourceLen: int): int => compressBound(sourceLen.toUint()).t
 # compressData - Compress data with default compression level
 # Returns compressed data, or empty array on error
 native fn compressData(source: byte[]): byte[] =>
-    if source.length == 0 =>
-        var empty: byte[0]
-        return empty
+  if source.length == 0 =>
+    var empty: byte[0]
+    return empty
 
-    var bound: int = maxCompressedSize(source.length)
-    var dest: byte[bound]
-    var destLen: uint = bound.toUint()
+  var bound: int = maxCompressedSize(source.length)
+  var dest: byte[bound]
+  var destLen: uint = bound.toUint()
 
-    var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
-    if result != 0 =>
-        var empty: byte[0]
-        return empty
+  var result: int = compress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
+  if result != 0 =>
+    var empty: byte[0]
+    return empty
 
-    return valueOf(dest[0..(destLen.toInt())])
+  return valueOf(dest[0..(destLen.toInt())])
 
 # compressDataLevel - Compress data with specified level
 # Returns compressed data, or empty array on error
 native fn compressDataLevel(source: byte[], level: int): byte[] =>
-    if source.length == 0 =>
-        var empty: byte[0]
-        return empty
+  if source.length == 0 =>
+    var empty: byte[0]
+    return empty
 
-    var bound: int = maxCompressedSize(source.length)
-    var dest: byte[bound]
-    var destLen: uint = bound.toUint()
+  var bound: int = maxCompressedSize(source.length)
+  var dest: byte[bound]
+  var destLen: uint = bound.toUint()
 
-    var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length.toUint(), level)
-    if result != 0 =>
-        var empty: byte[0]
-        return empty
+  var result: int = compress2(addressOf(dest), destLen, addressOf(source), source.length.toUint(), level)
+  if result != 0 =>
+    var empty: byte[0]
+    return empty
 
-    return valueOf(dest[0..(destLen.toInt())])
+  return valueOf(dest[0..(destLen.toInt())])
 
 # decompressData - Decompress data
 # expectedSize: the size of the original uncompressed data
 # Returns decompressed data, or empty array on error
 native fn decompressData(source: byte[], expectedSize: int): byte[] =>
-    if source.length == 0 =>
-        var empty: byte[0]
-        return empty
+  if source.length == 0 =>
+    var empty: byte[0]
+    return empty
 
-    var dest: byte[expectedSize]
-    var destLen: uint = expectedSize.toUint()
+  var dest: byte[expectedSize]
+  var destLen: uint = expectedSize.toUint()
 
-    var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
-    if result != 0 =>
-        var empty: byte[0]
-        return empty
+  var result: int = uncompress(addressOf(dest), destLen, addressOf(source), source.length.toUint())
+  if result != 0 =>
+    var empty: byte[0]
+    return empty
 
-    return valueOf(dest[0..(destLen.toInt())])
+  return valueOf(dest[0..(destLen.toInt())])
 
 # ==============================================================================
 # Utility Functions
@@ -193,26 +193,26 @@ native fn decompressData(source: byte[], expectedSize: int): byte[] =>
 
 # isCompressed - Simple heuristic to check if data might be zlib-compressed
 fn isCompressed(data: byte[]): bool =>
-    if data.length < 2 =>
-        return false
+  if data.length < 2 =>
+    return false
 
-    # zlib header: first byte is CMF (usually 0x78 for deflate)
-    var cmf: int = data[0]
-    var flg: int = data[1]
+  # zlib header: first byte is CMF (usually 0x78 for deflate)
+  var cmf: int = data[0]
+  var flg: int = data[1]
 
-    # Common zlib headers: 78 01, 78 5E, 78 9C, 78 DA
-    if cmf != 120 =>
-        return false
+  # Common zlib headers: 78 01, 78 5E, 78 9C, 78 DA
+  if cmf != 120 =>
+    return false
 
-    var check: int = cmf * 256 + flg
-    return check % 31 == 0
+  var check: int = cmf * 256 + flg
+  return check % 31 == 0
 
 # compressionRatio - Calculate compression ratio
 # Returns ratio as percentage (e.g., 75.5 means compressed to 75.5% of original)
 fn compressionRatio(originalSize: int, compressedSize: int): double =>
-    if originalSize == 0 =>
-        return 0.0
-    return (compressedSize.toDouble() * 100.0) / originalSize.toDouble()
+  if originalSize == 0 =>
+    return 0.0
+  return (compressedSize.toDouble() * 100.0) / originalSize.toDouble()
 
 # spaceSaved - Calculate space saved by compression
 # Returns percentage saved (e.g., 24.5 means saved 24.5% of original size)

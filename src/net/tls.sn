@@ -4,21 +4,21 @@
 # Provides TLS-encrypted TCP connections using OpenSSL.
 #
 # Usage:
-#   import "sdk/net/tls"
+# import "sdk/net/tls"
 #
-#   var conn: TlsStream = TlsStream.connect("example.com:443")
-#   conn.writeLine("GET / HTTP/1.1")
-#   conn.writeLine("Host: example.com")
-#   conn.writeLine("")
-#   var response: byte[] = conn.readAll()
-#   conn.dispose()
+# var conn: TlsStream = TlsStream.connect("example.com:443")
+# conn.writeLine("GET / HTTP/1.1")
+# conn.writeLine("Host: example.com")
+# conn.writeLine("")
+# var response: byte[] = conn.readAll()
+# conn.dispose()
 #
 # Certificate loading priority:
-#   1. SN_CERTS environment variable (path to PEM file or directory)
-#   2. Platform-native certificate store:
-#      - Windows: Windows Certificate Store (crypt32)
-#      - macOS: System Keychain (Security.framework)
-#      - Linux: OpenSSL default paths (/etc/ssl/certs, etc.)
+# 1. SN_CERTS environment variable (path to PEM file or directory)
+# 2. Platform-native certificate store:
+# - Windows: Windows Certificate Store (crypt32)
+# - macOS: System Keychain (Security.framework)
+# - Linux: OpenSSL default paths (/etc/ssl/certs, etc.)
 #
 # ==============================================================================
 
@@ -34,74 +34,74 @@
 
 @alias "RtTlsStream"
 native struct TlsStream as ref =>
-    @alias "socket_fd"
-    _socket_fd: int
+  @alias "socket_fd"
+  _socket_fd: int
 
-    @alias "ssl_ptr"
-    _ssl_ptr: long
+  @alias "ssl_ptr"
+  _ssl_ptr: long
 
-    @alias "remote_addr"
-    _remote_addr: *byte
+  @alias "remote_addr"
+  _remote_addr: *byte
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Factory Methods
+  # ==========================================================================
 
-    # Connect to a remote address (host:port) with TLS
-    static fn connect(address: str): TlsStream =>
-        return sn_tls_stream_connect(address)
+  # Connect to a remote address (host:port) with TLS
+  static fn connect(address: str): TlsStream =>
+    return sn_tls_stream_connect(address)
 
-    # ==========================================================================
-    # Read Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Read Methods
+  # ==========================================================================
 
-    # Read up to maxBytes from the stream (may return fewer)
-    fn read(maxBytes: int): byte[] =>
-        return sn_tls_stream_read(self, maxBytes)
+  # Read up to maxBytes from the stream (may return fewer)
+  fn read(maxBytes: int): byte[] =>
+    return sn_tls_stream_read(self, maxBytes)
 
-    # Read until connection closes
-    fn readAll(): byte[] =>
-        return sn_tls_stream_read_all(self)
+  # Read until connection closes
+  fn readAll(): byte[] =>
+    return sn_tls_stream_read_all(self)
 
-    # Read until newline
-    fn readLine(): str =>
-        return sn_tls_stream_read_line(self)
+  # Read until newline
+  fn readLine(): str =>
+    return sn_tls_stream_read_line(self)
 
-    # ==========================================================================
-    # Write Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Write Methods
+  # ==========================================================================
 
-    # Write bytes, return count written
-    @alias "sn_tls_stream_write"
-    native fn write(data: byte[]): int
+  # Write bytes, return count written
+  @alias "sn_tls_stream_write"
+  native fn write(data: byte[]): int
 
-    # Write string + newline
-    @alias "sn_tls_stream_write_line"
-    native fn writeLine(text: str): void
+  # Write string + newline
+  @alias "sn_tls_stream_write_line"
+  native fn writeLine(text: str): void
 
-    # ==========================================================================
-    # Getter Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Getter Methods
+  # ==========================================================================
 
-    # Get remote peer address
-    fn remoteAddress(): str =>
-        return sn_tls_stream_get_remote_address(self)
+  # Get remote peer address
+  fn remoteAddress(): str =>
+    return sn_tls_stream_get_remote_address(self)
 
-    # ==========================================================================
-    # Validation Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Validation Methods
+  # ==========================================================================
 
-    # Check if this stream represents a valid connection
-    @alias "sn_tls_stream_is_valid"
-    native fn isValid(): bool
+  # Check if this stream represents a valid connection
+  @alias "sn_tls_stream_is_valid"
+  native fn isValid(): bool
 
-    # ==========================================================================
-    # Lifecycle Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Lifecycle Methods
+  # ==========================================================================
 
-    # Dispose the TLS connection (closes and frees resources)
-    fn dispose(): void =>
-        sn_tls_stream_dispose(self)
+  # Dispose the TLS connection (closes and frees resources)
+  fn dispose(): void =>
+    sn_tls_stream_dispose(self)
 
 # ==============================================================================
 # TlsListener Native Struct Definition
@@ -110,56 +110,56 @@ native struct TlsStream as ref =>
 # Accepts connections and wraps them with TLS, returning TlsStream instances.
 #
 # Usage:
-#   var server: TlsListener = TlsListener.bind(":8443", "cert.pem", "key.pem")
-#   var conn: TlsStream = server.accept()
-#   var line: str = conn.readLine()
-#   conn.writeLine("Echo: " + line)
-#   conn.dispose()
-#   server.dispose()
+# var server: TlsListener = TlsListener.bind(":8443", "cert.pem", "key.pem")
+# var conn: TlsStream = server.accept()
+# var line: str = conn.readLine()
+# conn.writeLine("Echo: " + line)
+# conn.dispose()
+# server.dispose()
 
 @alias "RtTlsListener"
 native struct TlsListener as ref =>
-    @alias "socket_fd"
-    _socket_fd: int
+  @alias "socket_fd"
+  _socket_fd: int
 
-    @alias "bound_port"
-    _bound_port: int
+  @alias "bound_port"
+  _bound_port: int
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Factory Methods
+  # ==========================================================================
 
-    # Bind to address with TLS certificate and key files
-    static fn bind(address: str, certFile: str, keyFile: str): TlsListener =>
-        return sn_tls_listener_bind(address, certFile, keyFile)
+  # Bind to address with TLS certificate and key files
+  static fn bind(address: str, certFile: str, keyFile: str): TlsListener =>
+    return sn_tls_listener_bind(address, certFile, keyFile)
 
-    # ==========================================================================
-    # Connection Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Connection Methods
+  # ==========================================================================
 
-    # Wait for and accept a new TLS connection (blocks until client connects)
-    fn accept(): TlsStream =>
-        return sn_tls_listener_accept(self)
+  # Wait for and accept a new TLS connection (blocks until client connects)
+  fn accept(): TlsStream =>
+    return sn_tls_listener_accept(self)
 
-    # Accept with shutdown support — returns invalid stream (isValid()==false) if signalled
-    fn acceptOrShutdown(signalFd: int): TlsStream =>
-        return sn_tls_listener_accept_or_shutdown(self, signalFd)
+  # Accept with shutdown support — returns invalid stream (isValid()==false) if signalled
+  fn acceptOrShutdown(signalFd: int): TlsStream =>
+    return sn_tls_listener_accept_or_shutdown(self, signalFd)
 
-    # ==========================================================================
-    # Getter Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Getter Methods
+  # ==========================================================================
 
-    # Get bound port number
-    @alias "sn_tls_listener_get_port"
-    native fn port(): int
+  # Get bound port number
+  @alias "sn_tls_listener_get_port"
+  native fn port(): int
 
-    # ==========================================================================
-    # Lifecycle Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Lifecycle Methods
+  # ==========================================================================
 
-    # Dispose the listener (closes and frees resources)
-    fn dispose(): void =>
-        sn_tls_listener_dispose(self)
+  # Dispose the listener (closes and frees resources)
+  fn dispose(): void =>
+    sn_tls_listener_dispose(self)
 
 # ==============================================================================
 # Runtime Function Declarations

@@ -5,15 +5,15 @@
 # Drop-in replacement for the builtin Time type.
 #
 # Usage:
-#   import "sdk/time/time"
+# import "sdk/time/time"
 #
-#   var now: Time = Time.now()
-#   print($"Year: {now.year()}\n")
-#   print($"Hour: {now.hour()}\n")
-#   print($"ISO: {now.toIso()}\n")
+# var now: Time = Time.now()
+# print($"Year: {now.year()}\n")
+# print($"Hour: {now.hour()}\n")
+# print($"ISO: {now.toIso()}\n")
 #
-#   var later: Time = now.addHours(2)
-#   var diff: long = later.diff(now)
+# var later: Time = now.addHours(2)
+# var diff: long = later.diff(now)
 #
 # ==============================================================================
 
@@ -29,140 +29,140 @@
 
 @alias "RtTime"
 native struct Time as ref =>
-    @alias "milliseconds"
-    _milliseconds: long
+  @alias "milliseconds"
+  _milliseconds: long
 
-    # ==========================================================================
-    # Static Factory Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Factory Methods
+  # ==========================================================================
 
-    # Get current local time
-    static fn now(): Time =>
-        return sn_time_now()
+  # Get current local time
+  static fn now(): Time =>
+    return sn_time_now()
 
-    # Get current UTC time
-    static fn utc(): Time =>
-        return sn_time_utc()
+  # Get current UTC time
+  static fn utc(): Time =>
+    return sn_time_utc()
 
-    # Create time from milliseconds since Unix epoch
-    static fn fromMillis(ms: long): Time =>
-        return sn_time_from_millis(ms)
+  # Create time from milliseconds since Unix epoch
+  static fn fromMillis(ms: long): Time =>
+    return sn_time_from_millis(ms)
 
-    # Create time from seconds since Unix epoch
-    static fn fromSeconds(s: long): Time =>
-        return sn_time_from_seconds(s)
+  # Create time from seconds since Unix epoch
+  static fn fromSeconds(s: long): Time =>
+    return sn_time_from_seconds(s)
 
-    # ==========================================================================
-    # Static Utility Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Static Utility Methods
+  # ==========================================================================
 
-    # Sleep for specified milliseconds
-    static fn sleep(ms: int): void =>
-        sn_time_sleep(ms)
+  # Sleep for specified milliseconds
+  static fn sleep(ms: int): void =>
+    sn_time_sleep(ms)
 
-    # ==========================================================================
-    # Getter Methods (native - pass self by pointer via 'as ref')
-    # ==========================================================================
+  # ==========================================================================
+  # Getter Methods (native - pass self by pointer via 'as ref')
+  # ==========================================================================
 
-    # Get milliseconds since Unix epoch
-    @alias "sn_time_get_millis"
-    native fn millis(): long
+  # Get milliseconds since Unix epoch
+  @alias "sn_time_get_millis"
+  native fn millis(): long
 
-    # Get seconds since Unix epoch
-    @alias "sn_time_get_seconds"
-    native fn seconds(): long
+  # Get seconds since Unix epoch
+  @alias "sn_time_get_seconds"
+  native fn seconds(): long
 
-    # Get year component (e.g., 2025)
-    @alias "sn_time_get_year"
-    native fn year(): int
+  # Get year component (e.g., 2025)
+  @alias "sn_time_get_year"
+  native fn year(): int
 
-    # Get month component (1-12)
-    @alias "sn_time_get_month"
-    native fn month(): int
+  # Get month component (1-12)
+  @alias "sn_time_get_month"
+  native fn month(): int
 
-    # Get day of month (1-31)
-    @alias "sn_time_get_day"
-    native fn day(): int
+  # Get day of month (1-31)
+  @alias "sn_time_get_day"
+  native fn day(): int
 
-    # Get hour component (0-23)
-    @alias "sn_time_get_hour"
-    native fn hour(): int
+  # Get hour component (0-23)
+  @alias "sn_time_get_hour"
+  native fn hour(): int
 
-    # Get minute component (0-59)
-    @alias "sn_time_get_minute"
-    native fn minute(): int
+  # Get minute component (0-59)
+  @alias "sn_time_get_minute"
+  native fn minute(): int
 
-    # Get second component (0-59)
-    @alias "sn_time_get_second"
-    native fn second(): int
+  # Get second component (0-59)
+  @alias "sn_time_get_second"
+  native fn second(): int
 
-    # Get weekday (0=Sunday, 6=Saturday)
-    @alias "sn_time_get_weekday"
-    native fn weekday(): int
+  # Get weekday (0=Sunday, 6=Saturday)
+  @alias "sn_time_get_weekday"
+  native fn weekday(): int
 
-    # ==========================================================================
-    # Comparison Methods (native - pass self by pointer)
-    # ==========================================================================
+  # ==========================================================================
+  # Comparison Methods (native - pass self by pointer)
+  # ==========================================================================
 
-    # Check if this time is before another time
-    @alias "sn_time_is_before"
-    native fn isBefore(other: Time): bool
+  # Check if this time is before another time
+  @alias "sn_time_is_before"
+  native fn isBefore(other: Time): bool
 
-    # Check if this time is after another time
-    @alias "sn_time_is_after"
-    native fn isAfter(other: Time): bool
+  # Check if this time is after another time
+  @alias "sn_time_is_after"
+  native fn isAfter(other: Time): bool
 
-    # Check if this time equals another time
-    @alias "sn_time_equals"
-    native fn equals(other: Time): bool
+  # Check if this time equals another time
+  @alias "sn_time_equals"
+  native fn equals(other: Time): bool
 
-    # ==========================================================================
-    # Formatting Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Formatting Methods
+  # ==========================================================================
 
-    # Format time using pattern string
-    fn format(pattern: str): str =>
-        return sn_time_format(self, pattern)
+  # Format time using pattern string
+  fn format(pattern: str): str =>
+    return sn_time_format(self, pattern)
 
-    # Format as ISO 8601 string (YYYY-MM-DDTHH:mm:ss.SSSZ)
-    fn toIso(): str =>
-        return sn_time_to_iso(self)
+  # Format as ISO 8601 string (YYYY-MM-DDTHH:mm:ss.SSSZ)
+  fn toIso(): str =>
+    return sn_time_to_iso(self)
 
-    # Format as date string (YYYY-MM-DD) - matches builtin Time.toDate()
-    fn toDate(): str =>
-        return sn_time_to_date(self)
+  # Format as date string (YYYY-MM-DD) - matches builtin Time.toDate()
+  fn toDate(): str =>
+    return sn_time_to_date(self)
 
-    # Format as time string (HH:mm:ss) - matches builtin Time.toTime()
-    fn toTime(): str =>
-        return sn_time_to_time(self)
+  # Format as time string (HH:mm:ss) - matches builtin Time.toTime()
+  fn toTime(): str =>
+    return sn_time_to_time(self)
 
-    # ==========================================================================
-    # Arithmetic Methods
-    # ==========================================================================
+  # ==========================================================================
+  # Arithmetic Methods
+  # ==========================================================================
 
-    # Add milliseconds to this time - matches builtin Time.add(ms)
-    fn add(ms: long): Time =>
-        return sn_time_add(self, ms)
+  # Add milliseconds to this time - matches builtin Time.add(ms)
+  fn add(ms: long): Time =>
+    return sn_time_add(self, ms)
 
-    # Add seconds to this time
-    fn addSeconds(seconds: int): Time =>
-        return sn_time_add_seconds(self, seconds)
+  # Add seconds to this time
+  fn addSeconds(seconds: int): Time =>
+    return sn_time_add_seconds(self, seconds)
 
-    # Add minutes to this time
-    fn addMinutes(minutes: int): Time =>
-        return sn_time_add_minutes(self, minutes)
+  # Add minutes to this time
+  fn addMinutes(minutes: int): Time =>
+    return sn_time_add_minutes(self, minutes)
 
-    # Add hours to this time
-    fn addHours(hours: int): Time =>
-        return sn_time_add_hours(self, hours)
+  # Add hours to this time
+  fn addHours(hours: int): Time =>
+    return sn_time_add_hours(self, hours)
 
-    # Add days to this time
-    fn addDays(days: int): Time =>
-        return sn_time_add_days(self, days)
+  # Add days to this time
+  fn addDays(days: int): Time =>
+    return sn_time_add_days(self, days)
 
-    # Get difference in milliseconds between this time and another - matches builtin Time.diff(other)
-    fn diff(other: Time): long =>
-        return sn_time_diff(self, other)
+  # Get difference in milliseconds between this time and another - matches builtin Time.diff(other)
+  fn diff(other: Time): long =>
+    return sn_time_diff(self, other)
 
 # ==============================================================================
 # Runtime Function Declarations

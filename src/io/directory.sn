@@ -5,13 +5,13 @@
 # Drop-in replacement for the builtin Directory type.
 #
 # Usage:
-#   import "sdk/directory"
+# import "sdk/directory"
 #
-#   var files: str[] = Directory.list("/home/user")
-#   var allFiles: str[] = Directory.listRecursive("/home/user")
-#   Directory.create("/new/path")
-#   Directory.delete("/old/path")
-#   Directory.deleteRecursive("/old/path")
+# var files: str[] = Directory.list("/home/user")
+# var allFiles: str[] = Directory.listRecursive("/home/user")
+# Directory.create("/new/path")
+# Directory.delete("/old/path")
+# Directory.deleteRecursive("/old/path")
 #
 # ==============================================================================
 
@@ -26,31 +26,31 @@
 
 @alias "RtDirectory"
 native struct Directory =>
-    _unused: int32
+  _unused: int32
 
-    # ==========================================================================
-    # Directory Operations
-    # ==========================================================================
+  # ==========================================================================
+  # Directory Operations
+  # ==========================================================================
 
-    # List files in a directory (non-recursive)
-    static fn list(path: str): str[] =>
-        return sn_directory_list(path)
+  # List files in a directory (non-recursive)
+  static fn list(path: str): str[] =>
+    return sn_directory_list(path)
 
-    # List files in a directory recursively
-    static fn listRecursive(path: str): str[] =>
-        return sn_directory_list_recursive(path)
+  # List files in a directory recursively
+  static fn listRecursive(path: str): str[] =>
+    return sn_directory_list_recursive(path)
 
-    # Create a directory (creates parents if needed)
-    static fn create(path: str): void =>
-        sn_directory_create(path)
+  # Create a directory (creates parents if needed)
+  static fn create(path: str): void =>
+    sn_directory_create(path)
 
-    # Delete an empty directory
-    static fn delete(path: str): void =>
-        sn_directory_delete(path)
+  # Delete an empty directory
+  static fn delete(path: str): void =>
+    sn_directory_delete(path)
 
-    # Delete a directory and all its contents
-    static fn deleteRecursive(path: str): void =>
-        sn_directory_delete_recursive(path)
+  # Delete a directory and all its contents
+  static fn deleteRecursive(path: str): void =>
+    sn_directory_delete_recursive(path)
 
 # ==============================================================================
 # Runtime Function Declarations
