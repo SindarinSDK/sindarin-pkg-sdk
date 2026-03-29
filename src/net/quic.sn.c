@@ -1419,13 +1419,23 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
     pfd.events = POLLIN;
 
     while (li->running) {
-        /* Calculate minimum timeout across all server connections */
+        /* Calculate minimum timeout across all server connections.
+         * Snapshot the list first to avoid holding conn_list_mutex
+         * while acquiring individual conn_mutex. */
         int timeout_ms = 50; /* Default 50ms for responsiveness */
         ngtcp2_tstamp now = quic_timestamp();
 
+        RtQuicConnection *timeout_conns[QUIC_MAX_STREAMS];
+        int timeout_count = 0;
         MUTEX_LOCK(&li->conn_list_mutex);
-        for (int i = 0; i < li->connection_count; i++) {
-            RtQuicConnection *c = li->connections[i];
+        for (int i = 0; i < li->connection_count && i < QUIC_MAX_STREAMS; i++) {
+            timeout_conns[i] = li->connections[i];
+        }
+        timeout_count = li->connection_count;
+        MUTEX_UNLOCK(&li->conn_list_mutex);
+
+        for (int i = 0; i < timeout_count; i++) {
+            RtQuicConnection *c = timeout_conns[i];
             if (!c) continue;
             QuicConnectionInternal *cci = conn_internal(c);
             if (cci->closed) continue;
@@ -1440,7 +1450,6 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
                 if (ms < timeout_ms) timeout_ms = ms;
             }
         }
-        MUTEX_UNLOCK(&li->conn_list_mutex);
 
         if (timeout_ms < 1) timeout_ms = 1;
 
@@ -1470,9 +1479,20 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
                     goto handle_timers;
                 }
 
+                /* Snapshot connection list to avoid holding conn_list_mutex
+                 * while acquiring individual conn_mutex (prevents contention
+                 * with handleConnection threads doing writeFrame). */
+                RtQuicConnection *route_conns[QUIC_MAX_STREAMS];
+                int route_count = 0;
                 MUTEX_LOCK(&li->conn_list_mutex);
-                for (int i = 0; i < li->connection_count; i++) {
-                    RtQuicConnection *existing = li->connections[i];
+                for (int i = 0; i < li->connection_count && i < QUIC_MAX_STREAMS; i++) {
+                    route_conns[i] = li->connections[i];
+                }
+                route_count = li->connection_count;
+                MUTEX_UNLOCK(&li->conn_list_mutex);
+
+                for (int i = 0; i < route_count; i++) {
+                    RtQuicConnection *existing = route_conns[i];
                     if (!existing) continue;
                     QuicConnectionInternal *eci = conn_internal(existing);
                     if (eci->closed) continue;
@@ -1515,7 +1535,6 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
                         if (eci->handshake_complete && !eci->io_running) {
                             eci->io_running = true;
                             MUTEX_UNLOCK(&eci->conn_mutex);
-                            MUTEX_UNLOCK(&li->conn_list_mutex);
 
                             MUTEX_LOCK(&li->accept_mutex);
                             if (li->accept_count < QUIC_MAX_INCOMING_STREAMS) {
@@ -1532,7 +1551,6 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
                     MUTEX_UNLOCK(&eci->conn_mutex);
                     break;
                 }
-                MUTEX_UNLOCK(&li->conn_list_mutex);
             }
 
             if (found) {
@@ -1583,11 +1601,21 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
         }
 
 handle_timers:
-        /* Handle timer expiry for all server connections */
+        /* Handle timer expiry for all server connections.
+         * Snapshot the connection list under conn_list_mutex, then process
+         * each connection individually to avoid holding both locks. */
         now = quic_timestamp();
+        RtQuicConnection *timer_conns[QUIC_MAX_STREAMS];
+        int timer_count = 0;
         MUTEX_LOCK(&li->conn_list_mutex);
-        for (int i = 0; i < li->connection_count; i++) {
-            RtQuicConnection *c = li->connections[i];
+        for (int i = 0; i < li->connection_count && i < QUIC_MAX_STREAMS; i++) {
+            timer_conns[i] = li->connections[i];
+        }
+        timer_count = li->connection_count;
+        MUTEX_UNLOCK(&li->conn_list_mutex);
+
+        for (int i = 0; i < timer_count; i++) {
+            RtQuicConnection *c = timer_conns[i];
             if (!c) continue;
             QuicConnectionInternal *cci = conn_internal(c);
             if (cci->closed) continue;
@@ -1604,7 +1632,6 @@ handle_timers:
             }
             MUTEX_UNLOCK(&cci->conn_mutex);
         }
-        MUTEX_UNLOCK(&li->conn_list_mutex);
     }
 }
 
