@@ -159,7 +159,7 @@ static void ensure_winsock_initialized(void) {
  * Constants
  * ============================================================================ */
 
-#define QUIC_MAX_PACKET_SIZE  1452
+#define QUIC_MAX_PACKET_SIZE  1200
 #define QUIC_MAX_STREAMS      128
 #define QUIC_RECV_BUF_SIZE    65536
 #define QUIC_STREAM_BUF_SIZE  65536
