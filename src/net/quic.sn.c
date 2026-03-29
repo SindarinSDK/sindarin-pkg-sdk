@@ -1355,11 +1355,16 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
     ngtcp2_pkt_info pi;
     memset(&pi, 0, sizeof(pi));
     rv = ngtcp2_conn_read_pkt(ci->qconn, &path, &pi, pkt, pktlen, quic_timestamp());
-    if (rv < 0) {
-        fprintf(stderr, "QUIC: Failed to process initial packet: %s\n", ngtcp2_strerror(rv));
+    if (rv < 0 && rv != NGTCP2_ERR_RETRY) {
+        fprintf(stderr, "QUIC: Failed to process initial packet: %s (code=%d)\n", ngtcp2_strerror(rv), rv);
         SSL_free(ci->ssl);
         ngtcp2_conn_del(ci->qconn);
         return NULL;
+    }
+    if (rv == NGTCP2_ERR_RETRY) {
+        fprintf(stderr, "QUIC: Failed to process initial packet: ERR_RETRY (code=%d)\n", rv);
+        /* Don't fail — flush a retry response and let the handshake continue
+         * on subsequent packets routed by the listener thread. */
     }
 
     /* Server connections do NOT have their own I/O thread.
@@ -1451,57 +1456,88 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
                                      (struct sockaddr *)&from_addr, &from_len);
             if (nread <= 0) goto handle_timers;
 
-            /* Try to route to existing connection */
+            /* Extract DCID from packet to route to the correct connection */
+            ngtcp2_version_cid vc;
+            int vc_rv = ngtcp2_pkt_decode_version_cid(&vc, buf, (size_t)nread, 16);
+
             bool found = false;
-            MUTEX_LOCK(&li->conn_list_mutex);
-            for (int i = 0; i < li->connection_count; i++) {
-                RtQuicConnection *existing = li->connections[i];
-                if (!existing) continue;
-                QuicConnectionInternal *eci = conn_internal(existing);
-                if (eci->closed) continue;
+            if (vc_rv == 0 || vc_rv == 1) {
+                /* Build a ngtcp2_cid from the decoded DCID for comparison */
+                ngtcp2_cid pkt_dcid;
+                if (vc.dcidlen <= NGTCP2_MAX_CIDLEN) {
+                    ngtcp2_cid_init(&pkt_dcid, vc.dcid, vc.dcidlen);
+                } else {
+                    goto handle_timers;
+                }
 
-                MUTEX_LOCK(&eci->conn_mutex);
-                ngtcp2_path path;
-                memset(&path, 0, sizeof(path));
-                path.local.addr = (struct sockaddr *)&li->local_addr;
-                path.local.addrlen = li->local_addrlen;
-                path.remote.addr = (struct sockaddr *)&from_addr;
-                path.remote.addrlen = from_len;
+                MUTEX_LOCK(&li->conn_list_mutex);
+                for (int i = 0; i < li->connection_count; i++) {
+                    RtQuicConnection *existing = li->connections[i];
+                    if (!existing) continue;
+                    QuicConnectionInternal *eci = conn_internal(existing);
+                    if (eci->closed) continue;
 
-                ngtcp2_pkt_info pi;
-                memset(&pi, 0, sizeof(pi));
-
-                int read_rv = ngtcp2_conn_read_pkt(eci->qconn, &path, &pi,
-                                                    buf, (size_t)nread, quic_timestamp());
-                if (read_rv == 0) {
-                    quic_server_flush_tx(existing, listener->socket_fd);
-                    found = true;
-
-                    /* Check if handshake just completed - push to accept queue */
-                    if (eci->handshake_complete && !eci->io_running) {
-                        eci->io_running = true; /* Mark as 'accepted' */
-                        MUTEX_UNLOCK(&eci->conn_mutex);
-                        MUTEX_UNLOCK(&li->conn_list_mutex);
-
-                        MUTEX_LOCK(&li->accept_mutex);
-                        if (li->accept_count < QUIC_MAX_INCOMING_STREAMS) {
-                            li->accept_queue_conns[li->accept_tail] = existing;
-                            li->accept_tail = (li->accept_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
-                            li->accept_count++;
-                            COND_SIGNAL(&li->accept_cond);
+                    /* Match DCID against this connection's SCIDs */
+                    MUTEX_LOCK(&eci->conn_mutex);
+                    ngtcp2_cid scids[8];
+                    size_t num_scids = ngtcp2_conn_get_scid(eci->qconn, scids);
+                    bool match = false;
+                    for (size_t s = 0; s < num_scids && s < 8; s++) {
+                        if (ngtcp2_cid_eq(&pkt_dcid, &scids[s])) {
+                            match = true;
+                            break;
                         }
-                        MUTEX_UNLOCK(&li->accept_mutex);
-                        goto handle_timers;
+                    }
+
+                    if (!match) {
+                        MUTEX_UNLOCK(&eci->conn_mutex);
+                        continue;
+                    }
+
+                    /* Route packet to this connection */
+                    ngtcp2_path path;
+                    memset(&path, 0, sizeof(path));
+                    path.local.addr = (struct sockaddr *)&li->local_addr;
+                    path.local.addrlen = li->local_addrlen;
+                    path.remote.addr = (struct sockaddr *)&from_addr;
+                    path.remote.addrlen = from_len;
+
+                    ngtcp2_pkt_info pi;
+                    memset(&pi, 0, sizeof(pi));
+
+                    int read_rv = ngtcp2_conn_read_pkt(eci->qconn, &path, &pi,
+                                                        buf, (size_t)nread, quic_timestamp());
+                    if (read_rv == 0) {
+                        quic_server_flush_tx(existing, listener->socket_fd);
+                        found = true;
+
+                        /* Check if handshake just completed - push to accept queue */
+                        if (eci->handshake_complete && !eci->io_running) {
+                            eci->io_running = true;
+                            MUTEX_UNLOCK(&eci->conn_mutex);
+                            MUTEX_UNLOCK(&li->conn_list_mutex);
+
+                            MUTEX_LOCK(&li->accept_mutex);
+                            if (li->accept_count < QUIC_MAX_INCOMING_STREAMS) {
+                                li->accept_queue_conns[li->accept_tail] = existing;
+                                li->accept_tail = (li->accept_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
+                                li->accept_count++;
+                                COND_SIGNAL(&li->accept_cond);
+                            }
+                            MUTEX_UNLOCK(&li->accept_mutex);
+                            goto handle_timers;
+                        }
                     }
 
                     MUTEX_UNLOCK(&eci->conn_mutex);
                     break;
                 }
-                MUTEX_UNLOCK(&eci->conn_mutex);
+                MUTEX_UNLOCK(&li->conn_list_mutex);
             }
-            MUTEX_UNLOCK(&li->conn_list_mutex);
 
-            if (found) goto handle_timers;
+            if (found) {
+                goto handle_timers;
+            }
 
             /* New connection - decode initial header */
             ngtcp2_pkt_hd hd;
@@ -2347,6 +2383,7 @@ __sn__QuicConnection *sn_quic_listener_accept(__sn__QuicListener *listener) {
     if (listener == NULL) return NULL;
     RtQuicListener *_listener = (RtQuicListener *)listener;
     QuicListenerInternal *li = listener_internal(_listener);
+
 
     MUTEX_LOCK(&li->accept_mutex);
 
