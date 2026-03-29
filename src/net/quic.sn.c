@@ -159,7 +159,7 @@ static void ensure_winsock_initialized(void) {
  * Constants
  * ============================================================================ */
 
-#define QUIC_MAX_PACKET_SIZE  1200
+#define QUIC_MAX_PACKET_SIZE  1452
 #define QUIC_MAX_STREAMS      128
 #define QUIC_RECV_BUF_SIZE    65536
 #define QUIC_STREAM_BUF_SIZE  65536
@@ -959,8 +959,11 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
                 ngtcp2_pkt_info pi;
                 memset(&pi, 0, sizeof(pi));
 
+                int incoming_before = ci->incoming_count;
                 int rv = ngtcp2_conn_read_pkt(ci->qconn, &path, &pi,
                                                buf, (size_t)nread, quic_timestamp());
+                if (ci->incoming_count > incoming_before) {
+                }
                 if (rv < 0) {
                     if (rv == NGTCP2_ERR_DRAINING || rv == NGTCP2_ERR_CLOSING) {
                         ci->closed = true;
@@ -2010,7 +2013,7 @@ __sn__QuicStream *sn_quic_connection_open_stream(__sn__QuicConnection *conn) {
     int rv = ngtcp2_conn_open_bidi_stream(ci->qconn, &stream_id, NULL);
     if (rv != 0) {
         MUTEX_UNLOCK(&ci->conn_mutex);
-        fprintf(stderr, "QUIC: Failed to open bidi stream: %s\n", ngtcp2_strerror(rv));
+        fprintf(stderr, "QUIC: Failed to open bidi stream: %s (is_server=%d)\n", ngtcp2_strerror(rv), ci->is_server);
         return NULL;
     }
 
