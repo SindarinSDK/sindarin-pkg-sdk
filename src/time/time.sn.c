@@ -14,17 +14,12 @@
 #include <stdbool.h>
 
 #ifdef _WIN32
-    #if defined(__MINGW32__) || defined(__MINGW64__)
-    /* MinGW is POSIX-compatible */
-    #include <sys/time.h>
-    #else
-    #include "platform/compat_windows.h"
-    #include "platform/compat_time.h"
-    #endif
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
     #define GMTIME_R(time_ptr, tm_ptr) gmtime_s(tm_ptr, time_ptr)
 #else
-#include <sys/time.h>
-#define GMTIME_R(time_ptr, tm_ptr) gmtime_r(time_ptr, tm_ptr)
+    #include <sys/time.h>
+    #define GMTIME_R(time_ptr, tm_ptr) gmtime_r(time_ptr, tm_ptr)
 #endif
 
 /* ============================================================================
@@ -159,32 +154,59 @@ RtTime *sn_time_from_seconds(long long s)
     return sn_time_create(s * 1000);
 }
 
+#ifdef _WIN32
+/* Windows: milliseconds since Unix epoch via FILETIME */
+static long long sn_time_win_millis(void)
+{
+    FILETIME ft;
+    GetSystemTimeAsFileTime(&ft);
+    /* FILETIME is 100-nanosecond intervals since 1601-01-01 */
+    ULARGE_INTEGER ul;
+    ul.LowPart = ft.dwLowDateTime;
+    ul.HighPart = ft.dwHighDateTime;
+    /* Convert to Unix epoch (difference is 11644473600 seconds) */
+    return (long long)(ul.QuadPart / 10000ULL - 11644473600000ULL);
+}
+#endif
+
 /* Get current local time */
 RtTime *sn_time_now(void)
 {
+#ifdef _WIN32
+    return sn_time_create(sn_time_win_millis());
+#else
     struct timeval tv;
     gettimeofday(&tv, NULL);
     long long milliseconds = (tv.tv_sec * 1000LL) + (tv.tv_usec / 1000);
     return sn_time_create(milliseconds);
+#endif
 }
 
 /* Get current UTC time */
 RtTime *sn_time_utc(void)
 {
+#ifdef _WIN32
+    return sn_time_create(sn_time_win_millis());
+#else
     struct timeval tv;
     gettimeofday(&tv, NULL);
     long long milliseconds = (tv.tv_sec * 1000LL) + (tv.tv_usec / 1000);
     return sn_time_create(milliseconds);
+#endif
 }
 
 /* Sleep for specified milliseconds */
 void sn_time_sleep(long long ms)
 {
     if (ms <= 0) return;
+#ifdef _WIN32
+    Sleep((DWORD)ms);
+#else
     struct timespec ts;
     ts.tv_sec = ms / 1000;
     ts.tv_nsec = (ms % 1000) * 1000000L;
     nanosleep(&ts, NULL);
+#endif
 }
 
 /* ============================================================================
