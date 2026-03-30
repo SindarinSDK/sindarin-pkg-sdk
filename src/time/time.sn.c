@@ -32,14 +32,11 @@ typedef __sn__Time RtTime;
  * Helper Functions
  * ============================================================================ */
 
-/* Create RtTime from milliseconds using malloc */
+/* Create RtTime from milliseconds using the compiler-generated constructor.
+ * __sn__Time__new() uses calloc and sets __rc__ = 1 for proper refcounting. */
 static RtTime *sn_time_create(long long milliseconds)
 {
-    RtTime *t = (RtTime *)malloc(sizeof(RtTime));
-    if (t == NULL) {
-        fprintf(stderr, "sn_time_create: allocation failed\n");
-        exit(1);
-    }
+    RtTime *t = __sn__Time__new();
     t->milliseconds = milliseconds;
     return t;
 }
