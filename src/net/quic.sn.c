@@ -1851,10 +1851,19 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
         if (ndatalen > 0) total_written += ndatalen;
 
         if (nwrite > 0) {
-            quic_send_packet(conn, buf, (size_t)nwrite);
+            ssize_t sent = quic_send_packet(conn, buf, (size_t)nwrite);
+            if (ci->is_server) {
+                fprintf(stderr, "QUIC: server stream_write: stream=%lld nwrite=%zd ndatalen=%zd sent=%zd total=%zu/%zu\n",
+                        _stream->stream_id, (ssize_t)nwrite, (ssize_t)ndatalen, sent, total_written, data_len);
+            }
         }
 
-        if (nwrite == 0) break;
+        if (nwrite == 0) {
+            if (ci->is_server) {
+                fprintf(stderr, "QUIC: server stream_write: nwrite=0, total=%zu/%zu\n", total_written, data_len);
+            }
+            break;
+        }
     }
 
     /* Flush any data that ngtcp2 coalesced internally via NGTCP2_ERR_WRITE_MORE.
