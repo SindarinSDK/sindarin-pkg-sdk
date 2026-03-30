@@ -1804,18 +1804,32 @@ char *sn_quic_stream_read_line(__sn__QuicStream *stream) {
 }
 
 long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
-    if (!stream || !data) return 0;
+    if (!stream || !data) {
+        fprintf(stderr, "QUIC: stream_write: null stream=%p data=%p\n", (void*)stream, (void*)data);
+        return 0;
+    }
     RtQuicStream *_stream = (RtQuicStream *)stream;
     QuicStreamInternal *si = stream_internal(_stream);
+    if (!si) {
+        fprintf(stderr, "QUIC: stream_write: stream_internal returned NULL for stream=%p id=%lld\n",
+                (void*)stream, _stream->stream_id);
+        return 0;
+    }
     size_t data_len = (size_t)data->len;
     if (data_len == 0) return 0;
 
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
     QuicConnectionInternal *ci = conn_internal(conn);
+    if (!ci) {
+        fprintf(stderr, "QUIC: stream_write: conn_internal returned NULL for conn=%p\n", (void*)conn);
+        return 0;
+    }
 
     MUTEX_LOCK(&ci->conn_mutex);
 
     if (ci->closed || si->write_closed) {
+        fprintf(stderr, "QUIC: stream_write: closed=%d write_closed=%d (stream=%lld)\n",
+                ci->closed, si->write_closed, _stream->stream_id);
         MUTEX_UNLOCK(&ci->conn_mutex);
         return 0;
     }
