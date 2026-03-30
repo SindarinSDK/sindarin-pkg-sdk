@@ -106,6 +106,9 @@ native struct QuicStream as ref =>
   @alias "conn_ptr"
   _conn_ptr: long
 
+  @alias "internal_ptr"
+  _internal_ptr: long
+
   # ==========================================================================
   # Read Methods
   # ==========================================================================

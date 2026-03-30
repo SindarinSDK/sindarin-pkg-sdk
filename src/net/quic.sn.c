@@ -265,22 +265,33 @@ static QStreamEntry g_stream_reg[512];
 static int g_stream_reg_count = 0;
 
 static QuicStreamInternal *stream_internal(RtQuicStream *s) {
-    /* First try exact pointer match (fast path for same-scope usage) */
+    if (!s) return NULL;
+    /* Primary path: use the embedded internal_ptr if set.
+     * This is immune to pointer reuse after free — each stream
+     * carries a direct pointer to its own internal state. */
+    if (s->internal_ptr) {
+        return (QuicStreamInternal *)(uintptr_t)s->internal_ptr;
+    }
+    /* Legacy fallback: registry lookup by exact pointer match */
     for (int i = 0; i < g_stream_reg_count; i++)
         if (g_stream_reg[i].key == s) return g_stream_reg[i].val;
-    /* Fallback: match by (conn_ptr, stream_id) for copies of native struct as ref
-     * that have different pointer identity but the same logical stream. */
-    if (s) {
-        for (int i = 0; i < g_stream_reg_count; i++) {
-            RtQuicStream *candidate = g_stream_reg[i].key;
-            if (candidate->conn_ptr == s->conn_ptr &&
-                candidate->stream_id == s->stream_id)
-                return g_stream_reg[i].val;
-        }
+    /* Last resort: match by (conn_ptr, stream_id) for struct copies */
+    for (int i = 0; i < g_stream_reg_count; i++) {
+        RtQuicStream *candidate = g_stream_reg[i].key;
+        if (candidate->conn_ptr == s->conn_ptr &&
+            candidate->stream_id == s->stream_id)
+            return g_stream_reg[i].val;
     }
     return NULL;
 }
 static void stream_register(RtQuicStream *s, QuicStreamInternal *si) {
+    /* Replace stale entry at the same pointer address (memory reuse after free) */
+    for (int i = 0; i < g_stream_reg_count; i++) {
+        if (g_stream_reg[i].key == s) {
+            g_stream_reg[i].val = si;
+            return;
+        }
+    }
     g_stream_reg[g_stream_reg_count++] = (QStreamEntry){s, si};
 }
 static void stream_unregister(RtQuicStream *s) {
@@ -656,11 +667,12 @@ static RtQuicStream *quic_find_or_create_stream(RtQuicConnection *conn, int64_t 
     if (ci->stream_count >= QUIC_MAX_STREAMS) return NULL;
 
     RtQuicStream *stream = __sn__QuicStream__new();
-    QuicStreamInternal *si = (QuicStreamInternal *)calloc(1, sizeof(QuicStreamInternal));
-    stream_register(stream, si);
-
     stream->stream_id = stream_id;
     stream->conn_ptr = (long long)(uintptr_t)conn;
+
+    QuicStreamInternal *si = (QuicStreamInternal *)calloc(1, sizeof(QuicStreamInternal));
+    stream->internal_ptr = (long long)(uintptr_t)si;
+    stream_register(stream, si);
     stream_buf_init(&si->recv_buf);
     MUTEX_INIT(&si->stream_mutex);
     COND_INIT(&si->read_cond);
