@@ -265,8 +265,19 @@ static QStreamEntry g_stream_reg[512];
 static int g_stream_reg_count = 0;
 
 static QuicStreamInternal *stream_internal(RtQuicStream *s) {
+    /* First try exact pointer match (fast path for same-scope usage) */
     for (int i = 0; i < g_stream_reg_count; i++)
         if (g_stream_reg[i].key == s) return g_stream_reg[i].val;
+    /* Fallback: match by (conn_ptr, stream_id) for copies of native struct as ref
+     * that have different pointer identity but the same logical stream. */
+    if (s) {
+        for (int i = 0; i < g_stream_reg_count; i++) {
+            RtQuicStream *candidate = g_stream_reg[i].key;
+            if (candidate->conn_ptr == s->conn_ptr &&
+                candidate->stream_id == s->stream_id)
+                return g_stream_reg[i].val;
+        }
+    }
     return NULL;
 }
 static void stream_register(RtQuicStream *s, QuicStreamInternal *si) {
@@ -1804,32 +1815,19 @@ char *sn_quic_stream_read_line(__sn__QuicStream *stream) {
 }
 
 long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
-    if (!stream || !data) {
-        fprintf(stderr, "QUIC: stream_write: null stream=%p data=%p\n", (void*)stream, (void*)data);
-        return 0;
-    }
+    if (!stream || !data) return 0;
     RtQuicStream *_stream = (RtQuicStream *)stream;
     QuicStreamInternal *si = stream_internal(_stream);
-    if (!si) {
-        fprintf(stderr, "QUIC: stream_write: stream_internal returned NULL for stream=%p id=%lld\n",
-                (void*)stream, _stream->stream_id);
-        return 0;
-    }
+    if (!si) return 0;
     size_t data_len = (size_t)data->len;
     if (data_len == 0) return 0;
 
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
     QuicConnectionInternal *ci = conn_internal(conn);
-    if (!ci) {
-        fprintf(stderr, "QUIC: stream_write: conn_internal returned NULL for conn=%p\n", (void*)conn);
-        return 0;
-    }
 
     MUTEX_LOCK(&ci->conn_mutex);
 
     if (ci->closed || si->write_closed) {
-        fprintf(stderr, "QUIC: stream_write: closed=%d write_closed=%d (stream=%lld)\n",
-                ci->closed, si->write_closed, _stream->stream_id);
         MUTEX_UNLOCK(&ci->conn_mutex);
         return 0;
     }
