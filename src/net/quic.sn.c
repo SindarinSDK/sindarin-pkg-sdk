@@ -1857,6 +1857,25 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
         if (nwrite == 0) break;
     }
 
+    /* Flush any data that ngtcp2 coalesced internally via NGTCP2_ERR_WRITE_MORE.
+     * When the last chunk returns WRITE_MORE, total_written reaches data_len and
+     * the loop exits — but the coalesced packet was never emitted.  This matters
+     * especially for server connections which have no I/O thread to periodically
+     * drain pending TX.  Calling with stream_id=-1 finalizes the packet. */
+    for (;;) {
+        ngtcp2_ssize nw = ngtcp2_conn_writev_stream(
+            ci->qconn, &ps.path, &pi,
+            buf, sizeof(buf),
+            NULL, NGTCP2_WRITE_STREAM_FLAG_NONE,
+            -1, NULL, 0, quic_timestamp());
+        if (nw < 0) {
+            if (nw == NGTCP2_ERR_WRITE_MORE) continue;
+            break;
+        }
+        if (nw == 0) break;
+        quic_send_packet(conn, buf, (size_t)nw);
+    }
+
     MUTEX_UNLOCK(&ci->conn_mutex);
     return (long)total_written;
 }
@@ -1918,6 +1937,21 @@ void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
         }
 
         if (nwrite == 0) break;
+    }
+
+    /* Flush coalesced data (same as sn_quic_stream_write) */
+    for (;;) {
+        ngtcp2_ssize nw = ngtcp2_conn_writev_stream(
+            ci->qconn, &ps.path, &pi,
+            pkt, sizeof(pkt),
+            NULL, NGTCP2_WRITE_STREAM_FLAG_NONE,
+            -1, NULL, 0, quic_timestamp());
+        if (nw < 0) {
+            if (nw == NGTCP2_ERR_WRITE_MORE) continue;
+            break;
+        }
+        if (nw == 0) break;
+        quic_send_packet(conn, pkt, (size_t)nw);
     }
 
     MUTEX_UNLOCK(&ci->conn_mutex);
