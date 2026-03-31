@@ -687,6 +687,22 @@ static RtQuicStream *quic_find_or_create_stream(RtQuicConnection *conn, int64_t 
 
 static void quic_stream_free(RtQuicStream *stream) {
     if (!stream) return;
+
+    /* Null the stream pointer in the owning connection's stream array
+     * to prevent use-after-free in quic_find_or_create_stream */
+    RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)stream->conn_ptr;
+    if (conn) {
+        QuicConnectionInternal *ci = conn_internal(conn);
+        if (ci) {
+            for (int i = 0; i < ci->stream_count; i++) {
+                if (ci->streams[i] == stream) {
+                    ci->streams[i] = NULL;
+                    break;
+                }
+            }
+        }
+    }
+
     QuicStreamInternal *si = stream_internal(stream);
     if (si) {
         stream_buf_destroy(&si->recv_buf);
