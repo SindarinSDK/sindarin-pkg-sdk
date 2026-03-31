@@ -113,9 +113,14 @@ native struct QuicStream as ref =>
   # Read Methods
   # ==========================================================================
 
-  # Read up to maxBytes from the stream
+  # Read up to maxBytes from the stream (may return fewer)
   fn read(maxBytes: int): byte[] =>
     return sn_quic_stream_read(self, maxBytes)
+
+  # Read exactly n bytes, blocking until all arrive or stream closes.
+  # Returns fewer than n bytes only if the stream closes prematurely.
+  fn readExact(n: int): byte[] =>
+    return sn_quic_stream_read_exact(self, n)
 
   # Read until stream is closed by peer
   fn readAll(): byte[] =>
@@ -289,6 +294,7 @@ native fn sn_quic_config_set_idle_timeout(config: QuicConfig, ms: int): QuicConf
 
 # QuicStream functions
 native fn sn_quic_stream_read(stream: QuicStream, maxBytes: int): byte[]
+native fn sn_quic_stream_read_exact(stream: QuicStream, n: int): byte[]
 native fn sn_quic_stream_read_all(stream: QuicStream): byte[]
 native fn sn_quic_stream_read_line(stream: QuicStream): str
 

@@ -1750,6 +1750,41 @@ SnArray *sn_quic_stream_read(__sn__QuicStream *stream, long long maxBytes) {
     return result;
 }
 
+SnArray *sn_quic_stream_read_exact(__sn__QuicStream *stream, long long nBytes) {
+    if (!stream || nBytes <= 0) {
+        SnArray *empty = sn_array_new(sizeof(unsigned char), 0);
+        empty->elem_tag = SN_TAG_BYTE;
+        return empty;
+    }
+    RtQuicStream *_stream = (RtQuicStream *)stream;
+    QuicStreamInternal *si = stream_internal(_stream);
+
+    SnArray *result = sn_array_new(sizeof(unsigned char), nBytes);
+    result->elem_tag = SN_TAG_BYTE;
+    size_t remaining = (size_t)nBytes;
+
+    MUTEX_LOCK(&si->stream_mutex);
+    while (remaining > 0) {
+        /* Wait for data or terminal condition */
+        while (stream_buf_available(&si->recv_buf) == 0 &&
+               !si->recv_buf.fin_received && !si->closed) {
+            COND_WAIT(&si->read_cond, &si->stream_mutex);
+        }
+
+        size_t avail = stream_buf_available(&si->recv_buf);
+        if (avail == 0) break;  /* Stream closed — return short */
+
+        size_t to_read = avail < remaining ? avail : remaining;
+        unsigned char *src = (unsigned char *)si->recv_buf.data + si->recv_buf.read_pos;
+        for (size_t i = 0; i < to_read; i++)
+            sn_array_push(result, &src[i]);
+        si->recv_buf.read_pos += to_read;
+        remaining -= to_read;
+    }
+    MUTEX_UNLOCK(&si->stream_mutex);
+    return result;
+}
+
 SnArray *sn_quic_stream_read_all(__sn__QuicStream *stream) {
     if (!stream) {
         { SnArray *empty = sn_array_new(sizeof(unsigned char), 0); empty->elem_tag = SN_TAG_BYTE; return empty; }
