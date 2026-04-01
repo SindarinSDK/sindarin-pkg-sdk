@@ -218,6 +218,43 @@ fn test_config(): void =>
 
   print("PASS\n")
 
+fn test_server_multi_exchange(): void =>
+  print("test_server_multi_exchange: ")
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+  var port: int = server.port()
+
+  var client: QuicConnection = QuicConnection.connect($"127.0.0.1:{port}")
+  var serverConn: QuicConnection = server.accept()
+
+  var clientStream: QuicStream = client.openStream()
+  var serverStream: QuicStream = serverConn.acceptStream()
+
+  # Do 5 request-response exchanges on the same stream.
+  # The SERVER initiates writes (like skynet's proxy pattern).
+  # Issue #41: hangs after the 2nd exchange in the same cycle.
+  for var i: int = 0; i < 5; i++ =>
+    # Server writes request
+    serverStream.writeLine($"request-{i}")
+    # Client reads request and writes response
+    var req: str = clientStream.readLine()
+    assert(req == $"request-{i}", $"Expected 'request-{i}' but got '{req}'")
+    clientStream.writeLine($"response-{i}")
+    # Server reads response
+    var resp: str = serverStream.readLine()
+    assert(resp == $"response-{i}", $"Expected 'response-{i}' but got '{resp}'")
+
+  # Clean up
+  clientStream.close()
+  serverStream.close()
+  client.close()
+  serverConn.close()
+  server.close()
+
+  print("PASS\n")
+
 fn main(): void =>
   print("=== SDK QUIC Tests ===\n\n")
 
@@ -228,5 +265,6 @@ fn main(): void =>
   test_multiple_streams()
   test_stream_id()
   test_config()
+  test_server_multi_exchange()
 
   print("\nAll QUIC tests passed!\n")
