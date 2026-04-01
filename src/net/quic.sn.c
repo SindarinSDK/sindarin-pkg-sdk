@@ -2088,6 +2088,15 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
 
     MUTEX_UNLOCK(&ci->conn_mutex);
 
+    /* Remove from connection's stream array to prevent use-after-free
+     * when the Sindarin runtime frees the RtQuicStream via refcount. */
+    for (int i = 0; i < ci->stream_count; i++) {
+        if (ci->streams[i] == _stream) {
+            ci->streams[i] = NULL;
+            break;
+        }
+    }
+
     MUTEX_LOCK(&si->stream_mutex);
     si->write_closed = true;
     si->closed = true;
