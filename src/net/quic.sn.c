@@ -1505,10 +1505,15 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
     if (cfg.idle_timeout_ms > 0) {
         params.max_idle_timeout = (uint64_t)cfg.idle_timeout_ms * NGTCP2_MILLISECONDS;
     }
-    /* Generate server CID */
+    /* Server CID: after Retry, use the DCID from the retried Initial (which
+     * IS the Retry SCID the client is addressing). Otherwise generate fresh. */
     ngtcp2_cid scid;
-    scid.datalen = 16;
-    RAND_bytes(scid.data, (int)scid.datalen);
+    if (odcid) {
+        scid = hd->dcid;  /* Client's DCID = Retry SCID → use as our SCID */
+    } else {
+        scid.datalen = 16;
+        RAND_bytes(scid.data, (int)scid.datalen);
+    }
 
     /* Server must set original_dcid.  After Retry, this is the DCID from
      * the ORIGINAL Initial (before Retry), extracted from the verified token. */
