@@ -1024,6 +1024,10 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
                                      (struct sockaddr *)&from_addr, &from_len);
 
             if (nread > 0) {
+                if (!ci->handshake_complete) {
+                    fprintf(stderr, "QUIC: client I/O received %zd bytes (handshake in progress)\n", nread);
+                    fflush(stderr);
+                }
                 ngtcp2_path path;
                 memset(&path, 0, sizeof(path));
                 path.local.addr = (struct sockaddr *)&ci->local_addr;
@@ -1758,12 +1762,16 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
                     retry_token, (size_t)tokenlen);
                 if (retry_nwrite < 0) continue;
 
-                sendto(listener->socket_fd, (const char *)retry_pkt, (size_t)retry_nwrite, 0,
+                ssize_t retry_sent = sendto(listener->socket_fd, (const char *)retry_pkt, (size_t)retry_nwrite, 0,
                        (struct sockaddr *)&from_addr, from_len);
+                fprintf(stderr, "QUIC: sent Retry packet (%zd bytes, sent=%zd) to client\n", (ssize_t)retry_nwrite, retry_sent);
+                fflush(stderr);
                 continue;
             }
 
             /* Verify Retry token */
+            fprintf(stderr, "QUIC: verifying Retry token (tokenlen=%zu)\n", hd.tokenlen);
+            fflush(stderr);
             rv = ngtcp2_crypto_verify_retry_token2(
                 &odcid, hd.token, hd.tokenlen,
                 g_retry_secret, QUIC_RETRY_SECRET_LEN,
