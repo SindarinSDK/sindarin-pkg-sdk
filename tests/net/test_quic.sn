@@ -229,12 +229,19 @@ fn test_server_multi_exchange(): void =>
   var client: QuicConnection = QuicConnection.connect($"127.0.0.1:{port}")
   var serverConn: QuicConnection = server.accept()
 
+  # Client opens stream and sends initial message (like skynet's WORK_READY)
   var clientStream: QuicStream = client.openStream()
-  var serverStream: QuicStream = serverConn.acceptStream()
+  clientStream.writeLine("ready")
 
-  # Do 5 request-response exchanges on the same stream.
-  # The SERVER initiates writes (like skynet's proxy pattern).
-  # Issue #41: hangs after the 2nd exchange in the same cycle.
+  # Server accepts the stream and reads the initial message
+  var serverStream: QuicStream = serverConn.acceptStream()
+  var ready: str = serverStream.readLine()
+  assert(ready == "ready", $"Expected 'ready' but got '{ready}'")
+
+  # Now do 5 server-initiated request-response exchanges on the same stream.
+  # This is the skynet proxy pattern: server writes request, client responds.
+  # Issue #41: hangs after 2nd server write due to conn_mutex contention
+  # between the flush loop and the listener thread's packet processing.
   for var i: int = 0; i < 5; i++ =>
     # Server writes request
     serverStream.writeLine($"request-{i}")

@@ -1926,38 +1926,37 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
         if (ndatalen > 0) total_written += ndatalen;
 
         if (nwrite > 0) {
-            ssize_t sent = quic_send_packet(conn, buf, (size_t)nwrite);
-            if (ci->is_server) {
-                fprintf(stderr, "QUIC: server stream_write: stream=%lld nwrite=%zd ndatalen=%zd sent=%zd total=%zu/%zu\n",
-                        _stream->stream_id, (ssize_t)nwrite, (ssize_t)ndatalen, sent, total_written, data_len);
-            }
+            quic_send_packet(conn, buf, (size_t)nwrite);
         }
 
         if (nwrite == 0) {
-            if (ci->is_server) {
-                fprintf(stderr, "QUIC: server stream_write: nwrite=0, total=%zu/%zu\n", total_written, data_len);
+            if (ci->is_server && total_written < data_len) {
+                /* Yield mutex so listener thread can process incoming packets
+                 * (may need ACKs or flow control updates before ngtcp2 can write) */
+                MUTEX_UNLOCK(&ci->conn_mutex);
+                usleep(1000);
+                MUTEX_LOCK(&ci->conn_mutex);
+                if (ci->closed) break;
+                continue;
             }
             break;
         }
     }
 
-    /* Flush any data that ngtcp2 coalesced internally via NGTCP2_ERR_WRITE_MORE.
-     * When the last chunk returns WRITE_MORE, total_written reaches data_len and
-     * the loop exits — but the coalesced packet was never emitted.  This matters
-     * especially for server connections which have no I/O thread to periodically
-     * drain pending TX.  Calling with stream_id=-1 finalizes the packet. */
-    for (;;) {
-        ngtcp2_ssize nw = ngtcp2_conn_writev_stream(
-            ci->qconn, &ps.path, &pi,
-            buf, sizeof(buf),
-            NULL, NGTCP2_WRITE_STREAM_FLAG_NONE,
-            -1, NULL, 0, quic_timestamp());
-        if (nw < 0) {
-            if (nw == NGTCP2_ERR_WRITE_MORE) continue;
-            break;
+    /* Flush pending TX.  Server connections skip the flush loop to avoid
+     * holding conn_mutex while the listener thread needs it for incoming
+     * packet processing.  The listener's timer loop flushes periodically. */
+    if (!ci->is_server) {
+        for (;;) {
+            ngtcp2_ssize nw = ngtcp2_conn_writev_stream(
+                ci->qconn, &ps.path, &pi,
+                buf, sizeof(buf),
+                NULL, NGTCP2_WRITE_STREAM_FLAG_NONE,
+                -1, NULL, 0, quic_timestamp());
+            if (nw < 0) break;
+            if (nw == 0) break;
+            quic_send_packet(conn, buf, (size_t)nw);
         }
-        if (nw == 0) break;
-        quic_send_packet(conn, buf, (size_t)nw);
     }
 
     MUTEX_UNLOCK(&ci->conn_mutex);
@@ -2020,22 +2019,30 @@ void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
             quic_send_packet(conn, pkt, (size_t)nwrite);
         }
 
-        if (nwrite == 0) break;
-    }
-
-    /* Flush coalesced data (same as sn_quic_stream_write) */
-    for (;;) {
-        ngtcp2_ssize nw = ngtcp2_conn_writev_stream(
-            ci->qconn, &ps.path, &pi,
-            pkt, sizeof(pkt),
-            NULL, NGTCP2_WRITE_STREAM_FLAG_NONE,
-            -1, NULL, 0, quic_timestamp());
-        if (nw < 0) {
-            if (nw == NGTCP2_ERR_WRITE_MORE) continue;
+        if (nwrite == 0) {
+            if (ci->is_server && total_written < total_len) {
+                MUTEX_UNLOCK(&ci->conn_mutex);
+                usleep(1000);
+                MUTEX_LOCK(&ci->conn_mutex);
+                if (ci->closed) break;
+                continue;
+            }
             break;
         }
-        if (nw == 0) break;
-        quic_send_packet(conn, pkt, (size_t)nw);
+    }
+
+    /* Flush pending TX — skip for server (listener thread flushes in timer loop) */
+    if (!ci->is_server) {
+        for (;;) {
+            ngtcp2_ssize nw = ngtcp2_conn_writev_stream(
+                ci->qconn, &ps.path, &pi,
+                pkt, sizeof(pkt),
+                NULL, NGTCP2_WRITE_STREAM_FLAG_NONE,
+                -1, NULL, 0, quic_timestamp());
+            if (nw < 0) break;
+            if (nw == 0) break;
+            quic_send_packet(conn, pkt, (size_t)nw);
+        }
     }
 
     MUTEX_UNLOCK(&ci->conn_mutex);
