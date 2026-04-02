@@ -66,6 +66,7 @@
     #define COND_SIGNAL(c) WakeConditionVariable(c)
     #define COND_BROADCAST(c) WakeAllConditionVariable(c)
     #define COND_DESTROY(c) /* no-op on Windows */
+    #define SLEEP_1MS() Sleep(1)
 
 #elif defined(__APPLE__)
     #include <sys/types.h>
@@ -99,6 +100,7 @@
     #define COND_SIGNAL(c) pthread_cond_signal(c)
     #define COND_BROADCAST(c) pthread_cond_broadcast(c)
     #define COND_DESTROY(c) pthread_cond_destroy(c)
+    #define SLEEP_1MS() usleep(1000)
 
 #else
     #include <sys/types.h>
@@ -131,6 +133,7 @@
     #define COND_SIGNAL(c) pthread_cond_signal(c)
     #define COND_BROADCAST(c) pthread_cond_broadcast(c)
     #define COND_DESTROY(c) pthread_cond_destroy(c)
+    #define SLEEP_1MS() usleep(1000)
 #endif
 
 /* ============================================================================
@@ -2071,7 +2074,7 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
                 /* Yield mutex so listener thread can process incoming packets
                  * (may need ACKs or flow control updates before ngtcp2 can write) */
                 MUTEX_UNLOCK(&ci->conn_mutex);
-                usleep(1000);
+                SLEEP_1MS();
                 MUTEX_LOCK(&ci->conn_mutex);
                 if (ci->closed) break;
                 continue;
@@ -2159,7 +2162,7 @@ void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
         if (nwrite == 0) {
             if (ci->is_server && total_written < total_len) {
                 MUTEX_UNLOCK(&ci->conn_mutex);
-                usleep(1000);
+                SLEEP_1MS();
                 MUTEX_LOCK(&ci->conn_mutex);
                 if (ci->closed) break;
                 continue;
