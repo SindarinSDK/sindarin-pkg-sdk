@@ -1334,6 +1334,10 @@ static int quic_flush_tx(RtQuicConnection *conn) {
  * Called when the I/O thread exits its loop for any reason. */
 static void quic_io_thread_cleanup(RtQuicConnection *conn) {
     QuicConnectionInternal *ci = conn_internal(conn);
+    if (!ci) {
+        QUIC_IO_DBG("cleanup: connection already unregistered, skipping");
+        return;
+    }
 
     /* Complete any pending commands with error so app threads unblock */
     QuicCommand *cmd;
