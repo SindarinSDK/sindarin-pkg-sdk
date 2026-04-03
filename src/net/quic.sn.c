@@ -246,6 +246,12 @@ static void wakeup_destroy(int read_fd, int write_fd) {
 #define QUIC_RETRY_TOKEN_TIMEOUT       (10ULL * NGTCP2_SECONDS) /* 10s token validity */
 #define QUIC_ALPN "\x02hq"   /* HTTP/0.9 over QUIC (h3 would be "\x02h3") */
 
+/* Debug logging for I/O thread — compile with -DQUIC_IO_DEBUG=1 to enable */
+#ifndef QUIC_IO_DEBUG
+#define QUIC_IO_DEBUG 0
+#endif
+#define QUIC_IO_DBG(...) do { if (QUIC_IO_DEBUG) { fprintf(stderr, "[QUIC I/O] "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while(0)
+
 /* Static secret for Retry token generation/verification (per-process) */
 static uint8_t g_retry_secret[QUIC_RETRY_SECRET_LEN];
 static int g_retry_secret_initialized = 0;
@@ -1324,6 +1330,41 @@ static int quic_flush_tx(RtQuicConnection *conn) {
     return 0;
 }
 
+/* Cleanup: drain remaining commands with error, wake all blocked threads.
+ * Called when the I/O thread exits its loop for any reason. */
+static void quic_io_thread_cleanup(RtQuicConnection *conn) {
+    QuicConnectionInternal *ci = conn_internal(conn);
+
+    /* Complete any pending commands with error so app threads unblock */
+    QuicCommand *cmd;
+    while ((cmd = cmd_queue_pop(&ci->cmd_queue)) != NULL) {
+        cmd->result_code = -1;
+        quic_cmd_complete(cmd);
+    }
+
+    /* Broadcast connection-level condvars */
+    MUTEX_LOCK(&ci->conn_mutex);
+    COND_BROADCAST(&ci->handshake_cond);
+    COND_BROADCAST(&ci->accept_stream_cond);
+    MUTEX_UNLOCK(&ci->conn_mutex);
+
+    /* Mark all streams closed and wake readers */
+    for (int i = 0; i < ci->stream_count; i++) {
+        if (ci->streams[i]) {
+            QuicStreamInternal *si = stream_internal(ci->streams[i]);
+            if (si) {
+                MUTEX_LOCK(&si->stream_mutex);
+                si->closed = true;
+                COND_BROADCAST(&si->read_cond);
+                MUTEX_UNLOCK(&si->stream_mutex);
+            }
+        }
+    }
+
+    QUIC_IO_DBG("cleanup: drained pending commands, woke %d streams",
+                ci->stream_count);
+}
+
 static void *quic_io_thread_entry(void *arg) {
     RtQuicConnection *conn = (RtQuicConnection *)arg;
     quic_io_thread_func(conn);
@@ -1340,6 +1381,9 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
     pfds[0].events = POLLIN;
     pfds[1].fd = ci->wakeup_fd;
     pfds[1].events = POLLIN;
+
+    QUIC_IO_DBG("client I/O thread started, sock=%lld wakeup=%d",
+                (long long)conn->socket_fd, ci->wakeup_fd);
 
     while (ci->io_running && !ci->closed) {
         /* Calculate timeout from ngtcp2 expiry — no mutex needed, sole owner */
@@ -1365,15 +1409,20 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
             wakeup_drain(ci->wakeup_fd);
         }
 
-        /* Read incoming packets */
+        /* Drain command queue — always run before packet/timer processing
+         * so pending commands are never skipped on error-exit paths */
+        quic_drain_cmd_queue(conn);
+
+        /* Read all available incoming packets (not just one) */
         if (ret > 0 && (pfds[0].revents & POLLIN)) {
-            struct sockaddr_storage from_addr;
-            socklen_t from_len = sizeof(from_addr);
+            for (;;) {
+                struct sockaddr_storage from_addr;
+                socklen_t from_len = sizeof(from_addr);
 
-            ssize_t nread = recvfrom(conn->socket_fd, (char *)buf, sizeof(buf), 0,
-                                     (struct sockaddr *)&from_addr, &from_len);
+                ssize_t nread = recvfrom(conn->socket_fd, (char *)buf, sizeof(buf), 0,
+                                         (struct sockaddr *)&from_addr, &from_len);
+                if (nread <= 0) break;
 
-            if (nread > 0) {
                 ngtcp2_path path;
                 memset(&path, 0, sizeof(path));
                 path.local.addr = (struct sockaddr *)&ci->local_addr;
@@ -1388,16 +1437,15 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
                                                buf, (size_t)nread, quic_timestamp());
                 if (rv < 0) {
                     if (rv == NGTCP2_ERR_DRAINING || rv == NGTCP2_ERR_CLOSING) {
+                        QUIC_IO_DBG("connection draining/closing (rv=%d)", rv);
                         ci->closed = true;
-                        MUTEX_LOCK(&ci->conn_mutex);
-                        COND_BROADCAST(&ci->handshake_cond);
-                        COND_BROADCAST(&ci->accept_stream_cond);
-                        MUTEX_UNLOCK(&ci->conn_mutex);
                         break;
                     }
                 }
             }
         }
+
+        if (ci->closed) break;
 
         /* Handle timer expiry */
         now = quic_timestamp();
@@ -1405,20 +1453,19 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
         if (expiry <= now) {
             int rv = ngtcp2_conn_handle_expiry(ci->qconn, now);
             if (rv < 0) {
+                QUIC_IO_DBG("handle_expiry failed (rv=%d)", rv);
                 ci->closed = true;
-                MUTEX_LOCK(&ci->conn_mutex);
-                COND_BROADCAST(&ci->handshake_cond);
-                MUTEX_UNLOCK(&ci->conn_mutex);
                 break;
             }
         }
 
-        /* Drain command queue (writes, open-stream, close, etc.) */
-        quic_drain_cmd_queue(conn);
-
         /* Flush any pending TX */
         quic_flush_tx(conn);
     }
+
+    QUIC_IO_DBG("client I/O loop exited, closed=%d io_running=%d",
+                ci->closed, ci->io_running);
+    quic_io_thread_cleanup(conn);
 }
 
 /* ============================================================================
@@ -1440,6 +1487,8 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
     QuicConnectionInternal *ci = conn_internal(conn);
     QuicPacket pkt_local;
 
+    QUIC_IO_DBG("server I/O thread started");
+
     while (ci->io_running && !ci->closed) {
         bool had_work = false;
 
@@ -1457,7 +1506,7 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
             if (!got_pkt) break;
             had_work = true;
 
-            if (ci->closed) return;
+            if (ci->closed) break;
 
             ngtcp2_path path;
             memset(&path, 0, sizeof(path));
@@ -1473,34 +1522,30 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
                                            pkt_local.data, pkt_local.len, quic_timestamp());
             if (rv < 0) {
                 if (rv == NGTCP2_ERR_DRAINING || rv == NGTCP2_ERR_CLOSING) {
+                    QUIC_IO_DBG("server connection draining/closing (rv=%d)", rv);
                     ci->closed = true;
-                    MUTEX_LOCK(&ci->conn_mutex);
-                    COND_BROADCAST(&ci->accept_stream_cond);
-                    MUTEX_UNLOCK(&ci->conn_mutex);
-                    return;
+                    break;
                 }
             }
             quic_server_flush_tx(conn, ci->listener_sock);
         }
 
-        /* 2. Handle timer expiry */
-        if (ci->closed) return;
+        if (ci->closed) break;
 
+        /* 2. Drain command queue — before timer so commands are never orphaned */
+        quic_drain_cmd_queue(conn);
+
+        /* 3. Handle timer expiry */
         ngtcp2_tstamp now = quic_timestamp();
         ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry(ci->qconn);
         if (expiry <= now) {
             int rv = ngtcp2_conn_handle_expiry(ci->qconn, now);
             if (rv < 0) {
+                QUIC_IO_DBG("server handle_expiry failed (rv=%d)", rv);
                 ci->closed = true;
-                MUTEX_LOCK(&ci->conn_mutex);
-                COND_BROADCAST(&ci->accept_stream_cond);
-                MUTEX_UNLOCK(&ci->conn_mutex);
-                return;
+                break;
             }
         }
-
-        /* 3. Drain command queue (writes, open-stream, close, etc.) */
-        quic_drain_cmd_queue(conn);
 
         /* 4. Flush any pending TX */
         quic_server_flush_tx(conn, ci->listener_sock);
@@ -1537,6 +1582,10 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
         }
         MUTEX_UNLOCK(&ci->pkt_ring_mutex);
     }
+
+    QUIC_IO_DBG("server I/O loop exited, closed=%d io_running=%d",
+                ci->closed, ci->io_running);
+    quic_io_thread_cleanup(conn);
 }
 
 /* ============================================================================
@@ -2668,30 +2717,36 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
     if (conn == NULL) return;
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
     QuicConnectionInternal *ci = conn_internal(_conn);
-    if (ci->closed) return;
 
-    /* Send close via I/O thread */
-    if (ci->qconn && ci->io_running) {
-        QuicCommand cmd;
-        memset(&cmd, 0, sizeof(cmd));
-        cmd.type = QUIC_CMD_CLOSE_CONN;
-        quic_submit_cmd_and_wait(ci, &cmd);
-    } else {
-        ci->closed = true;
+    /* Send close via I/O thread (only if not already closed) */
+    if (!ci->closed) {
+        if (ci->qconn && ci->io_running) {
+            QuicCommand cmd;
+            memset(&cmd, 0, sizeof(cmd));
+            cmd.type = QUIC_CMD_CLOSE_CONN;
+            quic_submit_cmd_and_wait(ci, &cmd);
+        } else {
+            ci->closed = true;
+        }
     }
 
-    /* Signal all waiting threads */
+    /* Signal all waiting threads — must run even if already closed,
+     * because the I/O thread cleanup may not have woken everyone */
+    MUTEX_LOCK(&ci->conn_mutex);
     COND_BROADCAST(&ci->handshake_cond);
     COND_BROADCAST(&ci->accept_stream_cond);
+    MUTEX_UNLOCK(&ci->conn_mutex);
 
     /* Signal all streams */
     for (int i = 0; i < ci->stream_count; i++) {
         if (ci->streams[i]) {
             QuicStreamInternal *si = stream_internal(ci->streams[i]);
-            MUTEX_LOCK(&si->stream_mutex);
-            si->closed = true;
-            COND_BROADCAST(&si->read_cond);
-            MUTEX_UNLOCK(&si->stream_mutex);
+            if (si) {
+                MUTEX_LOCK(&si->stream_mutex);
+                si->closed = true;
+                COND_BROADCAST(&si->read_cond);
+                MUTEX_UNLOCK(&si->stream_mutex);
+            }
         }
     }
 
