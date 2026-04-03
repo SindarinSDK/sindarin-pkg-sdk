@@ -159,6 +159,58 @@ static void ensure_winsock_initialized(void) {
 #endif
 
 /* ============================================================================
+ * Wakeup Mechanism (for signaling I/O thread from app threads)
+ * ============================================================================ */
+
+#ifdef __linux__
+#include <sys/eventfd.h>
+static int wakeup_create(int *read_fd, int *write_fd) {
+    int fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (fd < 0) return -1;
+    *read_fd = *write_fd = fd;
+    return 0;
+}
+static void wakeup_signal(int write_fd) {
+    uint64_t val = 1;
+    ssize_t r = write(write_fd, &val, sizeof(val));
+    (void)r;
+}
+static void wakeup_drain(int read_fd) {
+    uint64_t val;
+    ssize_t r = read(read_fd, &val, sizeof(val));
+    (void)r;
+}
+static void wakeup_destroy(int read_fd, int write_fd) {
+    (void)write_fd;
+    close(read_fd);
+}
+#elif !defined(_WIN32)
+/* macOS/BSD: use pipe */
+static int wakeup_create(int *read_fd, int *write_fd) {
+    int pipefd[2];
+    if (pipe(pipefd) != 0) return -1;
+    fcntl(pipefd[0], F_SETFL, O_NONBLOCK);
+    fcntl(pipefd[1], F_SETFL, O_NONBLOCK);
+    *read_fd = pipefd[0];
+    *write_fd = pipefd[1];
+    return 0;
+}
+static void wakeup_signal(int write_fd) {
+    char c = 1;
+    ssize_t r = write(write_fd, &c, 1);
+    (void)r;
+}
+static void wakeup_drain(int read_fd) {
+    char buf[64];
+    while (read(read_fd, buf, sizeof(buf)) > 0) {}
+}
+static void wakeup_destroy(int read_fd, int write_fd) {
+    close(read_fd);
+    close(write_fd);
+}
+#endif
+
+/* ============================================================================
  * Constants
  * ============================================================================ */
 
@@ -224,6 +276,81 @@ typedef struct {
     socklen_t from_len;
 } QuicPacket;
 
+/* ============================================================================
+ * Command Queue (app threads → I/O thread)
+ * ============================================================================ */
+
+typedef enum {
+    QUIC_CMD_WRITE,
+    QUIC_CMD_WRITE_FIN,
+    QUIC_CMD_OPEN_BIDI,
+    QUIC_CMD_OPEN_UNI,
+    QUIC_CMD_CLOSE_CONN,
+    QUIC_CMD_MIGRATE,
+    QUIC_CMD_SHUTDOWN,
+} QuicCmdType;
+
+typedef struct QuicCommand {
+    QuicCmdType type;
+    int64_t stream_id;
+    uint8_t *data;
+    size_t data_len;
+    int64_t result_stream_id;
+    char *migrate_address;
+    int result_code;
+    size_t bytes_written;
+    bool completed;
+    mutex_t *completion_mutex;
+    cond_t *completion_cond;
+    struct QuicCommand *next;
+} QuicCommand;
+
+typedef struct QuicCmdQueue {
+    QuicCommand *head;
+    QuicCommand *tail;
+    mutex_t mutex;
+} QuicCmdQueue;
+
+static void cmd_queue_init(QuicCmdQueue *q) {
+    q->head = NULL;
+    q->tail = NULL;
+    MUTEX_INIT(&q->mutex);
+}
+
+static void cmd_queue_destroy(QuicCmdQueue *q) {
+    QuicCommand *cmd = q->head;
+    while (cmd) {
+        QuicCommand *next = cmd->next;
+        free(cmd);
+        cmd = next;
+    }
+    MUTEX_DESTROY(&q->mutex);
+}
+
+static void cmd_queue_push(QuicCmdQueue *q, QuicCommand *cmd) {
+    cmd->next = NULL;
+    MUTEX_LOCK(&q->mutex);
+    if (q->tail) {
+        q->tail->next = cmd;
+    } else {
+        q->head = cmd;
+    }
+    q->tail = cmd;
+    MUTEX_UNLOCK(&q->mutex);
+}
+
+static QuicCommand *cmd_queue_pop(QuicCmdQueue *q) {
+    MUTEX_LOCK(&q->mutex);
+    QuicCommand *cmd = q->head;
+    if (cmd) {
+        q->head = cmd->next;
+        if (!q->head) q->tail = NULL;
+        cmd->next = NULL;
+    }
+    MUTEX_UNLOCK(&q->mutex);
+    return cmd;
+}
+
 /* QuicConnection: Sindarin exposes conn_ptr and socket_fd only */
 typedef __sn__QuicConnection RtQuicConnection;
 
@@ -266,6 +393,11 @@ typedef struct QuicConnectionInternal {
      * Set at connection creation, updated by I/O thread on CID rotation. */
     ngtcp2_cid cached_scids[8];
     int cached_scid_count;
+    /* Command queue: app threads push, I/O thread drains */
+    QuicCmdQueue cmd_queue;
+    /* Wakeup mechanism for client I/O thread (eventfd/pipe) */
+    int wakeup_fd;
+    int wakeup_write_fd;
 } QuicConnectionInternal;
 
 /* QuicListener: Sindarin exposes socket_fd and bound_port only */
@@ -622,13 +754,15 @@ static int quic_stream_open_cb(ngtcp2_conn *conn, int64_t stream_id, void *user_
     /* Create stream entry */
     quic_find_or_create_stream(qc, stream_id);
 
-    /* Add to incoming queue */
+    /* Add to incoming queue — conn_mutex protects the queue and condvar */
+    MUTEX_LOCK(&qci->conn_mutex);
     if (qci->incoming_count < QUIC_MAX_INCOMING_STREAMS) {
         qci->incoming_streams[qci->incoming_tail] = stream_id;
         qci->incoming_tail = (qci->incoming_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
         qci->incoming_count++;
         COND_SIGNAL(&qci->accept_stream_cond);
     }
+    MUTEX_UNLOCK(&qci->conn_mutex);
 
     return 0;
 }
@@ -663,8 +797,10 @@ static int quic_handshake_completed_cb(ngtcp2_conn *conn, void *user_data) {
     RtQuicConnection *qc = (RtQuicConnection *)user_data;
     QuicConnectionInternal *qci = conn_internal(qc);
 
+    MUTEX_LOCK(&qci->conn_mutex);
     qci->handshake_complete = true;
     COND_SIGNAL(&qci->handshake_cond);
+    MUTEX_UNLOCK(&qci->conn_mutex);
 
     /* Extract session ticket for 0-RTT */
     SSL_SESSION *session = SSL_get1_session(qci->ssl);
@@ -931,6 +1067,190 @@ static SSL *create_server_ssl(SSL_CTX *ctx, RtQuicConnection *conn) {
 }
 
 /* ============================================================================
+ * Command Queue: Submit + Wait (app thread side)
+ * ============================================================================ */
+
+/* Forward declaration — quic_find_or_create_stream is defined later */
+static RtQuicStream *quic_find_or_create_stream(RtQuicConnection *conn, int64_t stream_id);
+
+static int quic_submit_cmd_and_wait(QuicConnectionInternal *ci, QuicCommand *cmd) {
+    mutex_t completion_mutex;
+    cond_t completion_cond;
+    MUTEX_INIT(&completion_mutex);
+    COND_INIT(&completion_cond);
+
+    cmd->completed = false;
+    cmd->completion_mutex = &completion_mutex;
+    cmd->completion_cond = &completion_cond;
+
+    cmd_queue_push(&ci->cmd_queue, cmd);
+
+    /* Wake the I/O thread */
+    if (ci->is_server) {
+        MUTEX_LOCK(&ci->pkt_ring_mutex);
+        COND_SIGNAL(&ci->pkt_ring_cond);
+        MUTEX_UNLOCK(&ci->pkt_ring_mutex);
+    } else {
+        wakeup_signal(ci->wakeup_write_fd);
+    }
+
+    /* Block until I/O thread completes the command */
+    MUTEX_LOCK(&completion_mutex);
+    while (!cmd->completed) {
+        COND_WAIT(&completion_cond, &completion_mutex);
+    }
+    MUTEX_UNLOCK(&completion_mutex);
+
+    int result = cmd->result_code;
+    MUTEX_DESTROY(&completion_mutex);
+    COND_DESTROY(&completion_cond);
+
+    return result;
+}
+
+/* ============================================================================
+ * Command Queue: Execute + Drain (I/O thread side)
+ * Only the I/O thread calls ngtcp2 functions here.
+ * ============================================================================ */
+
+static void quic_cmd_complete(QuicCommand *cmd) {
+    MUTEX_LOCK(cmd->completion_mutex);
+    cmd->completed = true;
+    COND_SIGNAL(cmd->completion_cond);
+    MUTEX_UNLOCK(cmd->completion_mutex);
+}
+
+static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
+    QuicConnectionInternal *ci = conn_internal(conn);
+
+    switch (cmd->type) {
+    case QUIC_CMD_WRITE: {
+        uint8_t buf[QUIC_MAX_PACKET_SIZE];
+        ngtcp2_path_storage ps;
+        ngtcp2_path_storage_zero(&ps);
+        ngtcp2_pkt_info pi;
+        size_t total_written = 0;
+
+        while (total_written < cmd->data_len) {
+            ngtcp2_vec v;
+            v.base = cmd->data + total_written;
+            v.len = cmd->data_len - total_written;
+
+            ngtcp2_ssize ndatalen = 0;
+            ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
+                ci->qconn, &ps.path, &pi,
+                buf, sizeof(buf), &ndatalen,
+                NGTCP2_WRITE_STREAM_FLAG_NONE,
+                cmd->stream_id, &v, 1, quic_timestamp());
+
+            if (nwrite < 0) {
+                if (nwrite == NGTCP2_ERR_WRITE_MORE) {
+                    if (ndatalen > 0) total_written += ndatalen;
+                    continue;
+                }
+                cmd->result_code = (int)nwrite;
+                break;
+            }
+            if (ndatalen > 0) total_written += ndatalen;
+            if (nwrite > 0) {
+                quic_send_packet(conn, buf, (size_t)nwrite);
+            }
+            if (nwrite == 0 && total_written < cmd->data_len) {
+                /* Flow control blocked — break and retry after processing ACKs */
+                break;
+            }
+        }
+        cmd->bytes_written = total_written;
+        break;
+    }
+
+    case QUIC_CMD_WRITE_FIN: {
+        uint8_t buf[QUIC_MAX_PACKET_SIZE];
+        ngtcp2_path_storage ps;
+        ngtcp2_path_storage_zero(&ps);
+        ngtcp2_pkt_info pi;
+        ngtcp2_ssize ndatalen;
+
+        ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
+            ci->qconn, &ps.path, &pi,
+            buf, sizeof(buf), &ndatalen,
+            NGTCP2_WRITE_STREAM_FLAG_FIN,
+            cmd->stream_id, NULL, 0, quic_timestamp());
+
+        if (nwrite > 0) {
+            quic_send_packet(conn, buf, (size_t)nwrite);
+        }
+        cmd->result_code = (nwrite >= 0) ? 0 : (int)nwrite;
+        break;
+    }
+
+    case QUIC_CMD_OPEN_BIDI: {
+        int64_t stream_id;
+        int rv = ngtcp2_conn_open_bidi_stream(ci->qconn, &stream_id, NULL);
+        cmd->result_stream_id = stream_id;
+        cmd->result_code = rv;
+        break;
+    }
+
+    case QUIC_CMD_OPEN_UNI: {
+        int64_t stream_id;
+        int rv = ngtcp2_conn_open_uni_stream(ci->qconn, &stream_id, NULL);
+        cmd->result_stream_id = stream_id;
+        cmd->result_code = rv;
+        break;
+    }
+
+    case QUIC_CMD_CLOSE_CONN: {
+        uint8_t buf[QUIC_MAX_PACKET_SIZE];
+        ngtcp2_path_storage ps;
+        ngtcp2_path_storage_zero(&ps);
+        ngtcp2_pkt_info pi;
+        ngtcp2_ccerr ccerr;
+        ngtcp2_ccerr_default(&ccerr);
+
+        ngtcp2_ssize nwrite = ngtcp2_conn_write_connection_close(
+            ci->qconn, &ps.path, &pi,
+            buf, sizeof(buf), &ccerr, quic_timestamp());
+
+        if (nwrite > 0) {
+            quic_send_packet(conn, buf, (size_t)nwrite);
+        }
+        ci->closed = true;
+        COND_BROADCAST(&ci->accept_stream_cond);
+        cmd->result_code = 0;
+        break;
+    }
+
+    case QUIC_CMD_MIGRATE: {
+        /* Migration not commonly used — stub for now */
+        cmd->result_code = 0;
+        break;
+    }
+
+    case QUIC_CMD_SHUTDOWN:
+        ci->io_running = false;
+        cmd->result_code = 0;
+        break;
+    }
+
+    quic_cmd_complete(cmd);
+}
+
+static void quic_drain_cmd_queue(RtQuicConnection *conn) {
+    QuicConnectionInternal *ci = conn_internal(conn);
+    QuicCommand *cmd;
+    while ((cmd = cmd_queue_pop(&ci->cmd_queue)) != NULL) {
+        if (ci->closed && cmd->type != QUIC_CMD_CLOSE_CONN
+                       && cmd->type != QUIC_CMD_SHUTDOWN) {
+            cmd->result_code = -1;
+            quic_cmd_complete(cmd);
+            continue;
+        }
+        quic_execute_cmd(conn, cmd);
+    }
+}
+
+/* ============================================================================
  * I/O Thread (per connection)
  * ============================================================================ */
 
@@ -986,18 +1306,18 @@ static void *quic_io_thread_entry(void *arg) {
 static void quic_io_thread_func(RtQuicConnection *conn) {
     QuicConnectionInternal *ci = conn_internal(conn);
     uint8_t buf[QUIC_RECV_BUF_SIZE];
-    struct pollfd pfd;
-    pfd.fd = conn->socket_fd;
-    pfd.events = POLLIN;
+
+    /* Poll on both socket and wakeup fd */
+    struct pollfd pfds[2];
+    pfds[0].fd = conn->socket_fd;
+    pfds[0].events = POLLIN;
+    pfds[1].fd = ci->wakeup_fd;
+    pfds[1].events = POLLIN;
 
     while (ci->io_running && !ci->closed) {
-        /* Calculate timeout from ngtcp2 expiry */
+        /* Calculate timeout from ngtcp2 expiry — no mutex needed, sole owner */
         ngtcp2_tstamp now = quic_timestamp();
-        ngtcp2_tstamp expiry;
-
-        MUTEX_LOCK(&ci->conn_mutex);
-        expiry = ngtcp2_conn_get_expiry(ci->qconn);
-        MUTEX_UNLOCK(&ci->conn_mutex);
+        ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry(ci->qconn);
 
         int timeout_ms;
         if (expiry <= now) {
@@ -1009,17 +1329,17 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
         }
         if (timeout_ms < 1) timeout_ms = 1;
 
-        int ret = POLL(&pfd, 1, timeout_ms);
+        int ret = POLL(pfds, 2, timeout_ms);
 
-        MUTEX_LOCK(&ci->conn_mutex);
+        if (ci->closed) break;
 
-        if (ci->closed) {
-            MUTEX_UNLOCK(&ci->conn_mutex);
-            break;
+        /* Drain wakeup fd if signaled (command queue has work) */
+        if (ret > 0 && (pfds[1].revents & POLLIN)) {
+            wakeup_drain(ci->wakeup_fd);
         }
 
-        if (ret > 0 && (pfd.revents & POLLIN)) {
-            /* Read incoming packet */
+        /* Read incoming packets */
+        if (ret > 0 && (pfds[0].revents & POLLIN)) {
             struct sockaddr_storage from_addr;
             socklen_t from_len = sizeof(from_addr);
 
@@ -1037,14 +1357,12 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
                 ngtcp2_pkt_info pi;
                 memset(&pi, 0, sizeof(pi));
 
-                int incoming_before = ci->incoming_count;
                 int rv = ngtcp2_conn_read_pkt(ci->qconn, &path, &pi,
                                                buf, (size_t)nread, quic_timestamp());
-                if (ci->incoming_count > incoming_before) {
-                }
                 if (rv < 0) {
                     if (rv == NGTCP2_ERR_DRAINING || rv == NGTCP2_ERR_CLOSING) {
                         ci->closed = true;
+                        MUTEX_LOCK(&ci->conn_mutex);
                         COND_BROADCAST(&ci->handshake_cond);
                         COND_BROADCAST(&ci->accept_stream_cond);
                         MUTEX_UNLOCK(&ci->conn_mutex);
@@ -1061,16 +1379,18 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
             int rv = ngtcp2_conn_handle_expiry(ci->qconn, now);
             if (rv < 0) {
                 ci->closed = true;
+                MUTEX_LOCK(&ci->conn_mutex);
                 COND_BROADCAST(&ci->handshake_cond);
                 MUTEX_UNLOCK(&ci->conn_mutex);
                 break;
             }
         }
 
+        /* Drain command queue (writes, open-stream, close, etc.) */
+        quic_drain_cmd_queue(conn);
+
         /* Flush any pending TX */
         quic_flush_tx(conn);
-
-        MUTEX_UNLOCK(&ci->conn_mutex);
     }
 }
 
@@ -1096,7 +1416,7 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
     while (ci->io_running && !ci->closed) {
         bool had_work = false;
 
-        /* 1. Drain packet ring — copy under pkt_ring_mutex, process under conn_mutex */
+        /* 1. Drain packet ring — copy under pkt_ring_mutex, process ngtcp2 directly (sole owner) */
         for (;;) {
             bool got_pkt = false;
             MUTEX_LOCK(&ci->pkt_ring_mutex);
@@ -1110,11 +1430,8 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
             if (!got_pkt) break;
             had_work = true;
 
-            MUTEX_LOCK(&ci->conn_mutex);
-            if (ci->closed) {
-                MUTEX_UNLOCK(&ci->conn_mutex);
-                return;
-            }
+            if (ci->closed) return;
+
             ngtcp2_path path;
             memset(&path, 0, sizeof(path));
             path.local.addr = (struct sockaddr *)&ci->local_addr;
@@ -1130,22 +1447,17 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
             if (rv < 0) {
                 if (rv == NGTCP2_ERR_DRAINING || rv == NGTCP2_ERR_CLOSING) {
                     ci->closed = true;
+                    MUTEX_LOCK(&ci->conn_mutex);
                     COND_BROADCAST(&ci->accept_stream_cond);
                     MUTEX_UNLOCK(&ci->conn_mutex);
                     return;
                 }
             }
-            /* Flush after processing each packet */
             quic_server_flush_tx(conn, ci->listener_sock);
-            MUTEX_UNLOCK(&ci->conn_mutex);
         }
 
-        /* 2. Handle timer expiry + flush TX */
-        MUTEX_LOCK(&ci->conn_mutex);
-        if (ci->closed) {
-            MUTEX_UNLOCK(&ci->conn_mutex);
-            return;
-        }
+        /* 2. Handle timer expiry */
+        if (ci->closed) return;
 
         ngtcp2_tstamp now = quic_timestamp();
         ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry(ci->qconn);
@@ -1153,18 +1465,23 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
             int rv = ngtcp2_conn_handle_expiry(ci->qconn, now);
             if (rv < 0) {
                 ci->closed = true;
+                MUTEX_LOCK(&ci->conn_mutex);
                 COND_BROADCAST(&ci->accept_stream_cond);
                 MUTEX_UNLOCK(&ci->conn_mutex);
                 return;
             }
         }
+
+        /* 3. Drain command queue (writes, open-stream, close, etc.) */
+        quic_drain_cmd_queue(conn);
+
+        /* 4. Flush any pending TX */
         quic_server_flush_tx(conn, ci->listener_sock);
 
         now = quic_timestamp();
         expiry = ngtcp2_conn_get_expiry(ci->qconn);
-        MUTEX_UNLOCK(&ci->conn_mutex);
 
-        /* 3. Wait for packets or timeout */
+        /* 5. Wait for packets, commands, or timeout */
         int timeout_ms;
         if (had_work) {
             timeout_ms = 0;
@@ -1265,6 +1582,12 @@ static RtQuicConnection *quic_connection_create(char *address,
     MUTEX_INIT(&ci->conn_mutex);
     COND_INIT(&ci->handshake_cond);
     COND_INIT(&ci->accept_stream_cond);
+
+    /* Initialize command queue and wakeup mechanism (client) */
+    cmd_queue_init(&ci->cmd_queue);
+    ci->wakeup_fd = -1;
+    ci->wakeup_write_fd = -1;
+    wakeup_create(&ci->wakeup_fd, &ci->wakeup_write_fd);
 
     /* Use provided config or defaults */
     RtQuicConfig cfg;
@@ -1458,6 +1781,11 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
     MUTEX_INIT(&ci->conn_mutex);
     COND_INIT(&ci->handshake_cond);
     COND_INIT(&ci->accept_stream_cond);
+
+    /* Initialize command queue (server — wakeup via pkt_ring_cond) */
+    cmd_queue_init(&ci->cmd_queue);
+    ci->wakeup_fd = -1;
+    ci->wakeup_write_fd = -1;
 
     RtQuicConfig cfg;
     if (config) {
@@ -2033,89 +2361,25 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
 
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
     QuicConnectionInternal *ci = conn_internal(conn);
+    if (ci->closed || si->write_closed) return 0;
 
-    MUTEX_LOCK(&ci->conn_mutex);
+    QuicCommand cmd;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.type = QUIC_CMD_WRITE;
+    cmd.stream_id = _stream->stream_id;
+    cmd.data = (uint8_t *)data->data;
+    cmd.data_len = data_len;
 
-    if (ci->closed || si->write_closed) {
-        MUTEX_UNLOCK(&ci->conn_mutex);
-        return 0;
-    }
-
-    /* Write data through ngtcp2 */
-    uint8_t buf[QUIC_MAX_PACKET_SIZE];
-    ngtcp2_path_storage ps;
-    ngtcp2_path_storage_zero(&ps);
-    ngtcp2_pkt_info pi;
-
-    size_t total_written = 0;
-    while (total_written < data_len) {
-        ngtcp2_vec v;
-        v.base = (uint8_t *)data->data + total_written;
-        v.len = data_len - total_written;
-
-        ngtcp2_ssize ndatalen = 0;
-        ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
-            ci->qconn, &ps.path, &pi,
-            buf, sizeof(buf),
-            &ndatalen,
-            NGTCP2_WRITE_STREAM_FLAG_NONE,
-            _stream->stream_id, &v, 1, quic_timestamp());
-
-        if (nwrite < 0) {
-            if (nwrite == NGTCP2_ERR_WRITE_MORE) {
-                if (ndatalen > 0) total_written += ndatalen;
-                continue;
-            }
-            break;
-        }
-
-        if (ndatalen > 0) total_written += ndatalen;
-
-        if (nwrite > 0) {
-            quic_send_packet(conn, buf, (size_t)nwrite);
-        }
-
-        if (nwrite == 0) {
-            if (ci->is_server && total_written < data_len) {
-                /* Yield mutex so listener thread can process incoming packets
-                 * (may need ACKs or flow control updates before ngtcp2 can write) */
-                MUTEX_UNLOCK(&ci->conn_mutex);
-                SLEEP_1MS();
-                MUTEX_LOCK(&ci->conn_mutex);
-                if (ci->closed) break;
-                continue;
-            }
-            break;
-        }
-    }
-
-    /* Flush pending TX.  Server connections skip the flush loop to avoid
-     * holding conn_mutex while the listener thread needs it for incoming
-     * packet processing.  The listener's timer loop flushes periodically. */
-    if (!ci->is_server) {
-        for (;;) {
-            ngtcp2_ssize nw = ngtcp2_conn_writev_stream(
-                ci->qconn, &ps.path, &pi,
-                buf, sizeof(buf),
-                NULL, NGTCP2_WRITE_STREAM_FLAG_NONE,
-                -1, NULL, 0, quic_timestamp());
-            if (nw < 0) break;
-            if (nw == 0) break;
-            quic_send_packet(conn, buf, (size_t)nw);
-        }
-    }
-
-    MUTEX_UNLOCK(&ci->conn_mutex);
-    return (long)total_written;
+    quic_submit_cmd_and_wait(ci, &cmd);
+    return (long long)cmd.bytes_written;
 }
 
 void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
     if (!stream || !text) return;
     RtQuicStream *_stream = (RtQuicStream *)stream;
-    QuicStreamInternal *si = stream_internal(_stream);
 
     size_t text_len = strlen(text);
-    size_t total_len = text_len + 1; /* text + \n */
+    size_t total_len = text_len + 1;
 
     uint8_t *buf = (uint8_t *)malloc(total_len);
     memcpy(buf, text, text_len);
@@ -2123,75 +2387,15 @@ void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
 
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
     QuicConnectionInternal *ci = conn_internal(conn);
-    MUTEX_LOCK(&ci->conn_mutex);
 
-    if (ci->closed || si->write_closed) {
-        MUTEX_UNLOCK(&ci->conn_mutex);
-        free(buf);
-        return;
-    }
+    QuicCommand cmd;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.type = QUIC_CMD_WRITE;
+    cmd.stream_id = _stream->stream_id;
+    cmd.data = buf;
+    cmd.data_len = total_len;
 
-    /* Write data through ngtcp2 */
-    uint8_t pkt[QUIC_MAX_PACKET_SIZE];
-    ngtcp2_path_storage ps;
-    ngtcp2_path_storage_zero(&ps);
-    ngtcp2_pkt_info pi;
-
-    size_t total_written = 0;
-    while (total_written < total_len) {
-        ngtcp2_vec v;
-        v.base = buf + total_written;
-        v.len = total_len - total_written;
-
-        ngtcp2_ssize ndatalen = 0;
-        ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
-            ci->qconn, &ps.path, &pi,
-            pkt, sizeof(pkt),
-            &ndatalen,
-            NGTCP2_WRITE_STREAM_FLAG_NONE,
-            _stream->stream_id, &v, 1, quic_timestamp());
-
-        if (nwrite < 0) {
-            if (nwrite == NGTCP2_ERR_WRITE_MORE) {
-                if (ndatalen > 0) total_written += ndatalen;
-                continue;
-            }
-            break;
-        }
-
-        if (ndatalen > 0) total_written += ndatalen;
-
-        if (nwrite > 0) {
-            quic_send_packet(conn, pkt, (size_t)nwrite);
-        }
-
-        if (nwrite == 0) {
-            if (ci->is_server && total_written < total_len) {
-                MUTEX_UNLOCK(&ci->conn_mutex);
-                SLEEP_1MS();
-                MUTEX_LOCK(&ci->conn_mutex);
-                if (ci->closed) break;
-                continue;
-            }
-            break;
-        }
-    }
-
-    /* Flush pending TX — skip for server (listener thread flushes in timer loop) */
-    if (!ci->is_server) {
-        for (;;) {
-            ngtcp2_ssize nw = ngtcp2_conn_writev_stream(
-                ci->qconn, &ps.path, &pi,
-                pkt, sizeof(pkt),
-                NULL, NGTCP2_WRITE_STREAM_FLAG_NONE,
-                -1, NULL, 0, quic_timestamp());
-            if (nw < 0) break;
-            if (nw == 0) break;
-            quic_send_packet(conn, pkt, (size_t)nw);
-        }
-    }
-
-    MUTEX_UNLOCK(&ci->conn_mutex);
+    quic_submit_cmd_and_wait(ci, &cmd);
     free(buf);
 }
 
@@ -2217,39 +2421,15 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
     QuicConnectionInternal *ci = conn_internal(conn);
 
-    MUTEX_LOCK(&ci->conn_mutex);
-
     if (!ci->closed) {
-        /* Send FIN on the stream */
-        uint8_t buf[QUIC_MAX_PACKET_SIZE];
-        ngtcp2_path_storage ps;
-        ngtcp2_path_storage_zero(&ps);
-        ngtcp2_pkt_info pi;
-        ngtcp2_ssize ndatalen;
-
-        ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(
-            ci->qconn, &ps.path, &pi,
-            buf, sizeof(buf),
-            &ndatalen,
-            NGTCP2_WRITE_STREAM_FLAG_FIN,
-            _stream->stream_id, NULL, 0, quic_timestamp());
-
-        if (nwrite > 0) {
-            quic_send_packet(conn, buf, (size_t)nwrite);
-        }
+        QuicCommand cmd;
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = QUIC_CMD_WRITE_FIN;
+        cmd.stream_id = _stream->stream_id;
+        quic_submit_cmd_and_wait(ci, &cmd);
     }
 
-    MUTEX_UNLOCK(&ci->conn_mutex);
-
-    /* Remove from connection's stream array to prevent use-after-free
-     * when the Sindarin runtime frees the RtQuicStream via refcount. */
-    for (int i = 0; i < ci->stream_count; i++) {
-        if (ci->streams[i] == _stream) {
-            ci->streams[i] = NULL;
-            break;
-        }
-    }
-
+    /* Mark stream closed locally */
     MUTEX_LOCK(&si->stream_mutex);
     si->write_closed = true;
     si->closed = true;
@@ -2294,18 +2474,17 @@ __sn__QuicStream *sn_quic_connection_open_stream(__sn__QuicConnection *conn) {
     QuicConnectionInternal *ci = conn_internal(_conn);
     if (ci->closed) return NULL;
 
-    MUTEX_LOCK(&ci->conn_mutex);
+    QuicCommand cmd;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.type = QUIC_CMD_OPEN_BIDI;
 
-    int64_t stream_id;
-    int rv = ngtcp2_conn_open_bidi_stream(ci->qconn, &stream_id, NULL);
+    int rv = quic_submit_cmd_and_wait(ci, &cmd);
     if (rv != 0) {
-        MUTEX_UNLOCK(&ci->conn_mutex);
-        fprintf(stderr, "QUIC: Failed to open bidi stream: %s (is_server=%d)\n", ngtcp2_strerror(rv), ci->is_server);
+        fprintf(stderr, "QUIC: Failed to open bidi stream: %s\n", ngtcp2_strerror(rv));
         return NULL;
     }
 
-    RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
-    MUTEX_UNLOCK(&ci->conn_mutex);
+    RtQuicStream *stream = quic_find_or_create_stream(_conn, cmd.result_stream_id);
     return stream ? (__sn__QuicStream *)stream : NULL;
 }
 
@@ -2315,22 +2494,21 @@ __sn__QuicStream *sn_quic_connection_open_uni_stream(__sn__QuicConnection *conn)
     QuicConnectionInternal *ci = conn_internal(_conn);
     if (ci->closed) return NULL;
 
-    MUTEX_LOCK(&ci->conn_mutex);
+    QuicCommand cmd;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.type = QUIC_CMD_OPEN_UNI;
 
-    int64_t stream_id;
-    int rv = ngtcp2_conn_open_uni_stream(ci->qconn, &stream_id, NULL);
+    int rv = quic_submit_cmd_and_wait(ci, &cmd);
     if (rv != 0) {
-        MUTEX_UNLOCK(&ci->conn_mutex);
         fprintf(stderr, "QUIC: Failed to open uni stream: %s\n", ngtcp2_strerror(rv));
         return NULL;
     }
 
-    RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
+    RtQuicStream *stream = quic_find_or_create_stream(_conn, cmd.result_stream_id);
     if (stream) {
         QuicStreamInternal *si = stream_internal(stream);
         si->is_uni = true;
     }
-    MUTEX_UNLOCK(&ci->conn_mutex);
     return stream ? (__sn__QuicStream *)stream : NULL;
 }
 
@@ -2469,28 +2647,15 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
     QuicConnectionInternal *ci = conn_internal(_conn);
     if (ci->closed) return;
 
-    MUTEX_LOCK(&ci->conn_mutex);
-    ci->closed = true;
-
-    if (ci->qconn) {
-        /* Send connection close frame */
-        uint8_t buf[QUIC_MAX_PACKET_SIZE];
-        ngtcp2_path_storage ps;
-        ngtcp2_path_storage_zero(&ps);
-        ngtcp2_pkt_info pi;
-        ngtcp2_ccerr ccerr;
-        ngtcp2_ccerr_default(&ccerr);
-
-        ngtcp2_ssize nwrite = ngtcp2_conn_write_connection_close(
-            ci->qconn, &ps.path, &pi,
-            buf, sizeof(buf), &ccerr, quic_timestamp());
-
-        if (nwrite > 0) {
-            quic_send_packet(_conn, buf, (size_t)nwrite);
-        }
+    /* Send close via I/O thread */
+    if (ci->qconn && ci->io_running) {
+        QuicCommand cmd;
+        memset(&cmd, 0, sizeof(cmd));
+        cmd.type = QUIC_CMD_CLOSE_CONN;
+        quic_submit_cmd_and_wait(ci, &cmd);
+    } else {
+        ci->closed = true;
     }
-
-    MUTEX_UNLOCK(&ci->conn_mutex);
 
     /* Signal all waiting threads */
     COND_BROADCAST(&ci->handshake_cond);
@@ -2565,6 +2730,12 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
     /* Free resumption token (allocated with malloc) */
     if (token) {
         free(token);
+    }
+
+    /* Cleanup command queue and wakeup */
+    cmd_queue_destroy(&ci->cmd_queue);
+    if (ci->wakeup_fd >= 0) {
+        wakeup_destroy(ci->wakeup_fd, ci->wakeup_write_fd);
     }
 
     MUTEX_DESTROY(&ci->conn_mutex);
