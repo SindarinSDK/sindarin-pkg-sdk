@@ -1187,6 +1187,9 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
     case QUIC_CMD_OPEN_BIDI: {
         int64_t stream_id;
         int rv = ngtcp2_conn_open_bidi_stream(ci->qconn, &stream_id, NULL);
+        if (rv == 0) {
+            quic_find_or_create_stream(conn, stream_id);
+        }
         cmd->result_stream_id = stream_id;
         cmd->result_code = rv;
         break;
@@ -1195,6 +1198,13 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
     case QUIC_CMD_OPEN_UNI: {
         int64_t stream_id;
         int rv = ngtcp2_conn_open_uni_stream(ci->qconn, &stream_id, NULL);
+        if (rv == 0) {
+            RtQuicStream *s = quic_find_or_create_stream(conn, stream_id);
+            if (s) {
+                QuicStreamInternal *si = stream_internal(s);
+                si->is_uni = true;
+            }
+        }
         cmd->result_stream_id = stream_id;
         cmd->result_code = rv;
         break;
@@ -2476,8 +2486,13 @@ __sn__QuicStream *sn_quic_connection_open_stream(__sn__QuicConnection *conn) {
         return NULL;
     }
 
-    RtQuicStream *stream = quic_find_or_create_stream(_conn, cmd.result_stream_id);
-    return stream ? (__sn__QuicStream *)stream : NULL;
+    /* Stream was already created by the I/O thread — just look it up */
+    for (int i = 0; i < ci->stream_count; i++) {
+        if (ci->streams[i] && ci->streams[i]->stream_id == cmd.result_stream_id) {
+            return (__sn__QuicStream *)ci->streams[i];
+        }
+    }
+    return NULL;
 }
 
 __sn__QuicStream *sn_quic_connection_open_uni_stream(__sn__QuicConnection *conn) {
@@ -2496,12 +2511,12 @@ __sn__QuicStream *sn_quic_connection_open_uni_stream(__sn__QuicConnection *conn)
         return NULL;
     }
 
-    RtQuicStream *stream = quic_find_or_create_stream(_conn, cmd.result_stream_id);
-    if (stream) {
-        QuicStreamInternal *si = stream_internal(stream);
-        si->is_uni = true;
+    for (int i = 0; i < ci->stream_count; i++) {
+        if (ci->streams[i] && ci->streams[i]->stream_id == cmd.result_stream_id) {
+            return (__sn__QuicStream *)ci->streams[i];
+        }
     }
-    return stream ? (__sn__QuicStream *)stream : NULL;
+    return NULL;
 }
 
 __sn__QuicStream *sn_quic_connection_accept_stream(__sn__QuicConnection *conn) {
