@@ -162,29 +162,7 @@ static void ensure_winsock_initialized(void) {
  * Wakeup Mechanism (for signaling I/O thread from app threads)
  * ============================================================================ */
 
-#ifdef __linux__
-#include <sys/eventfd.h>
-static int wakeup_create(int *read_fd, int *write_fd) {
-    int fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    if (fd < 0) return -1;
-    *read_fd = *write_fd = fd;
-    return 0;
-}
-static void wakeup_signal(int write_fd) {
-    uint64_t val = 1;
-    ssize_t r = write(write_fd, &val, sizeof(val));
-    (void)r;
-}
-static void wakeup_drain(int read_fd) {
-    uint64_t val;
-    ssize_t r = read(read_fd, &val, sizeof(val));
-    (void)r;
-}
-static void wakeup_destroy(int read_fd, int write_fd) {
-    (void)write_fd;
-    close(read_fd);
-}
-#elif defined(_WIN32)
+#ifdef _WIN32
 /* Windows: self-connected UDP loopback socket pair */
 static int wakeup_create(int *read_fd, int *write_fd) {
     ensure_winsock_initialized();

@@ -192,13 +192,13 @@ fn test_config(): void =>
   config = config.setMaxUniStreams(25)
   config = config.setMaxStreamWindow(131072)
   config = config.setMaxConnWindow(524288)
-  config = config.setIdleTimeout(10000)
+  config = config.setIdleTimeout(2000)
 
   var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, config)
   var port: int = server.port()
 
   var clientConfig: QuicConfig = QuicConfig.defaults()
-  clientConfig = clientConfig.setIdleTimeout(10000)
+  clientConfig = clientConfig.setIdleTimeout(2000)
   var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", clientConfig)
   var serverConn: QuicConnection = server.accept()
 
