@@ -1991,7 +1991,6 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
         conn, 0, NULL);
 #else
     pthread_create(&ci->io_thread, NULL, quic_server_io_thread_entry, conn);
-    pthread_detach(ci->io_thread);
 #endif
 
     return conn;
@@ -2965,18 +2964,46 @@ void sn_quic_listener_close(__sn__QuicListener *listener) {
     pthread_join(li->listen_thread, NULL);
 #endif
 
-    /* Mark all server connections as closed (sn_quic_connection_close for
-     * server connections just sets closed=true and signals waiters). */
+    /* Stop all server connection I/O threads and join them */
     MUTEX_LOCK(&li->conn_list_mutex);
     for (int i = 0; i < li->connection_count; i++) {
         if (li->connections[i]) {
             QuicConnectionInternal *cci = conn_internal(li->connections[i]);
-            if (!cci->closed) {
-                sn_quic_connection_close((__sn__QuicConnection *)li->connections[i]);
+            cci->closed = true;
+            cci->io_running = false;
+            /* Wake I/O thread so it exits */
+            MUTEX_LOCK(&cci->pkt_ring_mutex);
+            COND_SIGNAL(&cci->pkt_ring_cond);
+            MUTEX_UNLOCK(&cci->pkt_ring_mutex);
+            /* Signal stream waiters */
+            MUTEX_LOCK(&cci->conn_mutex);
+            COND_BROADCAST(&cci->accept_stream_cond);
+            MUTEX_UNLOCK(&cci->conn_mutex);
+            for (int j = 0; j < cci->stream_count; j++) {
+                if (cci->streams[j]) {
+                    QuicStreamInternal *si = stream_internal(cci->streams[j]);
+                    MUTEX_LOCK(&si->stream_mutex);
+                    si->closed = true;
+                    COND_BROADCAST(&si->read_cond);
+                    MUTEX_UNLOCK(&si->stream_mutex);
+                }
             }
         }
     }
     MUTEX_UNLOCK(&li->conn_list_mutex);
+
+    /* Join all server I/O threads (now that they've been signaled to stop) */
+    for (int i = 0; i < li->connection_count; i++) {
+        if (li->connections[i]) {
+            QuicConnectionInternal *cci = conn_internal(li->connections[i]);
+#ifdef _WIN32
+            WaitForSingleObject(cci->io_thread, 5000);
+            CloseHandle(cci->io_thread);
+#else
+            pthread_join(cci->io_thread, NULL);
+#endif
+        }
+    }
 
     /* Now that listener thread is stopped, do full cleanup for all server
      * connections. This was deferred because the listener thread was using
@@ -3020,10 +3047,23 @@ void sn_quic_listener_close(__sn__QuicListener *listener) {
             free(conn_token);
         }
 
+        /* Destroy command queue and packet ring */
+        cmd_queue_destroy(&cci->cmd_queue);
+        if (cci->pkt_ring) {
+            free(cci->pkt_ring);
+        }
+        MUTEX_DESTROY(&cci->pkt_ring_mutex);
+        COND_DESTROY(&cci->pkt_ring_cond);
+
         /* Destroy mutex/cond */
         MUTEX_DESTROY(&cci->conn_mutex);
         COND_DESTROY(&cci->handshake_cond);
         COND_DESTROY(&cci->accept_stream_cond);
+
+        /* Free remote address string */
+        if (cci->remote_addr_str) {
+            free(cci->remote_addr_str);
+        }
 
         /* Free internal state and unregister */
         free(cci);
