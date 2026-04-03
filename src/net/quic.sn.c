@@ -184,7 +184,46 @@ static void wakeup_destroy(int read_fd, int write_fd) {
     (void)write_fd;
     close(read_fd);
 }
-#elif !defined(_WIN32)
+#elif defined(_WIN32)
+/* Windows: self-connected UDP loopback socket pair */
+static int wakeup_create(int *read_fd, int *write_fd) {
+    ensure_winsock_initialized();
+    SOCKET sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sock == INVALID_SOCKET) return -1;
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        closesocket(sock);
+        return -1;
+    }
+    int addrlen = sizeof(addr);
+    getsockname(sock, (struct sockaddr *)&addr, &addrlen);
+    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        closesocket(sock);
+        return -1;
+    }
+    unsigned long nonblock = 1;
+    ioctlsocket(sock, FIONBIO, &nonblock);
+    *read_fd = (int)sock;
+    *write_fd = (int)sock;
+    return 0;
+}
+static void wakeup_signal(int write_fd) {
+    char c = 1;
+    send((SOCKET)write_fd, &c, 1, 0);
+}
+static void wakeup_drain(int read_fd) {
+    char buf[64];
+    while (recv((SOCKET)read_fd, buf, sizeof(buf), 0) > 0) {}
+}
+static void wakeup_destroy(int read_fd, int write_fd) {
+    (void)write_fd;
+    closesocket((SOCKET)read_fd);
+}
+#else
 /* macOS/BSD: use pipe */
 static int wakeup_create(int *read_fd, int *write_fd) {
     int pipefd[2];
