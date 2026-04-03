@@ -207,6 +207,16 @@ native struct QuicConnection as ref =>
   fn acceptStream(): QuicStream =>
     return sn_quic_connection_accept_stream(self)
 
+  # Serve incoming streams. Calls handler on a new thread for each
+  # accepted stream. Returns when the connection closes.
+  fn serve(handler: fn(QuicStream): int): void =>
+    while !self.isClosed() =>
+      var stream: QuicStream = self.acceptStream()
+      if self.isClosed() =>
+        return
+      var handle: int = & handler(stream)
+      handle ~
+
   # ==========================================================================
   # Connection Methods
   # ==========================================================================
@@ -218,6 +228,10 @@ native struct QuicConnection as ref =>
   # Migrate connection to a new local address
   @alias "sn_quic_connection_migrate"
   native fn migrate(newLocalAddress: str): void
+
+  # Check if the connection is closed
+  @alias "sn_quic_connection_is_closed"
+  native fn isClosed(): bool
 
   # Get remote peer address
   fn remoteAddress(): str =>

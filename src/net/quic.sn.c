@@ -2717,6 +2717,14 @@ void sn_quic_connection_migrate(__sn__QuicConnection *conn, char *newLocalAddres
     freeaddrinfo(res);
 }
 
+bool sn_quic_connection_is_closed(__sn__QuicConnection *conn) {
+    if (conn == NULL) return true;
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
+    QuicConnectionInternal *ci = conn_internal(_conn);
+    if (!ci) return true;
+    return ci->closed;
+}
+
 char *sn_quic_connection_remote_address(__sn__QuicConnection *conn) {
     if (conn == NULL) return strdup("");
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
