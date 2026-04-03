@@ -879,21 +879,24 @@ static RtQuicStream *quic_find_or_create_stream(RtQuicConnection *conn, int64_t 
     /* Unidirectional streams: bit 1 of stream_id indicates uni */
     si->is_uni = (stream_id & 0x2) != 0;
 
-    ci->streams[ci->stream_count++] = stream;
+    ci->streams[ci->stream_count++] = __sn__QuicStream_retain(stream);
     return stream;
 }
 
 static void quic_stream_free(RtQuicStream *stream) {
     if (!stream) return;
 
-    /* Null the stream pointer in the owning connection's stream array
-     * to prevent use-after-free in quic_find_or_create_stream */
+    /* Detach from the owning connection's stream array.
+     * Save the retained pointer so we can release it AFTER
+     * cleaning up internal state (release may free the object). */
+    RtQuicStream *conn_ref = NULL;
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)stream->conn_ptr;
     if (conn) {
         QuicConnectionInternal *ci = conn_internal(conn);
         if (ci) {
             for (int i = 0; i < ci->stream_count; i++) {
                 if (ci->streams[i] == stream) {
+                    conn_ref = ci->streams[i];
                     ci->streams[i] = NULL;
                     break;
                 }
@@ -901,6 +904,7 @@ static void quic_stream_free(RtQuicStream *stream) {
         }
     }
 
+    /* Clean up internal state while stream is still alive */
     QuicStreamInternal *si = stream_internal(stream);
     if (si) {
         stream_buf_destroy(&si->recv_buf);
@@ -909,6 +913,11 @@ static void quic_stream_free(RtQuicStream *stream) {
         free(si);
     }
     stream_unregister(stream);
+
+    /* Release the connection's reference (may free the stream object) */
+    if (conn_ref) {
+        __sn__QuicStream_release(&conn_ref);
+    }
 }
 
 /* ============================================================================
@@ -2555,10 +2564,11 @@ __sn__QuicStream *sn_quic_connection_open_stream(__sn__QuicConnection *conn) {
         return NULL;
     }
 
-    /* Stream was already created by the I/O thread — just look it up */
+    /* Stream was already created by the I/O thread — just look it up.
+     * Retain before returning so Sindarin gets its own reference. */
     for (int i = 0; i < ci->stream_count; i++) {
         if (ci->streams[i] && ci->streams[i]->stream_id == cmd.result_stream_id) {
-            return (__sn__QuicStream *)ci->streams[i];
+            return (__sn__QuicStream *)__sn__QuicStream_retain(ci->streams[i]);
         }
     }
     return NULL;
@@ -2582,7 +2592,7 @@ __sn__QuicStream *sn_quic_connection_open_uni_stream(__sn__QuicConnection *conn)
 
     for (int i = 0; i < ci->stream_count; i++) {
         if (ci->streams[i] && ci->streams[i]->stream_id == cmd.result_stream_id) {
-            return (__sn__QuicStream *)ci->streams[i];
+            return (__sn__QuicStream *)__sn__QuicStream_retain(ci->streams[i]);
         }
     }
     return NULL;
@@ -2610,7 +2620,7 @@ __sn__QuicStream *sn_quic_connection_accept_stream(__sn__QuicConnection *conn) {
 
     RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
     MUTEX_UNLOCK(&ci->conn_mutex);
-    return stream ? (__sn__QuicStream *)stream : NULL;
+    return stream ? (__sn__QuicStream *)__sn__QuicStream_retain(stream) : NULL;
 }
 
 SnArray *sn_quic_connection_resumption_token(__sn__QuicConnection *conn) {
