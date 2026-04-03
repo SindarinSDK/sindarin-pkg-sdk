@@ -2236,7 +2236,6 @@ SnArray *sn_quic_stream_read(__sn__QuicStream *stream, long long maxBytes) {
 
 SnArray *sn_quic_stream_read_exact(__sn__QuicStream *stream, long long nBytes) {
     if (!stream) {
-        fprintf(stderr, "QUIC: readExact called on NULL stream (requested %lld bytes)\n", nBytes);
         SnArray *empty = sn_array_new(sizeof(unsigned char), 0);
         empty->elem_tag = SN_TAG_BYTE;
         return empty;
@@ -2442,11 +2441,7 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
  * ============================================================================ */
 
 __sn__QuicConnection *sn_quic_connection_connect(char *address) {
-    __sn__QuicConnection *result = (__sn__QuicConnection *)quic_connection_create(address, NULL, false, NULL, 0);
-    if (!result) {
-        fprintf(stderr, "QUIC: connect('%s') returned NULL — handshake or DNS failure\n", address);
-    }
-    return result;
+    return (__sn__QuicConnection *)quic_connection_create(address, NULL, false, NULL, 0);
 }
 
 __sn__QuicConnection *sn_quic_connection_connect_with(char *address,
@@ -2466,10 +2461,7 @@ __sn__QuicConnection *sn_quic_connection_connect_early(char *address,
 }
 
 __sn__QuicStream *sn_quic_connection_open_stream(__sn__QuicConnection *conn) {
-    if (conn == NULL) {
-        fprintf(stderr, "QUIC: openStream called on NULL connection\n");
-        return NULL;
-    }
+    if (conn == NULL) return NULL;
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
     QuicConnectionInternal *ci = conn_internal(_conn);
     if (ci->closed) return NULL;
