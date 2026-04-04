@@ -1188,9 +1188,33 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
                 quic_send_packet(conn, buf, (size_t)nwrite);
             }
             if (nwrite == 0 && total_written < cmd->data_len) {
-                /* Flow control blocked — flush TX so ACKs and
-                   MAX_STREAM_DATA frames reach the peer, then retry. */
+                /* Flow control blocked. Flush TX, process incoming packets
+                   (which carry MAX_STREAM_DATA), then retry the write. */
                 if (ci->is_server) {
+                    quic_server_flush_tx(conn, ci->listener_sock);
+                    /* Drain pkt_ring to process incoming ACKs/flow control */
+                    for (;;) {
+                        QuicPacket fc_pkt;
+                        bool got = false;
+                        MUTEX_LOCK(&ci->pkt_ring_mutex);
+                        if (ci->pkt_ring_head != ci->pkt_ring_tail) {
+                            fc_pkt = ci->pkt_ring[ci->pkt_ring_tail];
+                            ci->pkt_ring_tail = (ci->pkt_ring_tail + 1) % QUIC_PKT_RING_SIZE;
+                            got = true;
+                        }
+                        MUTEX_UNLOCK(&ci->pkt_ring_mutex);
+                        if (!got) break;
+                        ngtcp2_path fc_path;
+                        memset(&fc_path, 0, sizeof(fc_path));
+                        fc_path.local.addr = (struct sockaddr *)&ci->local_addr;
+                        fc_path.local.addrlen = ci->local_addrlen;
+                        fc_path.remote.addr = (struct sockaddr *)&fc_pkt.from_addr;
+                        fc_path.remote.addrlen = fc_pkt.from_len;
+                        ngtcp2_pkt_info fc_pi;
+                        memset(&fc_pi, 0, sizeof(fc_pi));
+                        ngtcp2_conn_read_pkt(ci->qconn, &fc_path, &fc_pi,
+                                             fc_pkt.data, fc_pkt.len, quic_timestamp());
+                    }
                     quic_server_flush_tx(conn, ci->listener_sock);
                 } else {
                     quic_flush_tx(conn);
