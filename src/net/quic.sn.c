@@ -1264,6 +1264,20 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
             fprintf(stderr, "QUIC write recovered after %d retries: stream=%lld\n",
                     fc_retries, (long long)cmd->stream_id);
         }
+        /* Flush any data ngtcp2 buffered via WRITE_MORE before completing
+           the command — the caller's data pointer becomes invalid after
+           completion and ngtcp2 may still hold a reference to it. */
+        for (;;) {
+            ngtcp2_ssize fw = ngtcp2_conn_writev_stream(
+                ci->qconn, &ps.path, &pi,
+                buf, sizeof(buf), NULL,
+                NGTCP2_WRITE_STREAM_FLAG_NONE,
+                -1, NULL, 0, quic_timestamp());
+            if (fw == NGTCP2_ERR_WRITE_MORE) continue;
+            if (fw > 0) quic_send_packet(conn, buf, (size_t)fw);
+            else break;
+        }
+
         cmd->bytes_written = total_written;
         break;
     }
