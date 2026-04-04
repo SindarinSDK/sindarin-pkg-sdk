@@ -1193,8 +1193,6 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
                     if (ndatalen > 0) total_written += ndatalen;
                     continue;
                 }
-                fprintf(stderr, "QUIC write error: stream=%lld nwrite=%zd total=%zu/%zu\n",
-                        (long long)cmd->stream_id, nwrite, total_written, cmd->data_len);
                 cmd->result_code = (int)nwrite;
                 break;
             }
@@ -1204,10 +1202,6 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
             }
             if (nwrite == 0 && total_written < cmd->data_len) {
                 fc_retries++;
-                if (fc_retries == 1) {
-                    fprintf(stderr, "QUIC write blocked: stream=%lld ndatalen=%zd total=%zu/%zu\n",
-                            (long long)cmd->stream_id, ndatalen, total_written, cmd->data_len);
-                }
                 /* Blocked — flush TX, process incoming packets, retry. */
                 if (ci->is_server) {
                     quic_server_flush_tx(conn, ci->listener_sock);
@@ -1244,7 +1238,7 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
                             struct sockaddr_storage fc_from;
                             socklen_t fc_from_len = sizeof(fc_from);
                             ssize_t fc_nread = recvfrom(conn->socket_fd, (char *)fc_buf,
-                                                         sizeof(fc_buf), MSG_DONTWAIT,
+                                                         sizeof(fc_buf), 0,
                                                          (struct sockaddr *)&fc_from, &fc_from_len);
                             if (fc_nread <= 0) break;
                             ngtcp2_path fc_path;
@@ -1262,8 +1256,6 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
                     }
                 }
                 if (fc_retries > 500) {
-                    fprintf(stderr, "QUIC write giving up after %d retries: stream=%lld total=%zu/%zu\n",
-                            fc_retries, (long long)cmd->stream_id, total_written, cmd->data_len);
                     break;
                 }
                 struct timespec fc_ts = {0, 1000000}; /* 1ms */
@@ -1271,10 +1263,6 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
                 continue;
             }
             fc_retries = 0;
-        }
-        if (fc_retries > 0 && total_written == cmd->data_len) {
-            fprintf(stderr, "QUIC write recovered after %d retries: stream=%lld\n",
-                    fc_retries, (long long)cmd->stream_id);
         }
         cmd->bytes_written = total_written;
         break;
