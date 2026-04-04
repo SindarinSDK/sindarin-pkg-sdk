@@ -1264,20 +1264,6 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
             fprintf(stderr, "QUIC write recovered after %d retries: stream=%lld\n",
                     fc_retries, (long long)cmd->stream_id);
         }
-        /* Flush any data ngtcp2 buffered via WRITE_MORE before completing
-           the command — the caller's data pointer becomes invalid after
-           completion and ngtcp2 may still hold a reference to it. */
-        for (;;) {
-            ngtcp2_ssize fw = ngtcp2_conn_writev_stream(
-                ci->qconn, &ps.path, &pi,
-                buf, sizeof(buf), NULL,
-                NGTCP2_WRITE_STREAM_FLAG_NONE,
-                -1, NULL, 0, quic_timestamp());
-            if (fw == NGTCP2_ERR_WRITE_MORE) continue;
-            if (fw > 0) quic_send_packet(conn, buf, (size_t)fw);
-            else break;
-        }
-
         cmd->bytes_written = total_written;
         break;
     }
@@ -1361,12 +1347,18 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
         break;
     }
 
-    quic_cmd_complete(cmd);
+    /* NOTE: quic_cmd_complete is NOT called here.  Callers must complete
+       commands after flush_tx so that ngtcp2 no longer holds references to
+       caller-owned data buffers.  See quic_drain_cmd_queue / IO thread. */
 }
 
-static void quic_drain_cmd_queue(RtQuicConnection *conn) {
+#define QUIC_MAX_DEFERRED_CMDS 128
+
+static int quic_drain_cmd_queue(RtQuicConnection *conn,
+                                QuicCommand **deferred, int max_deferred) {
     QuicConnectionInternal *ci = conn_internal(conn);
     QuicCommand *cmd;
+    int count = 0;
     while ((cmd = cmd_queue_pop(&ci->cmd_queue)) != NULL) {
         if (ci->closed && cmd->type != QUIC_CMD_CLOSE_CONN
                        && cmd->type != QUIC_CMD_SHUTDOWN) {
@@ -1375,6 +1367,18 @@ static void quic_drain_cmd_queue(RtQuicConnection *conn) {
             continue;
         }
         quic_execute_cmd(conn, cmd);
+        if (count < max_deferred) {
+            deferred[count++] = cmd;
+        } else {
+            quic_cmd_complete(cmd);
+        }
+    }
+    return count;
+}
+
+static void quic_complete_deferred_cmds(QuicCommand **deferred, int count) {
+    for (int i = 0; i < count; i++) {
+        quic_cmd_complete(deferred[i]);
     }
 }
 
@@ -1508,9 +1512,9 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
             wakeup_drain(ci->wakeup_fd);
         }
 
-        /* Drain command queue — always run before packet/timer processing
-         * so pending commands are never skipped on error-exit paths */
-        quic_drain_cmd_queue(conn);
+        /* Drain command queue — execute but defer completion until after flush */
+        QuicCommand *deferred[QUIC_MAX_DEFERRED_CMDS];
+        int deferred_count = quic_drain_cmd_queue(conn, deferred, QUIC_MAX_DEFERRED_CMDS);
 
         /* Read all available incoming packets (not just one) */
         if (ret > 0 && (pfds[0].revents & POLLIN)) {
@@ -1560,6 +1564,9 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
 
         /* Flush any pending TX */
         quic_flush_tx(conn);
+
+        /* Now safe to unblock callers — ngtcp2 has flushed all buffered data */
+        quic_complete_deferred_cmds(deferred, deferred_count);
     }
 
     QUIC_IO_DBG("client I/O loop exited, closed=%d io_running=%d",
@@ -1631,8 +1638,9 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
 
         if (ci->closed) break;
 
-        /* 2. Drain command queue — before timer so commands are never orphaned */
-        quic_drain_cmd_queue(conn);
+        /* 2. Drain command queue — execute but defer completion until after flush */
+        QuicCommand *deferred[QUIC_MAX_DEFERRED_CMDS];
+        int deferred_count = quic_drain_cmd_queue(conn, deferred, QUIC_MAX_DEFERRED_CMDS);
 
         /* 3. Handle timer expiry */
         ngtcp2_tstamp now = quic_timestamp();
@@ -1642,12 +1650,17 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
             if (rv < 0) {
                 QUIC_IO_DBG("server handle_expiry failed (rv=%d)", rv);
                 ci->closed = true;
+                quic_complete_deferred_cmds(deferred, deferred_count);
                 break;
             }
         }
 
-        /* 4. Flush any pending TX */
+        /* 4. Flush any pending TX — must complete before signalling callers
+           because ngtcp2 may still reference caller-owned write buffers */
         quic_server_flush_tx(conn, ci->listener_sock);
+
+        /* 5. Now safe to unblock callers — ngtcp2 has flushed all buffered data */
+        quic_complete_deferred_cmds(deferred, deferred_count);
 
         now = quic_timestamp();
         expiry = ngtcp2_conn_get_expiry(ci->qconn);
