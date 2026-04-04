@@ -374,6 +374,13 @@ static QuicCommand *cmd_queue_pop(QuicCmdQueue *q) {
     return cmd;
 }
 
+/* Write buffer list node — holds a copy of data passed to stream_write.
+ * ngtcp2 retains internal references for WRITE_MORE and retransmission. */
+typedef struct QuicWriteBuf {
+    uint8_t *data;
+    struct QuicWriteBuf *next;
+} QuicWriteBuf;
+
 /* QuicConnection: Sindarin exposes conn_ptr and socket_fd only */
 typedef __sn__QuicConnection RtQuicConnection;
 
@@ -418,6 +425,11 @@ typedef struct QuicConnectionInternal {
     int cached_scid_count;
     /* Command queue: app threads push, I/O thread drains */
     QuicCmdQueue cmd_queue;
+    /* Write buffer list: copies of data passed to sn_quic_stream_write.
+       ngtcp2 retains internal references to write data for coalescing and
+       retransmission.  Copies are freed when the connection closes. */
+    struct QuicWriteBuf *write_bufs;
+    mutex_t write_bufs_mutex;
     /* Wakeup mechanism for client I/O thread (eventfd/pipe) */
     int wakeup_fd;
     int wakeup_write_fd;
@@ -1347,18 +1359,12 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
         break;
     }
 
-    /* NOTE: quic_cmd_complete is NOT called here.  Callers must complete
-       commands after flush_tx so that ngtcp2 no longer holds references to
-       caller-owned data buffers.  See quic_drain_cmd_queue / IO thread. */
+    quic_cmd_complete(cmd);
 }
 
-#define QUIC_MAX_DEFERRED_CMDS 128
-
-static int quic_drain_cmd_queue(RtQuicConnection *conn,
-                                QuicCommand **deferred, int max_deferred) {
+static void quic_drain_cmd_queue(RtQuicConnection *conn) {
     QuicConnectionInternal *ci = conn_internal(conn);
     QuicCommand *cmd;
-    int count = 0;
     while ((cmd = cmd_queue_pop(&ci->cmd_queue)) != NULL) {
         if (ci->closed && cmd->type != QUIC_CMD_CLOSE_CONN
                        && cmd->type != QUIC_CMD_SHUTDOWN) {
@@ -1367,18 +1373,6 @@ static int quic_drain_cmd_queue(RtQuicConnection *conn,
             continue;
         }
         quic_execute_cmd(conn, cmd);
-        if (count < max_deferred) {
-            deferred[count++] = cmd;
-        } else {
-            quic_cmd_complete(cmd);
-        }
-    }
-    return count;
-}
-
-static void quic_complete_deferred_cmds(QuicCommand **deferred, int count) {
-    for (int i = 0; i < count; i++) {
-        quic_cmd_complete(deferred[i]);
     }
 }
 
@@ -1464,6 +1458,19 @@ static void quic_io_thread_cleanup(RtQuicConnection *conn) {
         }
     }
 
+    /* Free all write buffer copies — ngtcp2 no longer needs them */
+    MUTEX_LOCK(&ci->write_bufs_mutex);
+    QuicWriteBuf *wb = ci->write_bufs;
+    ci->write_bufs = NULL;
+    MUTEX_UNLOCK(&ci->write_bufs_mutex);
+    while (wb) {
+        QuicWriteBuf *next = wb->next;
+        free(wb->data);
+        free(wb);
+        wb = next;
+    }
+    MUTEX_DESTROY(&ci->write_bufs_mutex);
+
     QUIC_IO_DBG("cleanup: drained pending commands, woke %d streams",
                 ci->stream_count);
 }
@@ -1512,9 +1519,8 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
             wakeup_drain(ci->wakeup_fd);
         }
 
-        /* Drain command queue — execute but defer completion until after flush */
-        QuicCommand *deferred[QUIC_MAX_DEFERRED_CMDS];
-        int deferred_count = quic_drain_cmd_queue(conn, deferred, QUIC_MAX_DEFERRED_CMDS);
+        /* Drain command queue */
+        quic_drain_cmd_queue(conn);
 
         /* Read all available incoming packets (not just one) */
         if (ret > 0 && (pfds[0].revents & POLLIN)) {
@@ -1564,9 +1570,6 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
 
         /* Flush any pending TX */
         quic_flush_tx(conn);
-
-        /* Now safe to unblock callers — ngtcp2 has flushed all buffered data */
-        quic_complete_deferred_cmds(deferred, deferred_count);
     }
 
     QUIC_IO_DBG("client I/O loop exited, closed=%d io_running=%d",
@@ -1638,9 +1641,8 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
 
         if (ci->closed) break;
 
-        /* 2. Drain command queue — execute but defer completion until after flush */
-        QuicCommand *deferred[QUIC_MAX_DEFERRED_CMDS];
-        int deferred_count = quic_drain_cmd_queue(conn, deferred, QUIC_MAX_DEFERRED_CMDS);
+        /* 2. Drain command queue */
+        quic_drain_cmd_queue(conn);
 
         /* 3. Handle timer expiry */
         ngtcp2_tstamp now = quic_timestamp();
@@ -1650,17 +1652,12 @@ static void quic_server_io_thread_func(RtQuicConnection *conn) {
             if (rv < 0) {
                 QUIC_IO_DBG("server handle_expiry failed (rv=%d)", rv);
                 ci->closed = true;
-                quic_complete_deferred_cmds(deferred, deferred_count);
                 break;
             }
         }
 
-        /* 4. Flush any pending TX — must complete before signalling callers
-           because ngtcp2 may still reference caller-owned write buffers */
+        /* 4. Flush any pending TX */
         quic_server_flush_tx(conn, ci->listener_sock);
-
-        /* 5. Now safe to unblock callers — ngtcp2 has flushed all buffered data */
-        quic_complete_deferred_cmds(deferred, deferred_count);
 
         now = quic_timestamp();
         expiry = ngtcp2_conn_get_expiry(ci->qconn);
@@ -1771,8 +1768,10 @@ static RtQuicConnection *quic_connection_create(char *address,
     COND_INIT(&ci->handshake_cond);
     COND_INIT(&ci->accept_stream_cond);
 
-    /* Initialize command queue and wakeup mechanism (client) */
+    /* Initialize command queue, write buffer list, and wakeup mechanism (client) */
     cmd_queue_init(&ci->cmd_queue);
+    ci->write_bufs = NULL;
+    MUTEX_INIT(&ci->write_bufs_mutex);
     ci->wakeup_fd = -1;
     ci->wakeup_write_fd = -1;
     wakeup_create(&ci->wakeup_fd, &ci->wakeup_write_fd);
@@ -1970,8 +1969,10 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
     COND_INIT(&ci->handshake_cond);
     COND_INIT(&ci->accept_stream_cond);
 
-    /* Initialize command queue (server — wakeup via pkt_ring_cond) */
+    /* Initialize command queue and write buffer list (server — wakeup via pkt_ring_cond) */
     cmd_queue_init(&ci->cmd_queue);
+    ci->write_bufs = NULL;
+    MUTEX_INIT(&ci->write_bufs_mutex);
     ci->wakeup_fd = -1;
     ci->wakeup_write_fd = -1;
 
@@ -2549,11 +2550,25 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
     QuicConnectionInternal *ci = conn_internal(conn);
     if (ci->closed || si->write_closed) return 0;
 
+    /* Copy the data — ngtcp2 retains internal references to stream data
+       for WRITE_MORE coalescing and retransmission across IO thread iterations.
+       The copy is freed when the connection closes. */
+    uint8_t *data_copy = (uint8_t *)malloc(data_len);
+    if (!data_copy) return 0;
+    memcpy(data_copy, data->data, data_len);
+
+    QuicWriteBuf *wb = (QuicWriteBuf *)malloc(sizeof(QuicWriteBuf));
+    wb->data = data_copy;
+    MUTEX_LOCK(&ci->write_bufs_mutex);
+    wb->next = ci->write_bufs;
+    ci->write_bufs = wb;
+    MUTEX_UNLOCK(&ci->write_bufs_mutex);
+
     QuicCommand cmd;
     memset(&cmd, 0, sizeof(cmd));
     cmd.type = QUIC_CMD_WRITE;
     cmd.stream_id = _stream->stream_id;
-    cmd.data = (uint8_t *)data->data;
+    cmd.data = data_copy;
     cmd.data_len = data_len;
 
     quic_submit_cmd_and_wait(ci, &cmd);
