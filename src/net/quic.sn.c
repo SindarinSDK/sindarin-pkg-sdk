@@ -1188,8 +1188,16 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
                 quic_send_packet(conn, buf, (size_t)nwrite);
             }
             if (nwrite == 0 && total_written < cmd->data_len) {
-                /* Flow control blocked — break and retry after processing ACKs */
-                break;
+                /* Flow control blocked — flush TX so ACKs and
+                   MAX_STREAM_DATA frames reach the peer, then retry. */
+                if (ci->is_server) {
+                    quic_server_flush_tx(conn, ci->listener_sock);
+                } else {
+                    quic_flush_tx(conn);
+                }
+                struct timespec fc_ts = {0, 1000000}; /* 1ms */
+                nanosleep(&fc_ts, NULL);
+                continue;
             }
         }
         cmd->bytes_written = total_written;
