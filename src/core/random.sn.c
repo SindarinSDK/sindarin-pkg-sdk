@@ -199,6 +199,31 @@ RtRandom *sn_random_create_with_seed(long long seed)
     return rng;
 }
 
+/*
+ * sn_random_free — release the heap-allocated xoshiro256 state buffer
+ * owned by an RtRandom. Paired with Random.dispose() in random.sn.
+ *
+ * The compiler's refcount-driven release frees the outer RtRandom
+ * struct itself, but has no knowledge of the `state` buffer allocated
+ * in sn_random_create[_with_seed]. Without this, every Random created
+ * with createWithSeed leaks 32 bytes (4 × uint64_t of xoshiro state).
+ *
+ * Idempotent: safe to call multiple times. Safe on NULL. Zeroing
+ * `state` after free prevents double-free, and zeroing `is_seeded`
+ * makes a double-dispose visible in debug inspection.
+ */
+void sn_random_free(RtRandom *rng)
+{
+    if (rng == NULL) {
+        return;
+    }
+    if (rng->state != 0) {
+        free((void *)(intptr_t)rng->state);
+        rng->state = 0;
+    }
+    rng->is_seeded = 0;
+}
+
 /* ============================================================================
  * Instance Value Generation (Seeded PRNG)
  * ============================================================================ */

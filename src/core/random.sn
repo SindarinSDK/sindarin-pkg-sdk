@@ -55,6 +55,20 @@ native struct Random as ref =>
     return sn_random_create_with_seed(seed)
 
   # ==========================================================================
+  # Lifecycle
+  # ==========================================================================
+
+  # Free the internal PRNG state buffer allocated by create()/createWithSeed().
+  # Safe to call more than once and on a Random whose state has already been
+  # released. Intended for use with the `using` block for scoped cleanup:
+  #
+  # using rng = Random.createWithSeed(42l) =>
+  # var x: int = rng.nextInt(1, 100)
+  # # rng.dispose() called automatically at block exit
+  fn dispose(): void =>
+    sn_random_free(self)
+
+  # ==========================================================================
   # Static Value Generation (OS Entropy) - Use 'rand*' prefix
   # ==========================================================================
 
@@ -341,6 +355,7 @@ native struct Random as ref =>
 # Factory functions
 native fn sn_random_create(): Random
 native fn sn_random_create_with_seed(seed: long): Random
+native fn sn_random_free(rng: Random): void
 
 # Static value generation (OS entropy)
 native fn sn_random_static_int(min: int, max: int): int
