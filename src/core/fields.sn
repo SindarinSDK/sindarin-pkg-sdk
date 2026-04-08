@@ -1,0 +1,43 @@
+# ==============================================================================
+# sdk/core/fields.sn - Canonical key/value pair types
+# ==============================================================================
+# Sindarin has no native map type with @serializable support, so packages
+# universally fall back on (key, value) pair structs to model heterogeneous
+# label sets, sensor readings, hyperparameter overrides, configuration
+# entries, etc.
+#
+# Before this module existed, every package that needed such a type
+# defined its own — `sindarin-pkg-tensor` had a local `StringField` for
+# metric callback labels, `skynet` had its own `@serializable` versions
+# for contract round-trips, and the same shape recurred in several
+# downstream consumers. Two independent definitions with the same struct
+# name reach the C codegen as the same `__sn__StringField` symbol and
+# trigger a redefinition error in any consumer that imports both
+# packages along a diamond — see
+# `docs/issues/compiler-problems.32.md` (item 51) for the full bug
+# write-up.
+#
+# Promoting the two pair types into the SDK gives every consumer one
+# canonical, `@serializable`-annotated source of truth and removes the
+# whole class of name-collision diamonds in one stroke.
+#
+# Usage:
+# import "sindarin-pkg-sdk/src/core/fields"
+#
+# var label: StringField = StringField { key: "source", value: "observer" }
+# var measurement: NumericField = NumericField { key: "amps", value: 142.7 }
+#
+# Both structs are `@serializable`, so the compiler generates `encode`
+# and `decode` methods that work with any package implementing the
+# Encoder/Decoder vtable (e.g. sindarin-pkg-json).
+# ==============================================================================
+
+@serializable
+struct NumericField =>
+  key: str
+  value: double
+
+@serializable
+struct StringField =>
+  key: str
+  value: str
