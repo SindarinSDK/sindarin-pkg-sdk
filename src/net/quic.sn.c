@@ -2601,6 +2601,14 @@ bool sn_quic_stream_is_unidirectional(__sn__QuicStream *stream) {
     return si->is_uni;
 }
 
+bool sn_quic_stream_is_closed(__sn__QuicStream *stream) {
+    if (!stream) return true;
+    RtQuicStream *_stream = (RtQuicStream *)stream;
+    QuicStreamInternal *si = stream_internal(_stream);
+    if (!si) return true;
+    return si->closed;
+}
+
 void sn_quic_stream_close(__sn__QuicStream *stream) {
     if (!stream) return;
     RtQuicStream *_stream = (RtQuicStream *)stream;

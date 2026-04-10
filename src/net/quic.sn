@@ -154,6 +154,10 @@ native struct QuicStream as ref =>
   @alias "sn_quic_stream_is_unidirectional"
   native fn isUnidirectional(): bool
 
+  # Check if the stream is closed (or null)
+  @alias "sn_quic_stream_is_closed"
+  native fn isClosed(): bool
+
   # ==========================================================================
   # Lifecycle Methods
   # ==========================================================================
