@@ -832,10 +832,9 @@ static int quic_stream_open_cb(ngtcp2_conn *conn, int64_t stream_id, void *user_
     return 0;
 }
 
-static int quic_stream_close_cb(ngtcp2_conn *conn, uint32_t flags,
+static int quic_stream_close_cb(ngtcp2_conn *qconn, uint32_t flags,
                                  int64_t stream_id, uint64_t app_error_code,
                                  void *user_data, void *stream_user_data) {
-    (void)conn;
     (void)flags;
     (void)app_error_code;
     (void)stream_user_data;
@@ -852,6 +851,18 @@ static int quic_stream_close_cb(ngtcp2_conn *conn, uint32_t flags,
             MUTEX_UNLOCK(&si->stream_mutex);
             break;
         }
+    }
+
+    /* Tell ngtcp2 the application is done with this stream so it can
+     * grant new stream capacity to the peer via MAX_STREAMS frames.
+     * Without this, the peer's stream budget is never replenished and
+     * openStream blocks permanently after initial_max_streams_bidi
+     * streams have been opened and closed on the connection. */
+    bool is_bidi = (stream_id & 0x2) == 0;
+    if (is_bidi) {
+        ngtcp2_conn_extend_max_streams_bidi(qconn, 1);
+    } else {
+        ngtcp2_conn_extend_max_streams_uni(qconn, 1);
     }
 
     return 0;
