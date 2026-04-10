@@ -465,7 +465,8 @@ typedef struct QuicListenerInternal {
 
 /* Stream internal registry */
 typedef struct { RtQuicStream *key; QuicStreamInternal *val; } QStreamEntry;
-static QStreamEntry g_stream_reg[512];
+#define QUIC_STREAM_REG_CAPACITY 2048
+static QStreamEntry g_stream_reg[QUIC_STREAM_REG_CAPACITY];
 static int g_stream_reg_count = 0;
 
 static QuicStreamInternal *stream_internal(RtQuicStream *s) {
@@ -488,11 +489,40 @@ static QuicStreamInternal *stream_internal(RtQuicStream *s) {
     }
     return NULL;
 }
+/* Evict closed streams from the registry to reclaim slots. */
+static int stream_reg_evict_closed(void) {
+    int evicted = 0;
+    int i = 0;
+    while (i < g_stream_reg_count) {
+        QuicStreamInternal *si = g_stream_reg[i].val;
+        if (si && si->closed) {
+            g_stream_reg[i] = g_stream_reg[--g_stream_reg_count];
+            evicted++;
+        } else {
+            i++;
+        }
+    }
+    return evicted;
+}
 static void stream_register(RtQuicStream *s, QuicStreamInternal *si) {
     /* Replace stale entry at the same pointer address (memory reuse after free) */
     for (int i = 0; i < g_stream_reg_count; i++) {
         if (g_stream_reg[i].key == s) {
             g_stream_reg[i].val = si;
+            return;
+        }
+    }
+    /* Bounds check: evict closed streams if at capacity */
+    if (g_stream_reg_count >= QUIC_STREAM_REG_CAPACITY) {
+        int evicted = stream_reg_evict_closed();
+        if (evicted > 0) {
+            QUIC_IO_DBG("stream_register: evicted %d closed streams, %d/%d used",
+                        evicted, g_stream_reg_count, QUIC_STREAM_REG_CAPACITY);
+        }
+        if (g_stream_reg_count >= QUIC_STREAM_REG_CAPACITY) {
+            fprintf(stderr, "QUIC stream registry full (%d/%d) after eviction — "
+                    "dropping stream registration\n",
+                    g_stream_reg_count, QUIC_STREAM_REG_CAPACITY);
             return;
         }
     }
@@ -2632,6 +2662,13 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
     si->closed = true;
     COND_BROADCAST(&si->read_cond);
     MUTEX_UNLOCK(&si->stream_mutex);
+
+    /* Unregister from global registry immediately so the slot is reclaimed.
+     * The stream object and its internal state remain alive (owned by the
+     * connection's ci->streams[] array) until connection teardown calls
+     * quic_stream_free. This only removes the registry entry — lookups
+     * via internal_ptr (the primary path) are unaffected. */
+    stream_unregister(_stream);
 }
 
 /* ============================================================================
