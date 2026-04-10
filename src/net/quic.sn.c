@@ -2663,12 +2663,24 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
     COND_BROADCAST(&si->read_cond);
     MUTEX_UNLOCK(&si->stream_mutex);
 
-    /* Unregister from global registry immediately so the slot is reclaimed.
-     * The stream object and its internal state remain alive (owned by the
-     * connection's ci->streams[] array) until connection teardown calls
-     * quic_stream_free. This only removes the registry entry — lookups
+    /* Unregister from global registry so the slot is reclaimed. Lookups
      * via internal_ptr (the primary path) are unaffected. */
     stream_unregister(_stream);
+
+    /* Remove from the connection's stream array and release the connection's
+     * reference. This prevents closed streams from accumulating in
+     * ci->streams[] until connection teardown. The stream object may still
+     * be alive if the caller holds a reference. */
+    for (int i = 0; i < ci->stream_count; i++) {
+        if (ci->streams[i] == _stream) {
+            RtQuicStream *ref = ci->streams[i];
+            ci->streams[i] = ci->streams[ci->stream_count - 1];
+            ci->streams[ci->stream_count - 1] = NULL;
+            ci->stream_count--;
+            __sn__QuicStream_release(&ref);
+            break;
+        }
+    }
 }
 
 /* ============================================================================
@@ -2752,22 +2764,36 @@ __sn__QuicStream *sn_quic_connection_accept_stream(__sn__QuicConnection *conn) {
 
     MUTEX_LOCK(&ci->conn_mutex);
 
-    while (ci->incoming_count == 0 && !ci->closed) {
-        COND_WAIT(&ci->accept_stream_cond, &ci->conn_mutex);
-    }
+    for (;;) {
+        /* Wait for an incoming stream or connection close */
+        while (ci->incoming_count == 0 && !ci->closed) {
+            COND_WAIT(&ci->accept_stream_cond, &ci->conn_mutex);
+        }
 
-    if (ci->closed || ci->incoming_count == 0) {
+        if (ci->closed || ci->incoming_count == 0) {
+            MUTEX_UNLOCK(&ci->conn_mutex);
+            return NULL;
+        }
+
+        int64_t stream_id = ci->incoming_streams[ci->incoming_head];
+        ci->incoming_head = (ci->incoming_head + 1) % QUIC_MAX_INCOMING_STREAMS;
+        ci->incoming_count--;
+
+        RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
+        if (!stream) continue;
+
+        /* Skip streams that were opened and immediately closed by the peer
+         * (empty streams with FIN but no data). Returning these to the caller
+         * produces an immediate EOF which application code interprets as
+         * connection death. Instead, skip and wait for the next real stream. */
+        QuicStreamInternal *si = stream_internal(stream);
+        if (si && si->closed) {
+            continue;
+        }
+
         MUTEX_UNLOCK(&ci->conn_mutex);
-        return NULL;
+        return (__sn__QuicStream *)__sn__QuicStream_retain(stream);
     }
-
-    int64_t stream_id = ci->incoming_streams[ci->incoming_head];
-    ci->incoming_head = (ci->incoming_head + 1) % QUIC_MAX_INCOMING_STREAMS;
-    ci->incoming_count--;
-
-    RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
-    MUTEX_UNLOCK(&ci->conn_mutex);
-    return stream ? (__sn__QuicStream *)__sn__QuicStream_retain(stream) : NULL;
 }
 
 SnArray *sn_quic_connection_resumption_token(__sn__QuicConnection *conn) {
