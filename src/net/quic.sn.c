@@ -156,7 +156,18 @@ static void ensure_winsock_initialized(void) {
     }
 }
 #else
-#define ensure_winsock_initialized() ((void)0)
+/* On POSIX (macOS in particular) writes to a shutdown UDP socket raise
+ * SIGPIPE, which kills the process by default. Linux tends to have it
+ * ignored by libraries already, macOS does not. Ignore SIGPIPE globally
+ * on first socket creation so send() returns EPIPE instead of crashing. */
+#include <signal.h>
+static int sigpipe_ignored = 0;
+static void ensure_winsock_initialized(void) {
+    if (!sigpipe_ignored) {
+        signal(SIGPIPE, SIG_IGN);
+        sigpipe_ignored = 1;
+    }
+}
 #endif
 
 /* ============================================================================
