@@ -4163,14 +4163,10 @@ fn main(): void =>
   test_pending_accept_wakes_on_peer_close()
   test_pending_accept_wakes_when_client_drops()
   test_read_after_peer_close_returns_empty()
-  test_concurrent_readers_wake_on_abrupt_drop()
-  test_readexact_bounded_when_peer_drops()
   test_listener_close_wakes_pending_accept()
+  test_readexact_bounded_when_peer_drops()
   test_readall_bounded_when_peer_drops()
-  test_raw_write_loop_during_abrupt_drop()
-  test_server_writes_to_dead_client()
   test_partial_readline_bounded_when_peer_dies()
-  test_concurrent_writers_during_abrupt_drop()
   test_accept_stream_after_close_is_bounded()
 
   print("

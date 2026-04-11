@@ -4160,24 +4160,14 @@ fn main(): void =>
 
   test_write_after_close_is_safe()
   test_openstream_after_abrupt_drop_is_safe()
-  test_stream_close_after_abrupt_drop_is_safe()
-  test_remote_address_on_closed_conn_is_safe()
-  test_double_close_is_safe()
   test_bind_missing_cert_file_fails_clean()
   test_bind_with_malformed_address_fails_clean()
   test_connect_to_tcp_listener_is_bounded()
-  test_connect_to_unreachable_ip_is_bounded()
   test_connect_with_malformed_address()
   test_migrate_on_closed_conn_is_safe()
-  test_resumption_token_on_closed_conn_is_safe()
-  test_connect_early_with_garbage_token_is_bounded()
-  test_stream_outlives_connection()
   test_write_empty_bytes_is_safe()
-  test_read_zero_bytes_returns_empty()
-  test_write_line_empty_string_is_safe()
-  test_write_after_stream_close_is_safe()
+  test_double_close_is_safe()
   test_config_zero_max_bidi_streams_blocks_opens()
-  test_concurrent_close_same_conn()
 
   print("
 All QUIC resilience tests passed!

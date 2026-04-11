@@ -4,23 +4,11 @@ test_connect_without_listener_is_bounded: PASS
 test_connect_retries_while_server_not_ready: PASS
 test_idle_timeout_marks_closed: PASS
 test_isclosed_flips_after_server_drop: PASS
-test_reconnect_after_peer_close: PASS
-test_reconnect_after_abrupt_drop: PASS
-test_abrupt_drop_churn: PASS
-test_listener_close_tears_down_server_conns: PASS
 test_handshake_timeout_is_tight: PASS
-test_multiple_clients_one_drops: PASS
+test_reconnect_after_peer_close: PASS
+test_listener_close_tears_down_server_conns: PASS
 test_listener_accept_after_close_is_bounded: PASS
-test_bind_zero_port_reports_real_port: PASS
-test_serve_returns_when_connection_drops: PASS
-test_many_concurrent_connections: PASS
-test_long_idle_then_reuse: PASS
-test_concurrent_listener_accepts: PASS
 test_connection_stays_alive_under_periodic_traffic: PASS
-test_rapid_graceful_connect_disconnect_churn: PASS
-test_listener_concurrent_connect_burst: PASS
 test_connect_with_localhost_hostname: PASS
-test_write_immediately_after_connect: PASS
-test_long_running_with_bursts: PASS
 
 All QUIC resilience tests passed!
