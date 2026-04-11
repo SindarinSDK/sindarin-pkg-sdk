@@ -23,6 +23,7 @@
 # ==============================================================================
 
 import "sindarin-pkg-sdk/src/net/quic"
+import "sindarin-pkg-sdk/src/net/tcp"
 import "sindarin-pkg-sdk/src/time/time"
 
 # ==============================================================================
@@ -1666,6 +1667,1099 @@ fn test_double_close_is_safe(): void =>
   print("PASS\n")
 
 # ==============================================================================
+# Test 31: listener.accept() AFTER listener.close() must return bounded.
+# ==============================================================================
+# Regression gate for the close-then-accept ordering on the listener's
+# accept_cond. Test 19 covers accept-then-close (parked acceptor wakes); this
+# covers the reverse: the listener is already closed when a caller invokes
+# accept(). The while-loop guard must see !running and exit immediately
+# without ever parking on the cond, otherwise callers shutting down get
+# stuck on the condvar.
+
+fn test_listener_accept_after_close_is_bounded(): void =>
+  print("test_listener_accept_after_close_is_bounded: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+  server.close()
+
+  # Now call accept() on the already-closed listener from a bg thread so
+  # a regression fails loudly instead of hanging.
+  var h: int = & pendingListenerAcceptBg(server)
+
+  assert(waitForBg(2000l),
+    "listener.accept() after close did not return within 2s")
+  h ~
+  print("PASS\n")
+
+# ==============================================================================
+# Test 32: bind with a missing cert file must fail clean, not crash.
+# ==============================================================================
+# Regression gate for the server-side TLS init error path. If the cert file
+# is missing, SSL_CTX loading fails and quic_listener_create returns NULL.
+# The Sindarin caller then holds a null listener handle; calling port() on
+# it must return 0 and calling close() must be a safe no-op. A regression
+# that dereferences the null C pointer crashes the test process here.
+
+fn test_bind_missing_cert_file_fails_clean(): void =>
+  print("test_bind_missing_cert_file_fails_clean: ")
+
+  var listener: QuicListener = QuicListener.bind(
+    ":0",
+    "tests/net/does_not_exist_cert.pem",
+    "tests/net/does_not_exist_key.pem")
+
+  # C side returns NULL → Sindarin receives a null ref. port() / close()
+  # must handle that without dereferencing.
+  var p: int = listener.port()
+  assert(p == 0, $"bind with missing cert should report port=0, got {p}")
+  listener.close()
+  listener.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 33: bind with a malformed address must fail clean, not crash.
+# ==============================================================================
+# Regression gate for parse_address on the bind path. Garbage in the
+# address string must fail before any socket/SSL state is allocated and
+# return a null handle.
+
+fn test_bind_with_malformed_address_fails_clean(): void =>
+  print("test_bind_with_malformed_address_fails_clean: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  # parse_address rejects empty host+port combinations and non-numeric ports.
+  var l1: QuicListener = QuicListener.bind("", cert_path, key_path)
+  assert(l1.port() == 0, "bind('') should report port=0")
+  l1.close()
+
+  var l2: QuicListener = QuicListener.bind("not_a_host:abc", cert_path, key_path)
+  assert(l2.port() == 0, "bind('not_a_host:abc') should report port=0")
+  l2.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 34: bind(":0") must report a real, non-zero port.
+# ==============================================================================
+# Regression gate for the ephemeral port readback path (getsockname after
+# bind). Callers that later advertise the listener's port to peers depend
+# on this invariant — a zero return would be silently indistinguishable
+# from a failed bind.
+
+fn test_bind_zero_port_reports_real_port(): void =>
+  print("test_bind_zero_port_reports_real_port: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+  var p: int = server.port()
+  assert(p > 0, $"bind(':0') should return a real port, got {p}")
+  assert(p < 65536, $"bind(':0') port out of range, got {p}")
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 35: connect() to a TCP listener must bound via handshake timer.
+# ==============================================================================
+# Regression gate for "wrong protocol" startup races: a client aiming at a
+# port that is live but speaks a different protocol (ops misconfiguration,
+# LB pointing at a TCP-only target) must bound the handshake via the idle
+# timer. UDP packets to a TCP-only port draw ICMP port-unreachable or are
+# silently black-holed; either way the client must give up in bounded time.
+
+fn connectToTcpBg(port: int): int =>
+  var start: Time = Time.now()
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(800)
+  var c: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  bgElapsedMs = Time.now().diff(start)
+  bgResultInt = 1
+  if c.isClosed() =>
+    bgResultInt = 0
+  bgDone = true
+  return 0
+
+fn test_connect_to_tcp_listener_is_bounded(): void =>
+  print("test_connect_to_tcp_listener_is_bounded: ")
+  resetBg()
+
+  # Stand up a TCP listener on an ephemeral port. The QUIC client will try
+  # to handshake at that port; no UDP socket is bound there, so the
+  # handshake must fail via the idle timer (or kernel ECONNREFUSED on the
+  # connected UDP socket).
+  var tcp: TcpListener = TcpListener.bind(":0")
+  var port: int = tcp.port()
+
+  var h: int = & connectToTcpBg(port)
+
+  assert(waitForBg(3000l),
+    "connect() to TCP port did not return within 3s (idleTimeout=800ms)")
+  assert(bgElapsedMs <= 2500l,
+    $"connect() to TCP port took {bgElapsedMs}ms, expected <= 2500ms")
+  assert(bgResultInt == 0,
+    "connect() to TCP port should return a closed handle")
+  h ~
+  tcp.dispose()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 36: connect() to an unreachable IP must bound.
+# ==============================================================================
+# Regression gate for the "no route / ICMP unreachable / black hole" failure
+# class. 192.0.2.1 is TEST-NET-1 (RFC 5737), reserved for documentation and
+# guaranteed never to route to a real host. A connect() against it must
+# bound via the handshake/idle timer — long-lived callers must not wedge
+# indefinitely on a misrouted address.
+
+fn connectToUnreachableBg(): int =>
+  var start: Time = Time.now()
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(1000)
+  var c: QuicConnection = QuicConnection.connectWith("192.0.2.1:4433", cfg)
+  bgElapsedMs = Time.now().diff(start)
+  bgResultInt = 1
+  if c.isClosed() =>
+    bgResultInt = 0
+  bgDone = true
+  return 0
+
+fn test_connect_to_unreachable_ip_is_bounded(): void =>
+  print("test_connect_to_unreachable_ip_is_bounded: ")
+  resetBg()
+
+  var h: int = & connectToUnreachableBg()
+
+  # Generous slack: depending on host routing, the kernel may return
+  # ENETUNREACH immediately on the initial sendto, or the connect may
+  # have to ride out the full idle_timeout. Either outcome is acceptable
+  # as long as we return within a sane envelope.
+  assert(waitForBg(4000l),
+    "connect() to unreachable IP did not return within 4s")
+  assert(bgElapsedMs <= 3500l,
+    $"connect() to unreachable IP took {bgElapsedMs}ms, expected <= 3500ms")
+  assert(bgResultInt == 0,
+    "connect() to unreachable IP should return a closed handle")
+  h ~
+  print("PASS\n")
+
+# ==============================================================================
+# Test 37: connect() with a malformed address must return bounded, not crash.
+# ==============================================================================
+# Regression gate for parse_address on the client path. A caller that
+# passes garbage to connect() should get a closed (or null) handle back
+# promptly — never a crash and never a blocking DNS lookup that could
+# hang for tens of seconds.
+
+fn connectMalformedBg(addr: str): int =>
+  var start: Time = Time.now()
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(1000)
+  var c: QuicConnection = QuicConnection.connectWith(addr, cfg)
+  bgElapsedMs = Time.now().diff(start)
+  bgResultInt = 1
+  if c.isClosed() =>
+    bgResultInt = 0
+  bgDone = true
+  return 0
+
+fn test_connect_with_malformed_address(): void =>
+  print("test_connect_with_malformed_address: ")
+  resetBg()
+
+  # Non-numeric port: parse_address must reject.
+  var h: int = & connectMalformedBg("127.0.0.1:abc")
+  assert(waitForBg(3000l),
+    "connect(malformed) did not return within 3s")
+  assert(bgResultInt == 0,
+    "connect(malformed) should return a closed handle")
+  h ~
+
+  resetBg()
+  # Empty string: must also bound and not crash.
+  var h2: int = & connectMalformedBg("")
+  assert(waitForBg(3000l),
+    "connect('') did not return within 3s")
+  assert(bgResultInt == 0,
+    "connect('') should return a closed handle")
+  h2 ~
+  print("PASS\n")
+
+# ==============================================================================
+# Test 38: migrate() on a closed connection must be a safe no-op.
+# ==============================================================================
+# Regression gate for post-close API safety of the migrate path. migrate()
+# checks ci->closed before touching the ngtcp2 state machine, but a
+# regression that bypasses that check (or dereferences ci after close)
+# would crash the process on a harmless-looking logging call.
+
+fn test_migrate_on_closed_conn_is_safe(): void =>
+  print("test_migrate_on_closed_conn_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  client.close()
+  Time.sleep(100)
+
+  # Migrate on a closed client — must be a no-op, not a crash.
+  client.migrate("127.0.0.1:0")
+  client.migrate("127.0.0.1:0")
+
+  # Migrate with a malformed address on a closed conn — also safe.
+  client.migrate("not_a_host:abc")
+
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 39: resumptionToken() on a closed connection must be safe.
+# ==============================================================================
+# Regression gate for: logging/telemetry callers that grab a resumption
+# token off a connection they're about to drop. Must return a valid
+# byte[] (possibly empty), never crash on a null ci.
+
+fn test_resumption_token_on_closed_conn_is_safe(): void =>
+  print("test_resumption_token_on_closed_conn_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Pre-close: the call must not crash even if no token has been issued.
+  var preToken: byte[] = client.resumptionToken()
+  assert(preToken.length >= 0,
+    "resumptionToken() pre-close must return a byte[]")
+
+  client.close()
+  Time.sleep(100)
+
+  # Post-close: two calls in a row, both must be safe.
+  var t1: byte[] = client.resumptionToken()
+  var t2: byte[] = client.resumptionToken()
+  assert(t1.length >= 0, "resumptionToken() after close must return a byte[]")
+  assert(t2.length >= 0, "resumptionToken() after close (2nd) must be safe")
+
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 40: connectEarly() with a garbage token must bound.
+# ==============================================================================
+# Regression gate for the 0-RTT code path's robustness. A caller that
+# hands connectEarly() a bogus (corrupted, stale, or fabricated) token
+# must get a bounded handshake — the server will reject the early data
+# and the connection must either fall back to 1-RTT or fail cleanly in
+# bounded time. It must NOT crash on the token's bytes and must NOT
+# hang forever on the wire.
+
+fn connectEarlyBg(port: int, token: byte[]): int =>
+  var start: Time = Time.now()
+  var c: QuicConnection = QuicConnection.connectEarly($"127.0.0.1:{port}", token)
+  bgElapsedMs = Time.now().diff(start)
+  bgResultInt = 1
+  if c.isClosed() =>
+    bgResultInt = 0
+  bgDone = true
+  return 0
+
+fn test_connect_early_with_garbage_token_is_bounded(): void =>
+  print("test_connect_early_with_garbage_token_is_bounded: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+  var port: int = server.port()
+
+  # 64 bytes of arbitrary non-zero pattern — enough to look like a token to
+  # the wrapper layer but guaranteed not to decrypt as anything the server
+  # recognises.
+  var garbage: byte[] = "not_a_valid_resumption_token_just_garbage_bytes_for_the_test_ok!".toBytes()
+
+  var h: int = & connectEarlyBg(port, garbage)
+
+  # Accept either outcome: the handshake completes (server ignores early
+  # data and falls back to 1-RTT) or the handshake fails. Only the bound
+  # is enforced here. The default idle_timeout is 30s for connectEarly,
+  # but a successful handshake with a live listener should complete in
+  # much less than that — ~1s is comfortable slack.
+  assert(waitForBg(5000l),
+    "connectEarly(garbage_token) did not return within 5s")
+  h ~
+
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 41: serve() must return when the connection drops.
+# ==============================================================================
+# Regression gate for the conn.serve(handler) main loop. serve() parks on
+# acceptStream() inside a while(!isClosed()) loop; when the connection
+# goes away, the parked accept must wake AND the outer isClosed() check
+# must see the flag, so the serve() call returns. A regression that
+# leaks the acceptor thread (serve never returns) leaves the server
+# process unable to shut down cleanly.
+
+fn noopStreamHandler(stream: QuicStream): int =>
+  stream.close()
+  return 0
+
+fn serveBg(conn: QuicConnection): int =>
+  var start: Time = Time.now()
+  conn.serve(noopStreamHandler)
+  bgElapsedMs = Time.now().diff(start)
+  bgDone = true
+  return 0
+
+fn test_serve_returns_when_connection_drops(): void =>
+  print("test_serve_returns_when_connection_drops: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Park the server in its serve loop. No streams will be opened, so
+  # acceptStream() blocks until the connection dies.
+  var h: int = & serveBg(serverConn)
+
+  # Let the serve loop reach its COND_WAIT in acceptStream().
+  Time.sleep(200)
+
+  # Drop the client. Server must notice via idle timer and serve() must
+  # return when isClosed() flips.
+  testDropSocket(client)
+
+  assert(waitForBg(3000l),
+    "serve() did not return within 3s of peer death")
+  h ~
+
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 42: many sequential open/close cycles must not leak or hang.
+# ==============================================================================
+# Cumulative regression gate for stream lifecycle on the open → exchange →
+# close path. 100 open/close cycles on one connection with a small bidi
+# budget forces the MAX_STREAMS credit replenishment path to run many
+# times. A leak, double-free, or credit-starvation bug shows up as a
+# hang or a budget-exhaustion failure midway.
+
+fn test_many_sequential_open_close_cycles(): void =>
+  print("test_many_sequential_open_close_cycles: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  # Small budget to force credit replenishment; idle timeout long enough
+  # that neither side idles out during the loop.
+  var cfg: QuicConfig = QuicConfig.defaults()
+    .setIdleTimeout(10000)
+    .setMaxBidiStreams(16)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var startMs: long = Time.now().millis()
+
+  for var i: int = 0; i < 100; i++ =>
+    var cs: QuicStream = client.openStream()
+    assert(!cs.isClosed(),
+      $"cycle {i}: openStream returned closed stream (budget stall?)")
+    cs.writeLine($"cycle-{i}")
+
+    var ss: QuicStream = serverConn.acceptStream()
+    var msg: str = ss.readLine()
+    assert(msg == $"cycle-{i}", $"cycle {i}: expected 'cycle-{i}', got '{msg}'")
+    ss.writeLine($"ack-{i}")
+
+    var ack: str = cs.readLine()
+    assert(ack == $"ack-{i}", $"cycle {i}: expected 'ack-{i}', got '{ack}'")
+
+    cs.close()
+    ss.close()
+
+    # Bound the whole loop so a hang surfaces loudly.
+    if Time.now().millis() - startMs > 15000l =>
+      assert(false, $"sequential open/close cycles hung at i={i}")
+
+  var totalMs: long = Time.now().millis() - startMs
+  assert(totalMs < 15000l,
+    $"100 open/close cycles took {totalMs}ms, expected < 15000ms")
+
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 43: concurrent openStream() calls on one connection must all succeed.
+# ==============================================================================
+# Regression gate for the command queue path in openStream under
+# concurrent callers. Two threads pound openStream() on the same
+# connection; every call must succeed (stream budget is 100, we open
+# 8 total) and no call must return a closed handle or crash. Exercises
+# quic_submit_cmd_and_wait + the I/O thread's cmd dispatcher under
+# real contention.
+
+fn concurrentOpenBg1(conn: QuicConnection): int =>
+  var ok: int = 0
+  for var i: int = 0; i < 4; i++ =>
+    var s: QuicStream = conn.openStream()
+    if !s.isClosed() =>
+      ok++
+      s.close()
+  bgResultInt = ok
+  bgDone = true
+  return 0
+
+fn concurrentOpenBg2(conn: QuicConnection): int =>
+  var ok: int = 0
+  for var i: int = 0; i < 4; i++ =>
+    var s: QuicStream = conn.openStream()
+    if !s.isClosed() =>
+      ok++
+      s.close()
+  bg2ResultStr = $"{ok}"
+  bg2Done = true
+  return 0
+
+fn test_concurrent_opens_from_one_client(): void =>
+  print("test_concurrent_opens_from_one_client: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(10000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Two threads concurrently open 4 streams each on the same connection.
+  var h1: int = & concurrentOpenBg1(client)
+  var h2: int = & concurrentOpenBg2(client)
+
+  var deadline: long = Time.now().millis() + 5000l
+  while !bgDone || !bg2Done =>
+    if Time.now().millis() >= deadline =>
+      assert(false,
+        $"concurrent opens did not both finish within 5s: t1={bgDone} t2={bg2Done}")
+    Time.sleep(50)
+  h1 ~
+  h2 ~
+
+  assert(bgResultInt == 4,
+    $"thread 1 opened {bgResultInt}/4 streams successfully")
+  var t2count: int = bg2ResultStr.toInt()
+  assert(t2count == 4,
+    $"thread 2 opened {t2count}/4 streams successfully")
+
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 44: large payload must stream end-to-end through flow control.
+# ==============================================================================
+# Regression gate for the stream/connection flow control windows. A
+# 256KB payload written in 256 x 1KB chunks must arrive intact on the
+# other side. A bug in the MAX_STREAM_DATA / MAX_DATA frame generation
+# or in the send/recv buffer accounting would either deadlock (writer
+# stuck on window) or drop bytes.
+
+fn test_write_large_payload_streams_through(): void =>
+  print("test_write_large_payload_streams_through: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(15000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Build a 1 KB chunk from a repeating 16-byte pattern.
+  var chunkStr: str = ""
+  for var i: int = 0; i < 64; i++ =>
+    chunkStr = chunkStr + "0123456789abcdef"
+
+  var chunk: byte[] = chunkStr.toBytes()
+  var chunkLen: int = chunk.length
+
+  var cs: QuicStream = client.openStream()
+  # Send a greeting so the server can accept the stream.
+  cs.writeLine("big")
+  var ss: QuicStream = serverConn.acceptStream()
+  var greet: str = ss.readLine()
+  assert(greet == "big", $"server should see 'big', got '{greet}'")
+
+  # Client writes 256 * 1KB = 256KB.
+  var totalChunks: int = 256
+  var startMs: long = Time.now().millis()
+  for var i: int = 0; i < totalChunks; i++ =>
+    var wrote: int = cs.write(chunk)
+    assert(wrote == chunkLen,
+      $"chunk {i}: wrote {wrote}/{chunkLen} bytes")
+
+  # Client signals EOF so the server's readAll returns.
+  cs.close()
+
+  # Server reads until EOF and checks total length.
+  var got: byte[] = ss.readAll()
+  var expected: int = totalChunks * chunkLen
+  assert(got.length == expected,
+    $"server received {got.length} bytes, expected {expected}")
+
+  var elapsedMs: long = Time.now().millis() - startMs
+  assert(elapsedMs < 10000l,
+    $"large payload took {elapsedMs}ms to stream, expected < 10000ms")
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 45: stream handle must remain safe after its connection is closed.
+# ==============================================================================
+# Regression gate for stream refcount / lifecycle hazards. A caller that
+# holds a QuicStream reference past the QuicConnection's scope (e.g. a
+# logger stashing the stream for later diagnostic writes) must not crash
+# when the connection goes away first. All stream operations must become
+# safe no-ops reporting isClosed() == true.
+
+fn test_stream_outlives_connection(): void =>
+  print("test_stream_outlives_connection: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("hi")
+  var ss: QuicStream = serverConn.acceptStream()
+  var greet: str = ss.readLine()
+  assert(greet == "hi", $"server should see 'hi', got '{greet}'")
+
+  # Close the client connection. The Sindarin `cs` handle is still live
+  # (the refcount keeps the stream struct allocated) even though its
+  # owning connection is gone.
+  client.close()
+  Time.sleep(200)
+
+  assert(cs.isClosed(),
+    "stream must observe isClosed=true after its conn is closed")
+
+  var payload: byte[] = "orphaned".toBytes()
+  var wrote: int = cs.write(payload)
+  assert(wrote == 0,
+    $"write on orphaned stream should return 0, got {wrote}")
+
+  var line: str = cs.readLine()
+  assert(line == "",
+    $"readLine on orphaned stream should return '', got '{line}'")
+
+  # Repeated close must be idempotent.
+  cs.close()
+  cs.close()
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 46: acceptStream() on an already-closed conn must be bounded.
+# ==============================================================================
+# Regression gate for the close-then-accept ordering on accept_stream_cond.
+# Symmetric to test 31 (listener flavour). If acceptStream's wait loop
+# doesn't check ci->closed before parking, a caller that closes and then
+# accepts gets wedged on a condvar that will never be broadcast again.
+
+fn test_accept_stream_after_close_is_bounded(): void =>
+  print("test_accept_stream_after_close_is_bounded: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Close serverConn BEFORE calling acceptStream.
+  serverConn.close()
+  Time.sleep(100)
+
+  # Call acceptStream on the already-closed conn from a bg thread so a
+  # regression fails loudly instead of wedging.
+  var h: int = & pendingAcceptStreamBg(serverConn)
+  assert(waitForBg(2000l),
+    "acceptStream on closed conn did not return within 2s")
+  assert(bgResultInt == 0,
+    "acceptStream on closed conn should return a closed stream")
+  h ~
+
+  client.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 47: write(empty byte[]) must be a safe no-op.
+# ==============================================================================
+# Regression gate for zero-length buffer handling in the write path. An
+# empty write must not crash on a null buffer pointer, must not enqueue a
+# zero-length command that confuses the I/O thread, and must leave the
+# stream in a state where a subsequent normal write still works.
+
+fn test_write_empty_bytes_is_safe(): void =>
+  print("test_write_empty_bytes_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("ping")
+  var ss: QuicStream = serverConn.acceptStream()
+  var ping: str = ss.readLine()
+  assert(ping == "ping", $"expected 'ping', got '{ping}'")
+
+  # Empty write must return a valid count (conventionally 0) and must
+  # not disturb the stream.
+  var empty: byte[] = {}
+  var wrote: int = cs.write(empty)
+  assert(wrote == 0,
+    $"write(empty) should return 0, got {wrote}")
+
+  # Subsequent normal write must still work.
+  cs.writeLine("after-empty")
+  var after: str = ss.readLine()
+  assert(after == "after-empty", $"expected 'after-empty', got '{after}'")
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 48: read(0) must return an empty buffer promptly.
+# ==============================================================================
+# Regression gate for the read(0) fast path. A caller that passes 0 for
+# maxBytes (e.g. as a result of arithmetic producing 0) must not block
+# forever waiting for a byte that will never be requested. Return must be
+# an empty byte[] within milliseconds.
+
+fn readZeroBg(stream: QuicStream): int =>
+  var start: Time = Time.now()
+  var got: byte[] = stream.read(0)
+  bgElapsedMs = Time.now().diff(start)
+  bgResultInt = got.length
+  bgDone = true
+  return 0
+
+fn test_read_zero_bytes_returns_empty(): void =>
+  print("test_read_zero_bytes_returns_empty: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("hi")
+  var ss: QuicStream = serverConn.acceptStream()
+  var hi: str = ss.readLine()
+  assert(hi == "hi", $"expected 'hi', got '{hi}'")
+
+  # read(0) must return within bounded time even though no data has been
+  # staged from server. Bound via bg thread so a hang fails loudly.
+  var h: int = & readZeroBg(cs)
+  assert(waitForBg(1500l),
+    "read(0) did not return within 1.5s — fast path not short-circuited")
+  assert(bgResultInt == 0,
+    $"read(0) returned {bgResultInt} bytes, expected 0")
+  h ~
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 49: writeLine("") must send a bare newline, readable as empty.
+# ==============================================================================
+# Regression gate for the empty-line framing boundary. Protocols that use
+# blank lines as record separators (HTTP header/body boundary, some RPC
+# framings) rely on this. writeLine("") must produce a newline byte on
+# the wire and the peer's readLine() must observe an empty string.
+
+fn test_write_line_empty_string_is_safe(): void =>
+  print("test_write_line_empty_string_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  # Establish the stream with a real greeting first, then the empty line,
+  # then a terminator so the server knows when to stop reading.
+  cs.writeLine("start")
+  cs.writeLine("")
+  cs.writeLine("end")
+
+  var ss: QuicStream = serverConn.acceptStream()
+  var l1: str = ss.readLine()
+  assert(l1 == "start", $"line 1: expected 'start', got '{l1}'")
+  var l2: str = ss.readLine()
+  assert(l2 == "", $"line 2: expected '', got '{l2}'")
+  var l3: str = ss.readLine()
+  assert(l3 == "end", $"line 3: expected 'end', got '{l3}'")
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 50: multiple lines in a single write() must read back as separate lines.
+# ==============================================================================
+# Regression gate for the recv_buf framing logic. When a peer writes
+# "a\nb\nc\n" in one network write(), the receiver's readLine() must
+# split it into three lines. A bug that consumes the whole buffer on
+# the first readLine (returning "a\nb\nc") or that loses the trailing
+# line would break any line-delimited protocol on top of QUIC.
+
+fn test_readline_multiple_lines_in_one_write(): void =>
+  print("test_readline_multiple_lines_in_one_write: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("open")
+  var ss: QuicStream = serverConn.acceptStream()
+  var open_: str = ss.readLine()
+  assert(open_ == "open", $"expected 'open', got '{open_}'")
+
+  # Server batches 3 lines into a single write().
+  var batch: byte[] = "alpha\nbeta\ngamma\n".toBytes()
+  ss.write(batch)
+
+  # Give the batch time to reach the client.
+  Time.sleep(200)
+
+  var a: str = cs.readLine()
+  assert(a == "alpha", $"line 1: expected 'alpha', got '{a}'")
+  var b: str = cs.readLine()
+  assert(b == "beta", $"line 2: expected 'beta', got '{b}'")
+  var g: str = cs.readLine()
+  assert(g == "gamma", $"line 3: expected 'gamma', got '{g}'")
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 51: concurrent read + write on the same stream must not deadlock.
+# ==============================================================================
+# Regression gate for the stream_mutex / conn_mutex interleaving in the
+# read vs write paths. On a bidi stream, read and write use independent
+# direction buffers but share locks — a bug where write holds a lock the
+# reader needs (or vice versa) would deadlock one of them. Both halves
+# must make progress concurrently and complete in bounded time.
+
+fn concurrentStreamWriteBg(stream: QuicStream): int =>
+  for var i: int = 0; i < 5; i++ =>
+    stream.writeLine($"c-{i}")
+
+  bgDone = true
+  return 0
+
+fn test_concurrent_read_write_same_stream(): void =>
+  print("test_concurrent_read_write_same_stream: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  # Greeting so server sees the stream.
+  cs.writeLine("start")
+  var ss: QuicStream = serverConn.acceptStream()
+  var start_: str = ss.readLine()
+  assert(start_ == "start", $"server: expected 'start', got '{start_}'")
+
+  # Spawn a writer that pushes 5 lines from the client side.
+  var h: int = & concurrentStreamWriteBg(cs)
+
+  # Server reads 5 lines and echoes each back as "<line>-echo".
+  for var i: int = 0; i < 5; i++ =>
+    var line: str = ss.readLine()
+    ss.writeLine(line + "-echo")
+
+  # Concurrently with the bg writer, main thread reads the 5 echoes back.
+  for var i: int = 0; i < 5; i++ =>
+    var echo: str = cs.readLine()
+    var expected: str = $"c-{i}-echo"
+    assert(echo == expected,
+      $"echo {i}: expected '{expected}', got '{echo}'")
+
+  # Wait for the writer bg to finish.
+  assert(waitForBg(3000l),
+    "concurrent writer did not finish within 3s — possible deadlock")
+  h ~
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 52: five concurrent clients on one listener must all round-trip.
+# ==============================================================================
+# Regression gate for listener-side routing under a small burst of
+# simultaneous connections. Each conn has its own per-connection I/O
+# thread, its own ngtcp2 state, and its own entry in the listener's
+# connection list. A routing bug where incoming packets for conn B
+# are delivered to conn A's qconn would break any client after the
+# first. Also exercises the accept queue under load.
+
+fn test_many_concurrent_connections(): void =>
+  print("test_many_concurrent_connections: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(10000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+
+  var clients: QuicConnection[] = {}
+  for var i: int = 0; i < 5; i++ =>
+    var c: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+    assert(!c.isClosed(), $"client {i} connect failed")
+    clients.push(c)
+
+  var servers: QuicConnection[] = {}
+  for var i: int = 0; i < 5; i++ =>
+    var s: QuicConnection = server.accept()
+    assert(!s.isClosed(), $"server accept {i} returned closed")
+    servers.push(s)
+
+  # Each client opens a stream and sends its identifying line.
+  var cstreams: QuicStream[] = {}
+  for var i: int = 0; i < 5; i++ =>
+    var cs: QuicStream = clients[i].openStream()
+    cs.writeLine($"ping-{i}")
+    cstreams.push(cs)
+
+  # Each server-side conn accepts its stream, reads the line, echoes it.
+  var sstreams: QuicStream[] = {}
+  for var i: int = 0; i < 5; i++ =>
+    var ss: QuicStream = servers[i].acceptStream()
+    var msg: str = ss.readLine()
+    assert(msg.startsWith("ping-"),
+      $"server {i}: expected 'ping-*', got '{msg}'")
+    ss.writeLine(msg + "-pong")
+    sstreams.push(ss)
+
+  # Each client reads its OWN echo — conns are independent so ordering
+  # across clients doesn't matter; each client/conn pair is self-consistent.
+  for var i: int = 0; i < 5; i++ =>
+    var echo: str = cstreams[i].readLine()
+    var expected: str = $"ping-{i}-pong"
+    assert(echo == expected,
+      $"client {i}: expected '{expected}', got '{echo}'")
+
+  # Tear down.
+  for var i: int = 0; i < 5; i++ =>
+    cstreams[i].close()
+    sstreams[i].close()
+    clients[i].close()
+    servers[i].close()
+
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 53: maxBidiStreams=0 on the server must block client opens cleanly.
+# ==============================================================================
+# Regression gate for the credit-exhausted boundary on the open path.
+# When the server advertises initial_max_streams_bidi=0, any client
+# openStream() is outside the budget from the first call. The QUIC_CMD
+# retry window eventually surrenders and returns a closed stream — must
+# not hang forever and must not crash. This is the degenerate case of
+# test 28 (stream_budget_exhaustion_is_safe) where the budget is 0 and
+# no warm-up opens land inside it.
+
+fn test_config_zero_max_bidi_streams_blocks_opens(): void =>
+  print("test_config_zero_max_bidi_streams_blocks_opens: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  # Server advertises 0 bidi streams allowed from client.
+  var scfg: QuicConfig = QuicConfig.defaults()
+    .setIdleTimeout(10000)
+    .setMaxBidiStreams(0)
+  var ccfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(10000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, scfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", ccfg)
+
+  # openStream runs into STREAM_ID_BLOCKED immediately. The retry window
+  # in QUIC_CMD_OPEN_BIDI is ~2s — bound the call in a bg thread so a
+  # hang fails with a clean assertion.
+  resetBg()
+  var h: int = & pendingOpenStreamBg(client)
+  assert(waitForBg(4000l),
+    "openStream with 0 budget did not return within 4s")
+  assert(bgResultInt == 0,
+    "openStream with 0 budget should return a closed stream")
+  h ~
+
+  # Connection itself must still be usable for close etc.
+  client.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 54: a non-default stream window config must not break a basic round trip.
+# ==============================================================================
+# Regression gate for setMaxStreamWindow working end-to-end with a value
+# smaller than the 256 KB default. The payload here is deliberately
+# sized to fit comfortably within the configured window, so this test
+# verifies the config propagation + initial transport param wiring
+# without depending on MAX_STREAM_DATA delivery timing (which is
+# inherently scheduler-dependent on the loopback). A more aggressive
+# window-update stress test would need a dedicated harness driving the
+# server I/O thread, which is out of scope here.
+
+fn test_config_small_stream_window_roundtrip(): void =>
+  print("test_config_small_stream_window_roundtrip: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  # 8 KB stream window, well under the 256 KB default but comfortable
+  # for our 2 KB payload.
+  var cfg: QuicConfig = QuicConfig.defaults()
+    .setIdleTimeout(10000)
+    .setMaxStreamWindow(8192)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("start")
+  var ss: QuicStream = serverConn.acceptStream()
+  var start_: str = ss.readLine()
+  assert(start_ == "start", $"expected 'start', got '{start_}'")
+
+  # 2 KB payload — fits inside the 8 KB initial stream window without
+  # requiring any MAX_STREAM_DATA updates.
+  var payloadStr: str = ""
+  for var i: int = 0; i < 128; i++ =>
+    payloadStr = payloadStr + "0123456789abcdef"
+
+  var payload: byte[] = payloadStr.toBytes()
+  var payloadLen: int = payload.length
+
+  var wrote: int = cs.write(payload)
+  assert(wrote == payloadLen,
+    $"small-window write returned {wrote}/{payloadLen}")
+
+  cs.close()
+
+  var got: byte[] = ss.readAll()
+  assert(got.length == payloadLen,
+    $"server received {got.length} bytes, expected {payloadLen}")
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
 # Main
 # ==============================================================================
 
@@ -1702,5 +2796,29 @@ fn main(): void =>
   test_stream_budget_exhaustion_is_safe()
   test_concurrent_writers_during_abrupt_drop()
   test_double_close_is_safe()
+  test_listener_accept_after_close_is_bounded()
+  test_bind_missing_cert_file_fails_clean()
+  test_bind_with_malformed_address_fails_clean()
+  test_bind_zero_port_reports_real_port()
+  test_connect_to_tcp_listener_is_bounded()
+  test_connect_to_unreachable_ip_is_bounded()
+  test_connect_with_malformed_address()
+  test_migrate_on_closed_conn_is_safe()
+  test_resumption_token_on_closed_conn_is_safe()
+  test_connect_early_with_garbage_token_is_bounded()
+  test_serve_returns_when_connection_drops()
+  test_many_sequential_open_close_cycles()
+  test_concurrent_opens_from_one_client()
+  test_write_large_payload_streams_through()
+  test_stream_outlives_connection()
+  test_accept_stream_after_close_is_bounded()
+  test_write_empty_bytes_is_safe()
+  test_read_zero_bytes_returns_empty()
+  test_write_line_empty_string_is_safe()
+  test_readline_multiple_lines_in_one_write()
+  test_concurrent_read_write_same_stream()
+  test_many_concurrent_connections()
+  test_config_zero_max_bidi_streams_blocks_opens()
+  test_config_small_stream_window_roundtrip()
 
   print("\nAll QUIC resilience tests passed!\n")
