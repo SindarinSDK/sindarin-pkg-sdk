@@ -95,7 +95,7 @@ struct Version =>
 
   # Bump major version (resets minor, patch, prerelease, build)
   fn bumpMajor(): Version =>
-    var result: Version = Version {
+    var result: Version = {
       major: self.major + 1,
       minor: 0,
       patch: 0,
@@ -106,7 +106,7 @@ struct Version =>
 
   # Bump minor version (resets patch, prerelease, build)
   fn bumpMinor(): Version =>
-    var result: Version = Version {
+    var result: Version = {
       major: self.major,
       minor: self.minor + 1,
       patch: 0,
@@ -117,7 +117,7 @@ struct Version =>
 
   # Bump patch version (resets prerelease, build)
   fn bumpPatch(): Version =>
-    var result: Version = Version {
+    var result: Version = {
       major: self.major,
       minor: self.minor,
       patch: self.patch + 1,
@@ -173,7 +173,7 @@ struct VersionConstraint =>
 
     # Parse the version part
     var base: Version = _parseConstraintVersion(versionStr.trim())
-    var result: VersionConstraint = VersionConstraint {
+    var result: VersionConstraint = {
       op: op,
       major: base.major,
       minor: base.minor,
@@ -385,7 +385,7 @@ fn _parseVersionString(s: str): Version =>
   if parts.length >= 3 =>
     patch = _strToInt(parts[2])
 
-  var result: Version = Version {
+  var result: Version = {
     major: major,
     minor: minor,
     patch: patch,
@@ -416,7 +416,7 @@ fn _parseConstraintVersion(s: str): Version =>
   if parts.length >= 3 =>
     patch = _strToInt(parts[2])
 
-  var result: Version = Version {
+  var result: Version = {
     major: major,
     minor: minor,
     patch: patch,
