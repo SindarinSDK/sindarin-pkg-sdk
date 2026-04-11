@@ -3214,6 +3214,417 @@ fn test_read_returns_at_most_max_bytes(): void =>
   print("PASS\n")
 
 # ==============================================================================
+# Test 63: server-initiated stream must be accepted by the client.
+# ==============================================================================
+# Regression gate for symmetric openStream behavior. All other tests have
+# the client opening streams to the server. A server that wants to push
+# an unsolicited notification (e.g. "you have new mail") needs to open a
+# bidi stream in the reverse direction. Stream direction must be
+# symmetric: serverConn.openStream() must work and client.acceptStream()
+# must return it.
+
+fn test_server_initiated_stream(): void =>
+  print("test_server_initiated_stream: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Warm up with a client-initiated stream so both sides are fully
+  # established before we try the reverse direction.
+  var warm: QuicStream = client.openStream()
+  warm.writeLine("warm")
+  var warmSS: QuicStream = serverConn.acceptStream()
+  var warmMsg: str = warmSS.readLine()
+  assert(warmMsg == "warm", $"warm: expected 'warm', got '{warmMsg}'")
+
+  # Server opens a NEW stream to the client.
+  var ss: QuicStream = serverConn.openStream()
+  assert(!ss.isClosed(), "serverConn.openStream() returned closed stream")
+  ss.writeLine("from-server")
+
+  # Client accepts the server-initiated stream and reads.
+  var cs: QuicStream = client.acceptStream()
+  assert(!cs.isClosed(), "client.acceptStream() returned closed stream")
+  var msg: str = cs.readLine()
+  assert(msg == "from-server",
+    $"expected 'from-server', got '{msg}'")
+
+  # And the reverse direction on that stream must also work (bidi).
+  cs.writeLine("ack-from-client")
+  var ack: str = ss.readLine()
+  assert(ack == "ack-from-client",
+    $"expected 'ack-from-client', got '{ack}'")
+
+  warm.close()
+  warmSS.close()
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 64: rapid graceful connect/disconnect cycles must not leak.
+# ==============================================================================
+# Regression gate complementing test 15 (abrupt_drop_churn). Test 15
+# uses testDropSocket; this exercises the normal graceful-close path
+# across many cycles in quick succession to catch cumulative leaks or
+# state corruption in the refcount-driven teardown.
+
+fn test_rapid_graceful_connect_disconnect_churn(): void =>
+  print("test_rapid_graceful_connect_disconnect_churn: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+
+  var startMs: long = Time.now().millis()
+  for var i: int = 0; i < 10; i++ =>
+    var c: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+    assert(!c.isClosed(), $"cycle {i}: connect failed")
+    var s: QuicConnection = server.accept()
+    assert(!s.isClosed(), $"cycle {i}: accept returned closed")
+
+    var cs: QuicStream = c.openStream()
+    cs.writeLine($"cycle-{i}")
+    var ss: QuicStream = s.acceptStream()
+    var m: str = ss.readLine()
+    assert(m == $"cycle-{i}", $"cycle {i}: expected 'cycle-{i}', got '{m}'")
+
+    cs.close()
+    ss.close()
+    c.close()
+    s.close()
+
+  var elapsedMs: long = Time.now().millis() - startMs
+  assert(elapsedMs < 10000l,
+    $"10 graceful churn cycles took {elapsedMs}ms, expected < 10000ms")
+
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 65: 100 tiny writeLine calls must all arrive in order on the peer.
+# ==============================================================================
+# Regression gate for the WRITE_MORE coalescing path and cmd-queue
+# serialisation. 100 back-to-back tiny lines stress the ngtcp2 write
+# pacing + the SDK's write_bufs list. A regression that loses a write
+# to the cmd queue (e.g. an overflow) or that reorders writes would
+# surface here as a missing or out-of-order line.
+
+fn test_many_tiny_writes_coalesce(): void =>
+  print("test_many_tiny_writes_coalesce: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(10000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("open")
+  var ss: QuicStream = serverConn.acceptStream()
+  var open_: str = ss.readLine()
+  assert(open_ == "open", $"expected 'open', got '{open_}'")
+
+  # Client fires 100 tiny lines as fast as possible.
+  for var i: int = 0; i < 100; i++ =>
+    cs.writeLine($"t-{i}")
+
+  cs.close()
+
+  # Server reads them back in order.
+  for var i: int = 0; i < 100; i++ =>
+    var m: str = ss.readLine()
+    assert(m == $"t-{i}", $"line {i}: expected 't-{i}', got '{m}'")
+
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 66: two concurrent close() calls on the same connection must be safe.
+# ==============================================================================
+# Regression gate for close-path thread safety. A caller with two threads
+# that both detect an error condition at the same time and both call
+# client.close() must not double-free the internal state. The refcount
+# dispose path has to absorb concurrent invocations, not just sequential
+# ones (which test 30 already covers).
+
+fn closeConn1Bg(conn: QuicConnection): int =>
+  conn.close()
+  bgDone = true
+  return 0
+
+fn closeConn2Bg(conn: QuicConnection): int =>
+  conn.close()
+  bg2Done = true
+  return 0
+
+fn test_concurrent_close_same_conn(): void =>
+  print("test_concurrent_close_same_conn: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Warm up so the conn is fully live before we close it.
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("warm")
+  var ss: QuicStream = serverConn.acceptStream()
+  var warm: str = ss.readLine()
+  assert(warm == "warm", $"expected 'warm', got '{warm}'")
+  cs.close()
+  ss.close()
+
+  # Two threads race to close the same client conn.
+  var h1: int = & closeConn1Bg(client)
+  var h2: int = & closeConn2Bg(client)
+
+  var deadline: long = Time.now().millis() + 3000l
+  while !bgDone || !bg2Done =>
+    if Time.now().millis() >= deadline =>
+      assert(false,
+        $"concurrent close did not finish within 3s: t1={bgDone} t2={bg2Done}")
+    Time.sleep(50)
+  h1 ~
+  h2 ~
+
+  assert(client.isClosed(),
+    "client must report closed after concurrent close() calls")
+
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 67: two concurrent connects must both succeed against one listener.
+# ==============================================================================
+# Regression gate for listener's ability to handle overlapping handshakes.
+# Test 52 does 5 sequential connects; this test does 2 threaded concurrent
+# connects so their initial CRYPTO frames and handshakes interleave on
+# the listener's UDP socket. A routing/state bug in the multiplex path
+# would cause one or both to fail.
+
+fn concurrentConnect1Bg(port: int): int =>
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+  var c: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  if c.isClosed() =>
+    bgResultInt = 0
+  else =>
+    bgResultInt = 1
+  bgDone = true
+  return 0
+
+fn concurrentConnect2Bg(port: int): int =>
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+  var c: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  if c.isClosed() =>
+    bg2ResultStr = "closed"
+  else =>
+    bg2ResultStr = "ok"
+  bg2Done = true
+  return 0
+
+fn test_listener_concurrent_connect_burst(): void =>
+  print("test_listener_concurrent_connect_burst: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+
+  # Fire both connects concurrently.
+  var h1: int = & concurrentConnect1Bg(port)
+  var h2: int = & concurrentConnect2Bg(port)
+
+  # Accept both on the main thread. Listener must deliver both.
+  var s1: QuicConnection = server.accept()
+  assert(!s1.isClosed(), "accept 1 returned closed conn")
+  var s2: QuicConnection = server.accept()
+  assert(!s2.isClosed(), "accept 2 returned closed conn")
+
+  var deadline: long = Time.now().millis() + 3000l
+  while !bgDone || !bg2Done =>
+    if Time.now().millis() >= deadline =>
+      assert(false,
+        $"concurrent connects did not finish within 3s: t1={bgDone} t2={bg2Done}")
+    Time.sleep(50)
+
+  assert(bgResultInt == 1,
+    "first concurrent connect did not report alive")
+  assert(bg2ResultStr == "ok",
+    "second concurrent connect did not report alive")
+  h1 ~
+  h2 ~
+
+  s1.close()
+  s2.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 68: writeLine with an embedded newline produces two lines on the peer.
+# ==============================================================================
+# Documents the writeLine semantic: it concatenates the input text with a
+# trailing '\n' and writes the raw bytes. If the input itself contains
+# '\n', the peer's readLine will split the combined stream on every '\n',
+# observing two separate lines. This is a usability footgun — API
+# reviewers may want to escape or reject embedded newlines — but the
+# current behavior is what it is and we lock it down so a future change
+# is intentional, not accidental.
+
+fn test_writeline_with_embedded_newline(): void =>
+  print("test_writeline_with_embedded_newline: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("open")
+  var ss: QuicStream = serverConn.acceptStream()
+  var open_: str = ss.readLine()
+  assert(open_ == "open", $"expected 'open', got '{open_}'")
+
+  # Embedded newline in the middle of the payload.
+  cs.writeLine("part-a\npart-b")
+
+  # Peer sees two lines.
+  var l1: str = ss.readLine()
+  assert(l1 == "part-a", $"line 1: expected 'part-a', got '{l1}'")
+  var l2: str = ss.readLine()
+  assert(l2 == "part-b", $"line 2: expected 'part-b', got '{l2}'")
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 69: many sequential unidirectional streams must all deliver cleanly.
+# ==============================================================================
+# Regression gate for the unidirectional stream lifecycle across many
+# opens. Test 25 covers a single uni stream + abrupt drop; this test
+# opens/writes/closes 10 uni streams back-to-back and verifies every
+# payload is delivered on the server side. Exercises the uni-stream
+# ID space and acceptStream's handling of uni arrivals.
+
+fn test_many_uni_streams_sequential(): void =>
+  print("test_many_uni_streams_sequential: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults()
+    .setIdleTimeout(10000)
+    .setMaxUniStreams(32)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var count: int = 10
+
+  # Open every stream on the client side, send one line, close.
+  for var i: int = 0; i < count; i++ =>
+    var cs: QuicStream = client.openUnidirectionalStream()
+    assert(!cs.isClosed(),
+      $"client uni open {i} returned closed")
+    assert(cs.isUnidirectional(),
+      $"stream {i} should report unidirectional")
+    cs.writeLine($"uni-{i}")
+    cs.close()
+
+  # Drain all 10 on the server. A uni stream that arrived with data+FIN
+  # in one packet may report isClosed=true here — the peer side is done.
+  # The point of the test is that the payload is still readable.
+  for var i: int = 0; i < count; i++ =>
+    var ss: QuicStream = serverConn.acceptStream()
+    var m: str = ss.readLine()
+    assert(m == $"uni-{i}",
+      $"server uni {i}: expected 'uni-{i}', got '{m}'")
+    ss.close()
+
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 70: connect() with a hostname (not a literal IP) must resolve.
+# ==============================================================================
+# Regression gate for the DNS resolution path inside quic_connection_create.
+# "localhost" exercises getaddrinfo with a real hostname rather than
+# parsing an IPv4 literal, which is what any real-world caller will use.
+# If the SDK accidentally only parses IPv4 literals in-line, this test
+# fails loudly.
+
+fn test_connect_with_localhost_hostname(): void =>
+  print("test_connect_with_localhost_hostname: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+
+  # Connect via hostname rather than IP literal. getaddrinfo must resolve
+  # "localhost" → 127.0.0.1 (or ::1 with AF_INET forcing IPv4 only).
+  var client: QuicConnection = QuicConnection.connectWith($"localhost:{port}", cfg)
+  assert(!client.isClosed(),
+    "connect('localhost:...') failed — hostname resolution broken?")
+
+  var serverConn: QuicConnection = server.accept()
+  assert(!serverConn.isClosed(), "server accept returned closed")
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("hostname-ok")
+  var ss: QuicStream = serverConn.acceptStream()
+  var m: str = ss.readLine()
+  assert(m == "hostname-ok",
+    $"expected 'hostname-ok', got '{m}'")
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
 # Main
 # ==============================================================================
 
@@ -3282,5 +3693,13 @@ fn main(): void =>
   test_write_after_stream_close_is_safe()
   test_connection_stays_alive_under_periodic_traffic()
   test_read_returns_at_most_max_bytes()
+  test_server_initiated_stream()
+  test_rapid_graceful_connect_disconnect_churn()
+  test_many_tiny_writes_coalesce()
+  test_concurrent_close_same_conn()
+  test_listener_concurrent_connect_burst()
+  test_writeline_with_embedded_newline()
+  test_many_uni_streams_sequential()
+  test_connect_with_localhost_hostname()
 
   print("\nAll QUIC resilience tests passed!\n")

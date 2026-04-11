@@ -62,5 +62,13 @@ test_stream_close_preserves_unread_data: PASS
 test_write_after_stream_close_is_safe: PASS
 test_connection_stays_alive_under_periodic_traffic: PASS
 test_read_returns_at_most_max_bytes: PASS
+test_server_initiated_stream: PASS
+test_rapid_graceful_connect_disconnect_churn: PASS
+test_many_tiny_writes_coalesce: PASS
+test_concurrent_close_same_conn: PASS
+test_listener_concurrent_connect_burst: PASS
+test_writeline_with_embedded_newline: PASS
+test_many_uni_streams_sequential: PASS
+test_connect_with_localhost_hostname: PASS
 
 All QUIC resilience tests passed!

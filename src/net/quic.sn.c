@@ -414,7 +414,12 @@ typedef struct QuicConnectionInternal {
     socklen_t local_addrlen;
     RtQuicStream *streams[QUIC_MAX_STREAMS];
     int stream_count;
+    /* Accept queue: holds retained RtQuicStream* pointers (not just IDs)
+     * so stream_close_cb can remove a stream from ci->streams[] without
+     * orphaning a pending acceptStream call. The parallel _ids[] array
+     * is kept for debug/logging only. */
     int64_t incoming_streams[QUIC_MAX_INCOMING_STREAMS];
+    RtQuicStream *incoming_stream_refs[QUIC_MAX_INCOMING_STREAMS];
     int incoming_head;
     int incoming_tail;
     int incoming_count;
@@ -738,12 +743,19 @@ static int quic_stream_open_cb(ngtcp2_conn *conn, int64_t stream_id, void *user_
                   (void*)qci, (int64_t)stream_id, qci->is_server ? 1 : 0);
 
     /* Create stream entry */
-    quic_find_or_create_stream(qc, stream_id);
+    RtQuicStream *stream = quic_find_or_create_stream(qc, stream_id);
+    if (!stream) return 0;
 
-    /* Add to incoming queue — conn_mutex protects the queue and condvar */
+    /* Add to incoming queue — conn_mutex protects the queue and condvar.
+     * Retain a reference so the accept queue owns the stream independently
+     * of ci->streams[]: stream_close_cb may remove the stream from
+     * ci->streams[] before acceptStream runs, and without our own retained
+     * reference we'd lose the stream (and its recv_buf) right there. */
     MUTEX_LOCK(&qci->conn_mutex);
     if (qci->incoming_count < QUIC_MAX_INCOMING_STREAMS) {
         qci->incoming_streams[qci->incoming_tail] = stream_id;
+        qci->incoming_stream_refs[qci->incoming_tail] =
+            (RtQuicStream *)__sn__QuicStream_retain(stream);
         qci->incoming_tail = (qci->incoming_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
         qci->incoming_count++;
         COND_SIGNAL(&qci->accept_stream_cond);
@@ -3005,24 +3017,39 @@ __sn__QuicStream *sn_quic_connection_accept_stream(__sn__QuicConnection *conn) {
             return NULL;
         }
 
-        int64_t stream_id = ci->incoming_streams[ci->incoming_head];
+        /* Pop the retained pointer the open_cb stashed. This bypasses
+         * find_or_create_stream, which would otherwise resurrect a ghost
+         * entry if stream_close_cb had already removed the stream from
+         * ci->streams[] — losing any buffered recv_buf data in the process. */
+        RtQuicStream *stream = ci->incoming_stream_refs[ci->incoming_head];
+        ci->incoming_streams[ci->incoming_head] = 0;
+        ci->incoming_stream_refs[ci->incoming_head] = NULL;
         ci->incoming_head = (ci->incoming_head + 1) % QUIC_MAX_INCOMING_STREAMS;
         ci->incoming_count--;
 
-        RtQuicStream *stream = quic_find_or_create_stream(_conn, stream_id);
         if (!stream) continue;
 
         /* Skip streams that were opened and immediately closed by the peer
-         * (empty streams with FIN but no data). Returning these to the caller
-         * produces an immediate EOF which application code interprets as
-         * connection death. Instead, skip and wait for the next real stream. */
+         * with no data. Returning these produces an immediate EOF which the
+         * caller interprets as connection death; we drop them and wait for
+         * the next real stream. Only skip when recv_buf is empty — a
+         * closed-but-non-empty stream still has unread payload. */
         QuicStreamInternal *si = stream_internal(stream);
-        if (si && si->closed) {
-            continue;
+        if (si) {
+            MUTEX_LOCK(&si->stream_mutex);
+            bool skip = si->closed &&
+                        stream_buf_available(&si->recv_buf) == 0;
+            MUTEX_UNLOCK(&si->stream_mutex);
+            if (skip) {
+                __sn__QuicStream_release(&stream);
+                continue;
+            }
         }
 
         MUTEX_UNLOCK(&ci->conn_mutex);
-        return (__sn__QuicStream *)__sn__QuicStream_retain(stream);
+        /* Ownership transfer: the queue's retained reference becomes the
+         * user's reference. No extra retain needed. */
+        return (__sn__QuicStream *)stream;
     }
 }
 
@@ -3201,6 +3228,17 @@ void sn_quic_connection_dispose(__sn__QuicConnection *conn) {
     /* Cover the "drop without calling close" case. conn_teardown_network is
      * idempotent, so it's a no-op if sweep or close already ran. */
     conn_teardown_network(ci, _conn);
+
+    /* Drain any pending pointers in the accept queue. open_cb retained
+     * each one; the user never popped them, so release here. */
+    while (ci->incoming_count > 0) {
+        RtQuicStream *q = ci->incoming_stream_refs[ci->incoming_head];
+        ci->incoming_stream_refs[ci->incoming_head] = NULL;
+        ci->incoming_streams[ci->incoming_head] = 0;
+        ci->incoming_head = (ci->incoming_head + 1) % QUIC_MAX_INCOMING_STREAMS;
+        ci->incoming_count--;
+        if (q) __sn__QuicStream_release(&q);
+    }
 
     /* Free streams. quic_stream_free detaches each from ci->streams[], so
      * snapshot the pointers first for a stable iteration. */
