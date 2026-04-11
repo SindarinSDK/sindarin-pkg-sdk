@@ -54,5 +54,13 @@ test_concurrent_read_write_same_stream: PASS
 test_many_concurrent_connections: PASS
 test_config_zero_max_bidi_streams_blocks_opens: PASS
 test_config_small_stream_window_roundtrip: PASS
+test_binary_payload_with_nulls: PASS
+test_many_streams_on_one_connection: PASS
+test_long_idle_then_reuse: PASS
+test_concurrent_listener_accepts: PASS
+test_stream_close_preserves_unread_data: PASS
+test_write_after_stream_close_is_safe: PASS
+test_connection_stays_alive_under_periodic_traffic: PASS
+test_read_returns_at_most_max_bytes: PASS
 
 All QUIC resilience tests passed!
