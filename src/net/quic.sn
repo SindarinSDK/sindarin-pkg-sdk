@@ -162,9 +162,13 @@ native struct QuicStream as ref =>
   # Lifecycle Methods
   # ==========================================================================
 
-  # Close the stream
+  # Close the stream (soft shutdown signal)
   @alias "sn_quic_stream_close"
   native fn close(): void
+
+  # Release stream state (invoked by refcount on last drop)
+  @alias "sn_quic_stream_dispose"
+  native fn dispose(): void
 
 # ==============================================================================
 # QuicConnection Native Struct Definition
@@ -173,11 +177,11 @@ native struct QuicStream as ref =>
 
 @alias "RtQuicConnection"
 native struct QuicConnection as ref =>
-  @alias "conn_ptr"
-  _conn_ptr: long
-
   @alias "socket_fd"
   _socket_fd: int
+
+  @alias "internal_ptr"
+  _internal_ptr: long
 
   # ==========================================================================
   # Static Factory Methods
@@ -245,9 +249,13 @@ native struct QuicConnection as ref =>
   # Lifecycle Methods
   # ==========================================================================
 
-  # Close the connection gracefully
+  # Close the connection gracefully (soft shutdown signal)
   @alias "sn_quic_connection_close"
   native fn close(): void
+
+  # Release connection state (invoked by refcount on last drop)
+  @alias "sn_quic_connection_dispose"
+  native fn dispose(): void
 
 # ==============================================================================
 # QuicListener Native Struct Definition
@@ -261,6 +269,9 @@ native struct QuicListener as ref =>
 
   @alias "bound_port"
   _bound_port: int
+
+  @alias "internal_ptr"
+  _internal_ptr: long
 
   # ==========================================================================
   # Static Factory Methods
@@ -294,9 +305,13 @@ native struct QuicListener as ref =>
   # Lifecycle Methods
   # ==========================================================================
 
-  # Close the listener
+  # Close the listener (soft shutdown signal)
   @alias "sn_quic_listener_close"
   native fn close(): void
+
+  # Release listener state (invoked by refcount on last drop)
+  @alias "sn_quic_listener_dispose"
+  native fn dispose(): void
 
 # ==============================================================================
 # Runtime Function Declarations

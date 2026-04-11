@@ -311,6 +311,27 @@ fn test_sequential_stream_reopen(): void =>
 
   print("PASS\n")
 
+fn test_connection_churn(): void =>
+  print("test_connection_churn: ")
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  # Reproducer for skynet executor crash: the old global conn registry
+  # was a fixed 128-slot array. Churning >128 connections on a single
+  # listener overflowed it. Exercise 200 accept/close cycles on one
+  # listener to prove the inline-pointer lifecycle has no such cap.
+  var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+  var port: int = server.port()
+
+  for var i: int = 0; i < 200; i++ =>
+    var client: QuicConnection = QuicConnection.connect($"127.0.0.1:{port}")
+    var serverConn: QuicConnection = server.accept()
+    client.close()
+    serverConn.close()
+
+  server.close()
+  print("PASS\n")
+
 fn main(): void =>
   print("=== SDK QUIC Tests ===\n\n")
 
@@ -323,5 +344,6 @@ fn main(): void =>
   test_config()
   test_server_multi_exchange()
   test_sequential_stream_reopen()
+  test_connection_churn()
 
   print("\nAll QUIC tests passed!\n")

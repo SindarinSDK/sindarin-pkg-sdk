@@ -407,8 +407,13 @@ typedef struct QuicConnectionInternal {
     bool handshake_complete;
     bool closed;
     bool is_server;
+    /* network_disposed: set by sweep_closed_server_connections after it
+     * frees SSL/ossl_ctx/qconn. dispose() skips those frees when set. */
+    bool network_disposed;
     sn_thread_t io_thread;
     bool io_running;
+    /* io_thread_joined: set after pthread_join so dispose() doesn't double-join */
+    bool io_thread_joined;
     uint8_t *resumption_token;
     size_t resumption_token_len;
     /* Server connection: packet ring (listener → I/O thread).
@@ -457,128 +462,24 @@ typedef struct QuicListenerInternal {
 } QuicListenerInternal;
 
 /* ============================================================================
- * Internal State Registries
+ * Internal State Accessors
  * ============================================================================
- * Maps Sindarin-visible struct pointers to their internal state.
- * Same pattern as TcpStreamInternal in tcp.sn.c.
+ * Each Sindarin-visible struct carries a direct pointer to its internal state
+ * in its `internal_ptr` field. Lookups are O(1) and race-free: no global
+ * registry, no fixed cap. The field is set at creation and cleared during
+ * dispose before the internal state is freed.
  * ============================================================================ */
 
-/* Stream internal registry */
-typedef struct { RtQuicStream *key; QuicStreamInternal *val; } QStreamEntry;
-#define QUIC_STREAM_REG_CAPACITY 2048
-static QStreamEntry g_stream_reg[QUIC_STREAM_REG_CAPACITY];
-static int g_stream_reg_count = 0;
-
-static QuicStreamInternal *stream_internal(RtQuicStream *s) {
-    if (!s) return NULL;
-    /* Primary path: use the embedded internal_ptr if set.
-     * This is immune to pointer reuse after free — each stream
-     * carries a direct pointer to its own internal state. */
-    if (s->internal_ptr) {
-        return (QuicStreamInternal *)(uintptr_t)s->internal_ptr;
-    }
-    /* Legacy fallback: registry lookup by exact pointer match */
-    for (int i = 0; i < g_stream_reg_count; i++)
-        if (g_stream_reg[i].key == s) return g_stream_reg[i].val;
-    /* Last resort: match by (conn_ptr, stream_id) for struct copies */
-    for (int i = 0; i < g_stream_reg_count; i++) {
-        RtQuicStream *candidate = g_stream_reg[i].key;
-        if (candidate->conn_ptr == s->conn_ptr &&
-            candidate->stream_id == s->stream_id)
-            return g_stream_reg[i].val;
-    }
-    return NULL;
-}
-/* Evict closed streams from the registry to reclaim slots. */
-static int stream_reg_evict_closed(void) {
-    int evicted = 0;
-    int i = 0;
-    while (i < g_stream_reg_count) {
-        QuicStreamInternal *si = g_stream_reg[i].val;
-        if (si && si->closed) {
-            g_stream_reg[i] = g_stream_reg[--g_stream_reg_count];
-            evicted++;
-        } else {
-            i++;
-        }
-    }
-    return evicted;
-}
-static void stream_register(RtQuicStream *s, QuicStreamInternal *si) {
-    /* Replace stale entry at the same pointer address (memory reuse after free) */
-    for (int i = 0; i < g_stream_reg_count; i++) {
-        if (g_stream_reg[i].key == s) {
-            g_stream_reg[i].val = si;
-            return;
-        }
-    }
-    /* Bounds check: evict closed streams if at capacity */
-    if (g_stream_reg_count >= QUIC_STREAM_REG_CAPACITY) {
-        int evicted = stream_reg_evict_closed();
-        if (evicted > 0) {
-            QUIC_IO_DBG("stream_register: evicted %d closed streams, %d/%d used",
-                        evicted, g_stream_reg_count, QUIC_STREAM_REG_CAPACITY);
-        }
-        if (g_stream_reg_count >= QUIC_STREAM_REG_CAPACITY) {
-            fprintf(stderr, "QUIC stream registry full (%d/%d) after eviction — "
-                    "dropping stream registration\n",
-                    g_stream_reg_count, QUIC_STREAM_REG_CAPACITY);
-            return;
-        }
-    }
-    g_stream_reg[g_stream_reg_count++] = (QStreamEntry){s, si};
-}
-static void stream_unregister(RtQuicStream *s) {
-    for (int i = 0; i < g_stream_reg_count; i++) {
-        if (g_stream_reg[i].key == s) {
-            g_stream_reg[i] = g_stream_reg[--g_stream_reg_count];
-            return;
-        }
-    }
+static inline QuicStreamInternal *stream_internal(RtQuicStream *s) {
+    return s ? (QuicStreamInternal *)(uintptr_t)s->internal_ptr : NULL;
 }
 
-/* Connection internal registry */
-typedef struct { RtQuicConnection *key; QuicConnectionInternal *val; } QConnEntry;
-static QConnEntry g_conn_reg[128];
-static int g_conn_reg_count = 0;
-
-static QuicConnectionInternal *conn_internal(RtQuicConnection *c) {
-    for (int i = 0; i < g_conn_reg_count; i++)
-        if (g_conn_reg[i].key == c) return g_conn_reg[i].val;
-    return NULL;
-}
-static void conn_register(RtQuicConnection *c, QuicConnectionInternal *ci) {
-    g_conn_reg[g_conn_reg_count++] = (QConnEntry){c, ci};
-}
-static void conn_unregister(RtQuicConnection *c) {
-    for (int i = 0; i < g_conn_reg_count; i++) {
-        if (g_conn_reg[i].key == c) {
-            g_conn_reg[i] = g_conn_reg[--g_conn_reg_count];
-            return;
-        }
-    }
+static inline QuicConnectionInternal *conn_internal(RtQuicConnection *c) {
+    return c ? (QuicConnectionInternal *)(uintptr_t)c->internal_ptr : NULL;
 }
 
-/* Listener internal registry */
-typedef struct { RtQuicListener *key; QuicListenerInternal *val; } QListenerEntry;
-static QListenerEntry g_listener_reg[16];
-static int g_listener_reg_count = 0;
-
-static QuicListenerInternal *listener_internal(RtQuicListener *l) {
-    for (int i = 0; i < g_listener_reg_count; i++)
-        if (g_listener_reg[i].key == l) return g_listener_reg[i].val;
-    return NULL;
-}
-static void listener_register(RtQuicListener *l, QuicListenerInternal *li) {
-    g_listener_reg[g_listener_reg_count++] = (QListenerEntry){l, li};
-}
-static void listener_unregister(RtQuicListener *l) {
-    for (int i = 0; i < g_listener_reg_count; i++) {
-        if (g_listener_reg[i].key == l) {
-            g_listener_reg[i] = g_listener_reg[--g_listener_reg_count];
-            return;
-        }
-    }
+static inline QuicListenerInternal *listener_internal(RtQuicListener *l) {
+    return l ? (QuicListenerInternal *)(uintptr_t)l->internal_ptr : NULL;
 }
 
 /* ============================================================================
@@ -923,7 +824,6 @@ static RtQuicStream *quic_find_or_create_stream(RtQuicConnection *conn, int64_t 
 
     QuicStreamInternal *si = (QuicStreamInternal *)calloc(1, sizeof(QuicStreamInternal));
     stream->internal_ptr = (long long)(uintptr_t)si;
-    stream_register(stream, si);
     stream_buf_init(&si->recv_buf);
     MUTEX_INIT(&si->stream_mutex);
     COND_INIT(&si->read_cond);
@@ -932,44 +832,37 @@ static RtQuicStream *quic_find_or_create_stream(RtQuicConnection *conn, int64_t 
     /* Unidirectional streams: bit 1 of stream_id indicates uni */
     si->is_uni = (stream_id & 0x2) != 0;
 
-    ci->streams[ci->stream_count++] = __sn__QuicStream_retain(stream);
+    /* Transfer the initial rc=1 from __new() to ci->streams[]. Callers of
+     * quic_find_or_create_stream treat the returned pointer as borrowed —
+     * Sindarin-facing entry points (open_stream, accept_stream) retain
+     * explicitly before returning to user code. */
+    ci->streams[ci->stream_count++] = stream;
     return stream;
 }
 
+/* Detach a stream from its owning connection's streams[] array and release
+ * the connection's retained reference. The stream's internal state is freed
+ * by sn_quic_stream_dispose, which the refcount hook invokes when rc hits
+ * zero. Called during connection dispose for any streams the user never
+ * closed explicitly. */
 static void quic_stream_free(RtQuicStream *stream) {
     if (!stream) return;
 
-    /* Detach from the owning connection's stream array.
-     * Save the retained pointer so we can release it AFTER
-     * cleaning up internal state (release may free the object). */
-    RtQuicStream *conn_ref = NULL;
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)stream->conn_ptr;
     if (conn) {
         QuicConnectionInternal *ci = conn_internal(conn);
         if (ci) {
             for (int i = 0; i < ci->stream_count; i++) {
                 if (ci->streams[i] == stream) {
-                    conn_ref = ci->streams[i];
-                    ci->streams[i] = NULL;
-                    break;
+                    RtQuicStream *ref = ci->streams[i];
+                    ci->streams[i] = ci->streams[ci->stream_count - 1];
+                    ci->streams[ci->stream_count - 1] = NULL;
+                    ci->stream_count--;
+                    __sn__QuicStream_release(&ref);
+                    return;
                 }
             }
         }
-    }
-
-    /* Clean up internal state while stream is still alive */
-    QuicStreamInternal *si = stream_internal(stream);
-    if (si) {
-        stream_buf_destroy(&si->recv_buf);
-        MUTEX_DESTROY(&si->stream_mutex);
-        COND_DESTROY(&si->read_cond);
-        free(si);
-    }
-    stream_unregister(stream);
-
-    /* Release the connection's reference (may free the stream object) */
-    if (conn_ref) {
-        __sn__QuicStream_release(&conn_ref);
     }
 }
 
@@ -1779,7 +1672,7 @@ static RtQuicConnection *quic_connection_create(char *address,
     /* Allocate Sindarin struct via compiler-generated __new() */
     RtQuicConnection *conn = __sn__QuicConnection__new();
     QuicConnectionInternal *ci = (QuicConnectionInternal *)calloc(1, sizeof(QuicConnectionInternal));
-    conn_register(conn, ci);
+    conn->internal_ptr = (long long)(uintptr_t)ci;
 
     conn->socket_fd = (long long)sock;
     ci->is_server = false;
@@ -1884,8 +1777,6 @@ static RtQuicConnection *quic_connection_create(char *address,
         return NULL;
     }
 
-    conn->conn_ptr = (long long)(uintptr_t)ci->qconn;
-
     /* Create SSL context and connection */
     ci->ssl_ctx = create_client_ssl_ctx();
     if (!ci->ssl_ctx) {
@@ -1982,7 +1873,7 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
     /* Allocate Sindarin struct via compiler-generated __new() */
     RtQuicConnection *conn = __sn__QuicConnection__new();
     QuicConnectionInternal *ci = (QuicConnectionInternal *)calloc(1, sizeof(QuicConnectionInternal));
-    conn_register(conn, ci);
+    conn->internal_ptr = (long long)(uintptr_t)ci;
 
     ci->is_server = true;
 
@@ -2099,7 +1990,6 @@ static RtQuicConnection *quic_server_connection_create(socket_t sock,
         return NULL;
     }
 
-    conn->conn_ptr = (long long)(uintptr_t)ci->qconn;
     ci->ssl_ctx = ssl_ctx; /* Shared with listener */
 
     /* Create server SSL */
@@ -2201,6 +2091,95 @@ static void quic_server_flush_tx(RtQuicConnection *conn, socket_t sock) {
     }
 }
 
+/* Join the I/O thread for a connection. Idempotent. */
+static void conn_join_io_thread(QuicConnectionInternal *ci) {
+    if (ci->io_thread_joined) return;
+    ci->io_running = false;
+    /* Server conns park on pkt_ring_cond; client conns park on wakeup_fd. */
+    if (ci->is_server) {
+        MUTEX_LOCK(&ci->pkt_ring_mutex);
+        COND_SIGNAL(&ci->pkt_ring_cond);
+        MUTEX_UNLOCK(&ci->pkt_ring_mutex);
+    }
+#ifdef _WIN32
+    WaitForSingleObject(ci->io_thread, 5000);
+    CloseHandle(ci->io_thread);
+#else
+    pthread_join(ci->io_thread, NULL);
+#endif
+    ci->io_thread_joined = true;
+}
+
+/* Tear down network state that depends on listener-owned resources (SSL_CTX,
+ * listener socket for server conns). Called from the listener thread for
+ * server connections. Safe to call from dispose for client connections.
+ * Idempotent via network_disposed flag. */
+static void conn_teardown_network(QuicConnectionInternal *ci,
+                                  RtQuicConnection *conn) {
+    if (ci->network_disposed) return;
+    ci->network_disposed = true;
+
+    conn_join_io_thread(ci);
+
+    if (ci->ssl) {
+        SSL_set_app_data(ci->ssl, NULL);
+        SSL_free(ci->ssl);
+        ci->ssl = NULL;
+    }
+    if (ci->ossl_ctx) {
+        ngtcp2_crypto_ossl_ctx_del(ci->ossl_ctx);
+        ci->ossl_ctx = NULL;
+    }
+    if (ci->qconn) {
+        ngtcp2_conn_del(ci->qconn);
+        ci->qconn = NULL;
+    }
+    /* Client conns own their ssl_ctx and socket. Server conns share them
+     * with the listener, which cleans them up. */
+    if (!ci->is_server) {
+        if (ci->ssl_ctx) {
+            SSL_CTX_free(ci->ssl_ctx);
+            ci->ssl_ctx = NULL;
+        }
+        socket_t sock = (socket_t)conn->socket_fd;
+        if (sock != INVALID_SOCKET_VAL) {
+            CLOSE_SOCKET(sock);
+            conn->socket_fd = (long long)INVALID_SOCKET_VAL;
+        }
+    }
+}
+
+/* Runs in the listener thread only. Reaps any server connection whose I/O
+ * thread has marked it closed (ngtcp2 DRAINING/CLOSING, expiry failure, user
+ * close). Joins the I/O thread, tears down network state, and releases the
+ * listener's retained reference. If the user has no other references to the
+ * connection, dispose fires immediately via refcount and frees the rest.
+ * Otherwise, dispose fires later when the user drops their reference. */
+static void sweep_closed_server_connections(RtQuicListener *listener) {
+    QuicListenerInternal *li = listener_internal(listener);
+    MUTEX_LOCK(&li->conn_list_mutex);
+    int i = 0;
+    while (i < li->connection_count) {
+        RtQuicConnection *sconn = li->connections[i];
+        if (!sconn) { i++; continue; }
+        QuicConnectionInternal *cci = conn_internal(sconn);
+        if (!cci || !cci->closed) { i++; continue; }
+
+        conn_teardown_network(cci, sconn);
+
+        /* Swap-remove from the listener's connection list */
+        li->connection_count--;
+        li->connections[i] = li->connections[li->connection_count];
+        li->connections[li->connection_count] = NULL;
+
+        /* Release the listener's retained reference. May trigger dispose
+         * right here if the user has already dropped their reference. */
+        __sn__QuicConnection_release(&sconn);
+        /* Do not advance i — the swap-remove brought a new entry into slot i */
+    }
+    MUTEX_UNLOCK(&li->conn_list_mutex);
+}
+
 static void quic_listener_thread_func(RtQuicListener *listener) {
     QuicListenerInternal *li = listener_internal(listener);
     uint8_t buf[QUIC_RECV_BUF_SIZE];
@@ -2213,6 +2192,8 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
     while (li->running) {
         int ret = POLL(&pfd, 1, 50);
         if (!li->running) break;
+
+        sweep_closed_server_connections(listener);
 
         if (ret > 0 && (pfd.revents & POLLIN)) {
             struct sockaddr_storage from_addr;
@@ -2340,22 +2321,33 @@ static void quic_listener_thread_func(RtQuicListener *listener) {
             if (new_conn) {
                 QuicConnectionInternal *nci = conn_internal(new_conn);
 
-                /* Add to connection list for future packet routing */
+                /* Transfer the initial rc=1 from __new() into connections[].
+                 * Sweep releases this reference when the conn closes. */
                 MUTEX_LOCK(&li->conn_list_mutex);
                 if (li->connection_count < QUIC_MAX_STREAMS) {
                     li->connections[li->connection_count++] = new_conn;
+                } else {
+                    /* List full — drop the conn on the floor rather than leak. */
+                    MUTEX_UNLOCK(&li->conn_list_mutex);
+                    __sn__QuicConnection_release(&new_conn);
+                    new_conn = NULL;
+                    goto conn_drop;
                 }
                 MUTEX_UNLOCK(&li->conn_list_mutex);
 
-                /* Push to accept queue (handshake may complete quickly via I/O thread) */
+                /* Push to accept queue with its own retain. accept() transfers
+                 * this reference to the caller on pop; listener close drains
+                 * and releases it if never popped. */
                 MUTEX_LOCK(&li->accept_mutex);
                 if (li->accept_count < QUIC_MAX_INCOMING_STREAMS) {
-                    li->accept_queue_conns[li->accept_tail] = new_conn;
+                    li->accept_queue_conns[li->accept_tail] =
+                        __sn__QuicConnection_retain(new_conn);
                     li->accept_tail = (li->accept_tail + 1) % QUIC_MAX_INCOMING_STREAMS;
                     li->accept_count++;
                     COND_SIGNAL(&li->accept_cond);
                 }
                 MUTEX_UNLOCK(&li->accept_mutex);
+            conn_drop: ;
             }
         }
         /* No timer handling — each connection's I/O thread handles its own timers */
@@ -2674,10 +2666,6 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
     COND_BROADCAST(&si->read_cond);
     MUTEX_UNLOCK(&si->stream_mutex);
 
-    /* Unregister from global registry so the slot is reclaimed. Lookups
-     * via internal_ptr (the primary path) are unaffected. */
-    stream_unregister(_stream);
-
     /* Remove from the connection's stream array and release the connection's
      * reference. This prevents closed streams from accumulating in
      * ci->streams[] until connection teardown. The stream object may still
@@ -2692,6 +2680,21 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
             break;
         }
     }
+}
+
+/* Free stream internal state. Invoked via refcount hook when the last
+ * reference to the Sindarin struct is dropped. Idempotent. */
+void sn_quic_stream_dispose(__sn__QuicStream *stream) {
+    if (!stream) return;
+    RtQuicStream *_stream = (RtQuicStream *)stream;
+    QuicStreamInternal *si = stream_internal(_stream);
+    if (si == NULL) return;
+
+    _stream->internal_ptr = 0;
+    stream_buf_destroy(&si->recv_buf);
+    MUTEX_DESTROY(&si->stream_mutex);
+    COND_DESTROY(&si->read_cond);
+    free(si);
 }
 
 /* ============================================================================
@@ -2919,10 +2922,15 @@ char *sn_quic_connection_remote_address(__sn__QuicConnection *conn) {
     return strdup(ci->remote_addr_str);
 }
 
+/* Soft shutdown signal. Marks closed, sends CLOSE frame, broadcasts waiters.
+ * Tears down network state for client connections (joins I/O thread, frees
+ * SSL/qconn/socket). Does NOT free ci itself — that happens in dispose when
+ * the refcount drops to zero. Safe to call multiple times. */
 void sn_quic_connection_close(__sn__QuicConnection *conn) {
     if (conn == NULL) return;
     RtQuicConnection *_conn = (RtQuicConnection *)conn;
     QuicConnectionInternal *ci = conn_internal(_conn);
+    if (ci == NULL) return;
 
     /* Send close via I/O thread (only if not already closed) */
     if (!ci->closed) {
@@ -2938,10 +2946,12 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
 
     /* Signal all waiting threads — must run even if already closed,
      * because the I/O thread cleanup may not have woken everyone */
-    MUTEX_LOCK(&ci->conn_mutex);
-    COND_BROADCAST(&ci->handshake_cond);
-    COND_BROADCAST(&ci->accept_stream_cond);
-    MUTEX_UNLOCK(&ci->conn_mutex);
+    if (!ci->network_disposed) {
+        MUTEX_LOCK(&ci->conn_mutex);
+        COND_BROADCAST(&ci->handshake_cond);
+        COND_BROADCAST(&ci->accept_stream_cond);
+        MUTEX_UNLOCK(&ci->conn_mutex);
+    }
 
     /* Signal all streams */
     for (int i = 0; i < ci->stream_count; i++) {
@@ -2956,79 +2966,67 @@ void sn_quic_connection_close(__sn__QuicConnection *conn) {
         }
     }
 
-    /* For server connections, we only mark closed and signal waiters.
-     * The listener thread may still be using qconn, SSL, and streams,
-     * so cleanup is deferred to sn_quic_listener_close() after the
-     * listener thread is joined. */
-    if (ci->is_server) {
-        return;
+    /* For server connections, the listener still shares qconn/SSL/socket,
+     * so network teardown is deferred to sweep_closed_server_connections
+     * (runs on the listener thread). For client connections, tear down now. */
+    if (!ci->is_server) {
+        conn_teardown_network(ci, _conn);
     }
+}
 
-    /* Save OS resources before destroying */
-    SSL *ssl = ci->ssl;
-    ngtcp2_crypto_ossl_ctx *ossl_ctx = ci->ossl_ctx;
-    SSL_CTX *ssl_ctx = ci->ssl_ctx;
-    ngtcp2_conn *qconn = ci->qconn;
-    socket_t sock = (socket_t)_conn->socket_fd;
-    uint8_t *token = ci->resumption_token;
-    bool io_was_running = ci->io_running;
-    sn_thread_t io_thread = ci->io_thread;
+/* Free ci and all remaining internal state. Invoked via refcount hook when
+ * the last reference to the Sindarin struct is dropped. Idempotent. */
+void sn_quic_connection_dispose(__sn__QuicConnection *conn) {
+    if (conn == NULL) return;
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
+    QuicConnectionInternal *ci = conn_internal(_conn);
+    if (ci == NULL) return;
+
+    /* Cover the "drop without calling close" case. conn_teardown_network is
+     * idempotent, so it's a no-op if sweep or close already ran. */
+    conn_teardown_network(ci, _conn);
+
+    /* Free streams. quic_stream_free detaches each from ci->streams[], so
+     * snapshot the pointers first for a stable iteration. */
     int stream_count = ci->stream_count;
     RtQuicStream *streams_copy[QUIC_MAX_STREAMS];
     for (int i = 0; i < stream_count; i++) streams_copy[i] = ci->streams[i];
-
-    /* Stop and join I/O thread (client connections only) */
-    if (io_was_running) {
-        ci->io_running = false;
-#ifdef _WIN32
-        WaitForSingleObject(io_thread, 5000);
-        CloseHandle(io_thread);
-#else
-        pthread_join(io_thread, NULL);
-#endif
-    }
-
-    /* Cleanup OS resources (client connections only) */
-    if (ssl) {
-        SSL_set_app_data(ssl, NULL);
-        SSL_free(ssl);
-    }
-    if (ossl_ctx) {
-        ngtcp2_crypto_ossl_ctx_del(ossl_ctx);
-    }
-    if (ssl_ctx) {
-        SSL_CTX_free(ssl_ctx);
-    }
-    if (qconn) {
-        ngtcp2_conn_del(qconn);
-    }
-    if (sock != INVALID_SOCKET_VAL) {
-        CLOSE_SOCKET(sock);
-    }
-
-    /* Free streams */
     for (int i = 0; i < stream_count; i++) {
-        quic_stream_free(streams_copy[i]);
+        if (streams_copy[i]) quic_stream_free(streams_copy[i]);
     }
 
-    /* Free resumption token (allocated with malloc) */
-    if (token) {
-        free(token);
+    if (ci->resumption_token) {
+        free(ci->resumption_token);
+        ci->resumption_token = NULL;
     }
 
-    /* Cleanup command queue and wakeup */
     cmd_queue_destroy(&ci->cmd_queue);
     if (ci->wakeup_fd >= 0) {
         wakeup_destroy(ci->wakeup_fd, ci->wakeup_write_fd);
+        ci->wakeup_fd = -1;
     }
 
     MUTEX_DESTROY(&ci->conn_mutex);
     COND_DESTROY(&ci->handshake_cond);
     COND_DESTROY(&ci->accept_stream_cond);
 
-    /* Free internal state and unregister */
+    if (ci->is_server) {
+        if (ci->pkt_ring) {
+            free(ci->pkt_ring);
+            ci->pkt_ring = NULL;
+        }
+        MUTEX_DESTROY(&ci->pkt_ring_mutex);
+        COND_DESTROY(&ci->pkt_ring_cond);
+    }
+
+    if (ci->remote_addr_str) {
+        free(ci->remote_addr_str);
+        ci->remote_addr_str = NULL;
+    }
+
+    /* Publish NULL before free so any lingering conn_internal() load sees NULL */
+    _conn->internal_ptr = 0;
     free(ci);
-    conn_unregister(_conn);
 }
 
 /* ============================================================================
@@ -3103,7 +3101,7 @@ static __sn__QuicListener *quic_listener_create(char *address,
     /* Allocate Sindarin struct via compiler-generated __new() */
     RtQuicListener *listener = __sn__QuicListener__new();
     QuicListenerInternal *li = (QuicListenerInternal *)calloc(1, sizeof(QuicListenerInternal));
-    listener_register(listener, li);
+    listener->internal_ptr = (long long)(uintptr_t)li;
 
     listener->socket_fd = (long long)sock;
     listener->bound_port = bound_port;
@@ -3182,11 +3180,15 @@ long long sn_quic_listener_get_port(__sn__QuicListener *listener) {
     return _listener->bound_port;
 }
 
+/* Soft shutdown signal for the listener. Stops the accept loop, joins the
+ * listener thread, and tears down all server connections still in flight.
+ * Does NOT free li itself — that happens in sn_quic_listener_dispose when the
+ * refcount drops to zero. Safe to call multiple times. */
 void sn_quic_listener_close(__sn__QuicListener *listener) {
     if (listener == NULL) return;
     RtQuicListener *_listener = (RtQuicListener *)listener;
     QuicListenerInternal *li = listener_internal(_listener);
-    if (!li->running) return;
+    if (li == NULL || !li->running) return;
 
     li->running = false;
 
@@ -3203,129 +3205,98 @@ void sn_quic_listener_close(__sn__QuicListener *listener) {
     pthread_join(li->listen_thread, NULL);
 #endif
 
-    /* Stop all server connection I/O threads and join them */
+    /* Drain the accept queue — release retained refs for any conns that were
+     * enqueued but never popped by accept(). */
+    MUTEX_LOCK(&li->accept_mutex);
+    while (li->accept_count > 0) {
+        RtQuicConnection *qc = li->accept_queue_conns[li->accept_head];
+        li->accept_queue_conns[li->accept_head] = NULL;
+        li->accept_head = (li->accept_head + 1) % QUIC_MAX_INCOMING_STREAMS;
+        li->accept_count--;
+        if (qc) {
+            __sn__QuicConnection_release(&qc);
+        }
+    }
+    MUTEX_UNLOCK(&li->accept_mutex);
+
+    /* For each server conn still tracked: mark closed, signal waiters, tear
+     * down network state (joins I/O thread, frees SSL/qconn), then release
+     * the listener's retained reference. Dispose fires for conns the user
+     * has already dropped; for conns the user still holds, ci stays alive
+     * until the user drops, and dispose fires then. */
     MUTEX_LOCK(&li->conn_list_mutex);
-    for (int i = 0; i < li->connection_count; i++) {
-        if (li->connections[i]) {
-            QuicConnectionInternal *cci = conn_internal(li->connections[i]);
-            cci->closed = true;
-            cci->io_running = false;
-            /* Wake I/O thread so it exits */
-            MUTEX_LOCK(&cci->pkt_ring_mutex);
-            COND_SIGNAL(&cci->pkt_ring_cond);
-            MUTEX_UNLOCK(&cci->pkt_ring_mutex);
-            /* Signal stream waiters */
-            MUTEX_LOCK(&cci->conn_mutex);
-            COND_BROADCAST(&cci->accept_stream_cond);
-            MUTEX_UNLOCK(&cci->conn_mutex);
-            for (int j = 0; j < cci->stream_count; j++) {
-                if (cci->streams[j]) {
-                    QuicStreamInternal *si = stream_internal(cci->streams[j]);
-                    MUTEX_LOCK(&si->stream_mutex);
-                    si->closed = true;
-                    COND_BROADCAST(&si->read_cond);
-                    MUTEX_UNLOCK(&si->stream_mutex);
-                }
-            }
-        }
-    }
-    MUTEX_UNLOCK(&li->conn_list_mutex);
-
-    /* Join all server I/O threads (now that they've been signaled to stop) */
-    for (int i = 0; i < li->connection_count; i++) {
-        if (li->connections[i]) {
-            QuicConnectionInternal *cci = conn_internal(li->connections[i]);
-#ifdef _WIN32
-            WaitForSingleObject(cci->io_thread, 5000);
-            CloseHandle(cci->io_thread);
-#else
-            pthread_join(cci->io_thread, NULL);
-#endif
-        }
-    }
-
-    /* Now that listener thread is stopped, do full cleanup for all server
-     * connections. This was deferred because the listener thread was using
-     * these resources (qconn, SSL, streams). */
-    for (int i = 0; i < li->connection_count; i++) {
-        RtQuicConnection *sconn = li->connections[i];
+    while (li->connection_count > 0) {
+        int idx = li->connection_count - 1;
+        RtQuicConnection *sconn = li->connections[idx];
+        li->connections[idx] = NULL;
+        li->connection_count--;
         if (!sconn) continue;
 
         QuicConnectionInternal *cci = conn_internal(sconn);
+        if (cci) {
+            cci->closed = true;
 
-        /* Save OS resources before destroying */
-        SSL *conn_ssl = cci->ssl;
-        ngtcp2_crypto_ossl_ctx *conn_ossl_ctx = cci->ossl_ctx;
-        ngtcp2_conn *conn_qconn = cci->qconn;
-        uint8_t *conn_token = cci->resumption_token;
-        int conn_stream_count = cci->stream_count;
-        RtQuicStream *conn_streams[QUIC_MAX_STREAMS];
-        for (int j = 0; j < conn_stream_count; j++) conn_streams[j] = cci->streams[j];
+            /* Signal stream waiters so any user threads blocked in
+             * read/accept can notice the shutdown. */
+            for (int j = 0; j < cci->stream_count; j++) {
+                if (cci->streams[j]) {
+                    QuicStreamInternal *si = stream_internal(cci->streams[j]);
+                    if (si) {
+                        MUTEX_LOCK(&si->stream_mutex);
+                        si->closed = true;
+                        COND_BROADCAST(&si->read_cond);
+                        MUTEX_UNLOCK(&si->stream_mutex);
+                    }
+                }
+            }
 
-        /* Cleanup SSL (server connections share listener's ssl_ctx, don't free it) */
-        if (conn_ssl) {
-            SSL_set_app_data(conn_ssl, NULL);
-            SSL_free(conn_ssl);
-        }
-        if (conn_ossl_ctx) {
-            ngtcp2_crypto_ossl_ctx_del(conn_ossl_ctx);
-        }
+            /* Release conn_list_mutex around teardown: conn_teardown_network
+             * joins the I/O thread, which may block briefly, and we do not
+             * want to hold the listener's connection-list lock during a join. */
+            MUTEX_UNLOCK(&li->conn_list_mutex);
+            conn_teardown_network(cci, sconn);
+            MUTEX_LOCK(&li->conn_list_mutex);
 
-        /* Delete ngtcp2 connection */
-        if (conn_qconn) {
-            ngtcp2_conn_del(conn_qconn);
-        }
-
-        /* Free streams */
-        for (int j = 0; j < conn_stream_count; j++) {
-            quic_stream_free(conn_streams[j]);
-        }
-
-        /* Free resumption token (allocated with malloc) */
-        if (conn_token) {
-            free(conn_token);
+            MUTEX_LOCK(&cci->conn_mutex);
+            COND_BROADCAST(&cci->handshake_cond);
+            COND_BROADCAST(&cci->accept_stream_cond);
+            MUTEX_UNLOCK(&cci->conn_mutex);
         }
 
-        /* Destroy command queue and packet ring */
-        cmd_queue_destroy(&cci->cmd_queue);
-        if (cci->pkt_ring) {
-            free(cci->pkt_ring);
-        }
-        MUTEX_DESTROY(&cci->pkt_ring_mutex);
-        COND_DESTROY(&cci->pkt_ring_cond);
+        __sn__QuicConnection_release(&sconn);
+    }
+    MUTEX_UNLOCK(&li->conn_list_mutex);
+}
 
-        /* Destroy mutex/cond */
-        MUTEX_DESTROY(&cci->conn_mutex);
-        COND_DESTROY(&cci->handshake_cond);
-        COND_DESTROY(&cci->accept_stream_cond);
+/* Free li and all remaining listener state. Invoked via refcount hook when
+ * the last reference to the Sindarin struct is dropped. Idempotent. */
+void sn_quic_listener_dispose(__sn__QuicListener *listener) {
+    if (listener == NULL) return;
+    RtQuicListener *_listener = (RtQuicListener *)listener;
+    QuicListenerInternal *li = listener_internal(_listener);
+    if (li == NULL) return;
 
-        /* Free remote address string */
-        if (cci->remote_addr_str) {
-            free(cci->remote_addr_str);
-        }
-
-        /* Free internal state and unregister */
-        free(cci);
-        conn_unregister(sconn);
+    /* Cover the "drop without calling close" case. sn_quic_listener_close
+     * is idempotent. */
+    if (li->running) {
+        sn_quic_listener_close(listener);
     }
 
-    /* Save listener OS resources before destroying */
-    SSL_CTX *ssl_ctx = li->ssl_ctx;
+    if (li->ssl_ctx) {
+        SSL_CTX_free(li->ssl_ctx);
+        li->ssl_ctx = NULL;
+    }
     socket_t sock = (socket_t)_listener->socket_fd;
-
-    /* Cleanup OS resources */
-    if (ssl_ctx) {
-        SSL_CTX_free(ssl_ctx);
-    }
     if (sock != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(sock);
+        _listener->socket_fd = (long long)INVALID_SOCKET_VAL;
     }
 
     MUTEX_DESTROY(&li->accept_mutex);
     COND_DESTROY(&li->accept_cond);
     MUTEX_DESTROY(&li->conn_list_mutex);
 
-    /* Free listener internal state and unregister */
+    /* Publish NULL before free so any lingering listener_internal() load sees NULL */
+    _listener->internal_ptr = 0;
     free(li);
-    listener_unregister(_listener);
 }
