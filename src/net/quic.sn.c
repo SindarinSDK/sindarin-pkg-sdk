@@ -1218,19 +1218,6 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
         if (nwrite > 0) {
             quic_send_packet(conn, buf, (size_t)nwrite);
         }
-        /* A single writev_stream call only emits one packet. If the stream
-         * had pending send-buffered data, or the FIN was held while the
-         * packet picked up ACKs only, the remaining data and/or the FIN
-         * frame sit in ngtcp2's scheduled state and never reach the peer.
-         * That starves the peer's stream_close_cb, which in turn starves
-         * MAX_STREAMS credit replenishment — callers of openStream()
-         * eventually block with ERR_STREAM_ID_BLOCKED. Drain the TX loop
-         * here so the FIN is on the wire before WRITE_FIN returns. */
-        if (ci->is_server) {
-            quic_server_flush_tx(conn, ci->listener_sock);
-        } else {
-            quic_flush_tx(conn);
-        }
         cmd->result_code = (nwrite >= 0) ? 0 : (int)nwrite;
         break;
     }
