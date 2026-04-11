@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <time.h>
 
@@ -251,6 +252,22 @@ static void wakeup_destroy(int read_fd, int write_fd) {
 #define QUIC_IO_DEBUG 0
 #endif
 #define QUIC_IO_DBG(...) do { if (QUIC_IO_DEBUG) { fprintf(stderr, "[QUIC I/O] "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while(0)
+
+/* Stream lifecycle tracing — set SN_QUIC_DEBUG_STREAMS=1 in the env to
+ * enable. Checked lazily on first call and cached. Output goes to stderr
+ * with a [QUIC strm] prefix so it's greppable. Intended for diagnosing
+ * MAX_STREAMS credit replenishment bugs; disabled by default. */
+static int quic_stream_debug_enabled(void) {
+    static int checked = 0;
+    static int enabled = 0;
+    if (!checked) {
+        const char *env = getenv("SN_QUIC_DEBUG_STREAMS");
+        enabled = (env != NULL && env[0] != '\0' && env[0] != '0');
+        checked = 1;
+    }
+    return enabled;
+}
+#define QUIC_STRM_DBG(...) do { if (quic_stream_debug_enabled()) { fprintf(stderr, "[QUIC strm] "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); fflush(stderr); } } while(0)
 
 /* Static secret for Retry token generation/verification (per-process) */
 static uint8_t g_retry_secret[QUIC_RETRY_SECRET_LEN];
@@ -717,6 +734,9 @@ static int quic_stream_open_cb(ngtcp2_conn *conn, int64_t stream_id, void *user_
     RtQuicConnection *qc = (RtQuicConnection *)user_data;
     QuicConnectionInternal *qci = conn_internal(qc);
 
+    QUIC_STRM_DBG("open_cb: incoming stream conn=%p stream_id=%" PRId64 " is_server=%d",
+                  (void*)qci, (int64_t)stream_id, qci->is_server ? 1 : 0);
+
     /* Create stream entry */
     quic_find_or_create_stream(qc, stream_id);
 
@@ -742,14 +762,33 @@ static int quic_stream_close_cb(ngtcp2_conn *qconn, uint32_t flags,
     RtQuicConnection *qc = (RtQuicConnection *)user_data;
     QuicConnectionInternal *qci = conn_internal(qc);
 
+    QUIC_STRM_DBG("close_cb: fire conn=%p stream_id=%" PRId64 " is_server=%d flags=0x%x",
+                  (void*)qci, (int64_t)stream_id, qci->is_server ? 1 : 0, flags);
+
+    /* Canonical final-close site. Mark the stream fully closed AND remove
+     * it from qci->streams[]. This is the only place the array shrinks
+     * for normal closure — user close() only sends FIN. Doing removal
+     * here (not earlier) keeps late recv_stream_data_cb callbacks from
+     * resurrecting zombie entries via quic_find_or_create_stream. */
     for (int i = 0; i < qci->stream_count; i++) {
         if (qci->streams[i] && qci->streams[i]->stream_id == stream_id) {
             QuicStreamInternal *si = stream_internal(qci->streams[i]);
             MUTEX_LOCK(&si->stream_mutex);
             si->closed = true;
             si->recv_buf.fin_received = true;
-            COND_SIGNAL(&si->read_cond);
+            COND_BROADCAST(&si->read_cond);
             MUTEX_UNLOCK(&si->stream_mutex);
+
+            /* Drop the connection's reference + array slot. If the user
+             * still holds a handle via openStream/acceptStream the stream
+             * struct stays alive until they release it; otherwise the
+             * refcount hits zero here and sn_quic_stream_dispose frees
+             * the internal state. */
+            RtQuicStream *ref = qci->streams[i];
+            qci->streams[i] = qci->streams[qci->stream_count - 1];
+            qci->streams[qci->stream_count - 1] = NULL;
+            qci->stream_count--;
+            __sn__QuicStream_release(&ref);
             break;
         }
     }
@@ -762,6 +801,9 @@ static int quic_stream_close_cb(ngtcp2_conn *qconn, uint32_t flags,
     bool is_bidi = (stream_id & 0x2) == 0;
     if (is_bidi) {
         ngtcp2_conn_extend_max_streams_bidi(qconn, 1);
+        QUIC_STRM_DBG("close_cb: extend_max_streams_bidi(1) conn=%p stream_id=%" PRId64 " new_streams_bidi_left=%" PRIu64,
+                      (void*)qci, (int64_t)stream_id,
+                      ngtcp2_conn_get_streams_bidi_left(qconn));
     } else {
         ngtcp2_conn_extend_max_streams_uni(qconn, 1);
     }
@@ -1288,6 +1330,8 @@ static void quic_drain_cmd_queue(RtQuicConnection *conn) {
     QuicConnectionInternal *ci = conn_internal(conn);
     QuicCommand *cmd;
     while ((cmd = cmd_queue_pop(&ci->cmd_queue)) != NULL) {
+        QUIC_STRM_DBG("drain_cmd_queue: pop cmd conn=%p type=%d stream_id=%" PRId64,
+                      (void*)ci, (int)cmd->type, (int64_t)cmd->stream_id);
         if (ci->closed && cmd->type != QUIC_CMD_CLOSE_CONN
                        && cmd->type != QUIC_CMD_SHUTDOWN) {
             cmd->result_code = -1;
@@ -1295,6 +1339,8 @@ static void quic_drain_cmd_queue(RtQuicConnection *conn) {
             continue;
         }
         quic_execute_cmd(conn, cmd);
+        QUIC_STRM_DBG("drain_cmd_queue: done cmd conn=%p type=%d stream_id=%" PRId64 " result_code=%d",
+                      (void*)ci, (int)cmd->type, (int64_t)cmd->stream_id, cmd->result_code);
     }
 }
 
@@ -1417,7 +1463,14 @@ static void quic_io_thread_func(RtQuicConnection *conn) {
     QUIC_IO_DBG("client I/O thread started, sock=%lld wakeup=%d",
                 (long long)conn->socket_fd, ci->wakeup_fd);
 
+    uint64_t io_iter = 0;
     while (ci->io_running && !ci->closed) {
+        io_iter++;
+        if (quic_stream_debug_enabled() && (ci->cmd_queue.head != NULL || io_iter % 200 == 0)) {
+            QUIC_STRM_DBG("io_loop: client conn=%p iter=%" PRIu64 " cmd_queue_head=%s",
+                          (void*)ci, io_iter,
+                          ci->cmd_queue.head ? "nonempty" : "empty");
+        }
         /* Calculate timeout from ngtcp2 expiry — no mutex needed, sole owner */
         ngtcp2_tstamp now = quic_timestamp();
         ngtcp2_tstamp expiry = ngtcp2_conn_get_expiry(ci->qconn);
@@ -2646,10 +2699,23 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
     if (!stream) return;
     RtQuicStream *_stream = (RtQuicStream *)stream;
     QuicStreamInternal *si = stream_internal(_stream);
-    if (si->closed) return;
+
+    /* Guard against double-close: once the app has sent its FIN, further
+     * close() calls are no-ops. Uses write_closed (not closed) because
+     * si->closed is now reserved for the ngtcp2-final-close transition
+     * that happens later in quic_stream_close_cb. */
+    MUTEX_LOCK(&si->stream_mutex);
+    if (si->write_closed) {
+        MUTEX_UNLOCK(&si->stream_mutex);
+        return;
+    }
+    MUTEX_UNLOCK(&si->stream_mutex);
 
     RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
     QuicConnectionInternal *ci = conn_internal(conn);
+
+    QUIC_STRM_DBG("stream_close: enter conn=%p stream_id=%" PRId64 " is_server=%d",
+                  (void*)ci, (int64_t)_stream->stream_id, ci->is_server ? 1 : 0);
 
     if (!ci->closed) {
         QuicCommand cmd;
@@ -2657,29 +2723,20 @@ void sn_quic_stream_close(__sn__QuicStream *stream) {
         cmd.type = QUIC_CMD_WRITE_FIN;
         cmd.stream_id = _stream->stream_id;
         quic_submit_cmd_and_wait(ci, &cmd);
+        QUIC_STRM_DBG("stream_close: WRITE_FIN done conn=%p stream_id=%" PRId64,
+                      (void*)ci, (int64_t)_stream->stream_id);
     }
 
-    /* Mark stream closed locally */
+    /* Mark the write half closed. si->closed and array removal are NOT done
+     * here — they belong to quic_stream_close_cb. Doing them eagerly caused
+     * zombie entries: late-arriving recv_stream_data_cb calls for this
+     * stream_id would not find the existing entry (it was removed) and
+     * would resurrect a new one via quic_find_or_create_stream, bloating
+     * ci->streams[] until it hit QUIC_MAX_STREAMS and broke new opens. */
     MUTEX_LOCK(&si->stream_mutex);
     si->write_closed = true;
-    si->closed = true;
     COND_BROADCAST(&si->read_cond);
     MUTEX_UNLOCK(&si->stream_mutex);
-
-    /* Remove from the connection's stream array and release the connection's
-     * reference. This prevents closed streams from accumulating in
-     * ci->streams[] until connection teardown. The stream object may still
-     * be alive if the caller holds a reference. */
-    for (int i = 0; i < ci->stream_count; i++) {
-        if (ci->streams[i] == _stream) {
-            RtQuicStream *ref = ci->streams[i];
-            ci->streams[i] = ci->streams[ci->stream_count - 1];
-            ci->streams[ci->stream_count - 1] = NULL;
-            ci->stream_count--;
-            __sn__QuicStream_release(&ref);
-            break;
-        }
-    }
 }
 
 /* Free stream internal state. Invoked via refcount hook when the last
@@ -2727,6 +2784,12 @@ __sn__QuicStream *sn_quic_connection_open_stream(__sn__QuicConnection *conn) {
     QuicConnectionInternal *ci = conn_internal(_conn);
     if (ci->closed) return NULL;
 
+    if (quic_stream_debug_enabled()) {
+        uint64_t left = ngtcp2_conn_get_streams_bidi_left(ci->qconn);
+        QUIC_STRM_DBG("open_stream: pre-submit conn=%p streams_bidi_left=%" PRIu64 " local_stream_count=%d",
+                      (void*)ci, left, ci->stream_count);
+    }
+
     QuicCommand cmd;
     memset(&cmd, 0, sizeof(cmd));
     cmd.type = QUIC_CMD_OPEN_BIDI;
@@ -2734,8 +2797,11 @@ __sn__QuicStream *sn_quic_connection_open_stream(__sn__QuicConnection *conn) {
     int rv = quic_submit_cmd_and_wait(ci, &cmd);
     if (rv != 0) {
         fprintf(stderr, "QUIC: Failed to open bidi stream: %s\n", ngtcp2_strerror(rv));
+        QUIC_STRM_DBG("open_stream: FAILED conn=%p rv=%d (%s)", (void*)ci, rv, ngtcp2_strerror(rv));
         return NULL;
     }
+
+    QUIC_STRM_DBG("open_stream: opened conn=%p stream_id=%" PRId64, (void*)ci, (int64_t)cmd.result_stream_id);
 
     /* Stream was already created by the I/O thread — just look it up.
      * Retain before returning so Sindarin gets its own reference. */

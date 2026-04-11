@@ -9,6 +9,7 @@ test_stream_id: PASS
 test_config: PASS
 test_server_multi_exchange: PASS
 test_sequential_stream_reopen: PASS
+test_persistent_rpc_burst: PASS
 test_connection_churn: PASS
 
 All QUIC tests passed!
