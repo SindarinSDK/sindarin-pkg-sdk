@@ -1,0 +1,18 @@
+=== SDK QUIC Resilience Tests ===
+
+test_pending_read_wakes_on_peer_close: PASS
+test_pending_read_wakes_when_server_drops: PASS
+test_pending_accept_wakes_on_peer_close: PASS
+test_pending_accept_wakes_when_client_drops: PASS
+test_read_after_peer_close_returns_empty: PASS
+test_concurrent_readers_wake_on_abrupt_drop: PASS
+test_readexact_bounded_when_peer_drops: PASS
+test_listener_close_wakes_pending_accept: PASS
+test_readall_bounded_when_peer_drops: PASS
+test_raw_write_loop_during_abrupt_drop: PASS
+test_server_writes_to_dead_client: PASS
+test_partial_readline_bounded_when_peer_dies: PASS
+test_concurrent_writers_during_abrupt_drop: PASS
+test_accept_stream_after_close_is_bounded: PASS
+
+All QUIC resilience tests passed!

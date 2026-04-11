@@ -56,22 +56,8 @@ all: test
 #------------------------------------------------------------------------------
 # test - Run SDK tests using compiled Sindarin test runner
 #------------------------------------------------------------------------------
-# Two-pass test strategy:
-#
-#   1. tests/        — normal SDK tests, run at the runner's default
-#                      parallelism. Fast individual tests.
-#
-#   2. tests_resilience/ — QUIC resilience tests: fault-injection scenarios
-#                      with wall-clock idle timers, retry backoff, abrupt
-#                      drops. CPU-intensive enough that running them in
-#                      parallel with the main suite starves timing-sensitive
-#                      tests (test_persistent_rpc_burst in particular hits
-#                      stream-budget races). We run them in a SECOND
-#                      sequential pass with a generous per-test wall
-#                      timeout so the main suite is unaffected.
 test: hooks $(RUN_TESTS_BIN)
 	@$(RUN_TESTS_BIN)
-	@$(RUN_TESTS_BIN) all tests_resilience --parallel 1 --run-timeout 120
 
 #------------------------------------------------------------------------------
 # Build the test runner
