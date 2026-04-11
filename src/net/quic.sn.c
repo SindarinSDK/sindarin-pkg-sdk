@@ -1265,10 +1265,70 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
     }
 
     case QUIC_CMD_OPEN_BIDI: {
-        int64_t stream_id;
-        int rv = ngtcp2_conn_open_bidi_stream(ci->qconn, &stream_id, NULL);
-        if (rv == 0) {
-            quic_find_or_create_stream(conn, stream_id);
+        int64_t stream_id = -1;
+        int rv = 0;
+        /* Retry on STREAM_ID_BLOCKED. The peer sends MAX_STREAMS frames
+         * as streams close on its side, but under CPU contention those
+         * frames can lag. We drain incoming packets, flush TX, and retry
+         * for up to ~500ms before giving up. This mirrors the flow-control
+         * retry in QUIC_CMD_WRITE above. */
+        int open_retries = 0;
+        for (;;) {
+            rv = ngtcp2_conn_open_bidi_stream(ci->qconn, &stream_id, NULL);
+            if (rv == 0) {
+                quic_find_or_create_stream(conn, stream_id);
+                break;
+            }
+            if (rv != NGTCP2_ERR_STREAM_ID_BLOCKED) break;
+            if (open_retries++ >= 200) break;
+            if (ci->is_server) {
+                for (;;) {
+                    QuicPacket op_pkt;
+                    bool got = false;
+                    MUTEX_LOCK(&ci->pkt_ring_mutex);
+                    if (ci->pkt_ring_head != ci->pkt_ring_tail) {
+                        op_pkt = ci->pkt_ring[ci->pkt_ring_tail];
+                        ci->pkt_ring_tail = (ci->pkt_ring_tail + 1) % QUIC_PKT_RING_SIZE;
+                        got = true;
+                    }
+                    MUTEX_UNLOCK(&ci->pkt_ring_mutex);
+                    if (!got) break;
+                    ngtcp2_path op_path;
+                    memset(&op_path, 0, sizeof(op_path));
+                    op_path.local.addr = (struct sockaddr *)&ci->local_addr;
+                    op_path.local.addrlen = ci->local_addrlen;
+                    op_path.remote.addr = (struct sockaddr *)&op_pkt.from_addr;
+                    op_path.remote.addrlen = op_pkt.from_len;
+                    ngtcp2_pkt_info op_pi;
+                    memset(&op_pi, 0, sizeof(op_pi));
+                    ngtcp2_conn_read_pkt(ci->qconn, &op_path, &op_pi,
+                                         op_pkt.data, op_pkt.len, quic_timestamp());
+                }
+                quic_server_flush_tx(conn, ci->listener_sock);
+            } else {
+                uint8_t op_buf[QUIC_RECV_BUF_SIZE];
+                for (;;) {
+                    struct sockaddr_storage op_from;
+                    socklen_t op_from_len = sizeof(op_from);
+                    ssize_t op_n = recvfrom(conn->socket_fd, (char *)op_buf,
+                                            sizeof(op_buf), 0,
+                                            (struct sockaddr *)&op_from, &op_from_len);
+                    if (op_n <= 0) break;
+                    ngtcp2_path op_path;
+                    memset(&op_path, 0, sizeof(op_path));
+                    op_path.local.addr = (struct sockaddr *)&ci->local_addr;
+                    op_path.local.addrlen = ci->local_addrlen;
+                    op_path.remote.addr = (struct sockaddr *)&op_from;
+                    op_path.remote.addrlen = op_from_len;
+                    ngtcp2_pkt_info op_pi;
+                    memset(&op_pi, 0, sizeof(op_pi));
+                    ngtcp2_conn_read_pkt(ci->qconn, &op_path, &op_pi,
+                                         op_buf, (size_t)op_n, quic_timestamp());
+                }
+                quic_flush_tx(conn);
+            }
+            struct timespec open_ts = {0, 10 * 1000000L}; /* 10ms */
+            nanosleep(&open_ts, NULL);
         }
         cmd->result_stream_id = stream_id;
         cmd->result_code = rv;
@@ -1276,14 +1336,70 @@ static void quic_execute_cmd(RtQuicConnection *conn, QuicCommand *cmd) {
     }
 
     case QUIC_CMD_OPEN_UNI: {
-        int64_t stream_id;
-        int rv = ngtcp2_conn_open_uni_stream(ci->qconn, &stream_id, NULL);
-        if (rv == 0) {
-            RtQuicStream *s = quic_find_or_create_stream(conn, stream_id);
-            if (s) {
-                QuicStreamInternal *si = stream_internal(s);
-                si->is_uni = true;
+        int64_t stream_id = -1;
+        int rv = 0;
+        /* Symmetric retry loop for unidirectional streams. */
+        int open_retries = 0;
+        for (;;) {
+            rv = ngtcp2_conn_open_uni_stream(ci->qconn, &stream_id, NULL);
+            if (rv == 0) {
+                RtQuicStream *s = quic_find_or_create_stream(conn, stream_id);
+                if (s) {
+                    QuicStreamInternal *si = stream_internal(s);
+                    si->is_uni = true;
+                }
+                break;
             }
+            if (rv != NGTCP2_ERR_STREAM_ID_BLOCKED) break;
+            if (open_retries++ >= 200) break;
+            if (ci->is_server) {
+                for (;;) {
+                    QuicPacket op_pkt;
+                    bool got = false;
+                    MUTEX_LOCK(&ci->pkt_ring_mutex);
+                    if (ci->pkt_ring_head != ci->pkt_ring_tail) {
+                        op_pkt = ci->pkt_ring[ci->pkt_ring_tail];
+                        ci->pkt_ring_tail = (ci->pkt_ring_tail + 1) % QUIC_PKT_RING_SIZE;
+                        got = true;
+                    }
+                    MUTEX_UNLOCK(&ci->pkt_ring_mutex);
+                    if (!got) break;
+                    ngtcp2_path op_path;
+                    memset(&op_path, 0, sizeof(op_path));
+                    op_path.local.addr = (struct sockaddr *)&ci->local_addr;
+                    op_path.local.addrlen = ci->local_addrlen;
+                    op_path.remote.addr = (struct sockaddr *)&op_pkt.from_addr;
+                    op_path.remote.addrlen = op_pkt.from_len;
+                    ngtcp2_pkt_info op_pi;
+                    memset(&op_pi, 0, sizeof(op_pi));
+                    ngtcp2_conn_read_pkt(ci->qconn, &op_path, &op_pi,
+                                         op_pkt.data, op_pkt.len, quic_timestamp());
+                }
+                quic_server_flush_tx(conn, ci->listener_sock);
+            } else {
+                uint8_t op_buf[QUIC_RECV_BUF_SIZE];
+                for (;;) {
+                    struct sockaddr_storage op_from;
+                    socklen_t op_from_len = sizeof(op_from);
+                    ssize_t op_n = recvfrom(conn->socket_fd, (char *)op_buf,
+                                            sizeof(op_buf), 0,
+                                            (struct sockaddr *)&op_from, &op_from_len);
+                    if (op_n <= 0) break;
+                    ngtcp2_path op_path;
+                    memset(&op_path, 0, sizeof(op_path));
+                    op_path.local.addr = (struct sockaddr *)&ci->local_addr;
+                    op_path.local.addrlen = ci->local_addrlen;
+                    op_path.remote.addr = (struct sockaddr *)&op_from;
+                    op_path.remote.addrlen = op_from_len;
+                    ngtcp2_pkt_info op_pi;
+                    memset(&op_pi, 0, sizeof(op_pi));
+                    ngtcp2_conn_read_pkt(ci->qconn, &op_path, &op_pi,
+                                         op_buf, (size_t)op_n, quic_timestamp());
+                }
+                quic_flush_tx(conn);
+            }
+            struct timespec open_ts = {0, 10 * 1000000L}; /* 10ms */
+            nanosleep(&open_ts, NULL);
         }
         cmd->result_stream_id = stream_id;
         cmd->result_code = rv;
@@ -1829,6 +1945,15 @@ static RtQuicConnection *quic_connection_create(char *address,
     ngtcp2_settings_default(&settings);
     settings.initial_ts = quic_timestamp();
     settings.max_tx_udp_payload_size = QUIC_MAX_PACKET_SIZE;
+    /* Bound the handshake separately from the post-handshake idle timer so
+     * callers can fail-fast on a dead or unreachable peer. Without this
+     * ngtcp2's handshake_timeout defaults to UINT64_MAX and the only bound
+     * is the PTO probe sequence, which can take several seconds before
+     * max_idle_timeout kicks in. Uses the same idle_timeout_ms knob so a
+     * single config value controls both. */
+    if (cfg.idle_timeout_ms > 0) {
+        settings.handshake_timeout = (uint64_t)cfg.idle_timeout_ms * NGTCP2_MILLISECONDS;
+    }
 
     /* Create ngtcp2 client connection */
     int rv = ngtcp2_conn_client_new(&ci->qconn, &dcid, &scid, &path,
@@ -2662,16 +2787,32 @@ long long sn_quic_stream_write(__sn__QuicStream *stream, SnArray *data) {
 void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
     if (!stream || !text) return;
     RtQuicStream *_stream = (RtQuicStream *)stream;
+    QuicStreamInternal *si = stream_internal(_stream);
+    if (!si) return;
+
+    RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
+    QuicConnectionInternal *ci = conn_internal(conn);
+    if (!ci || ci->closed || si->write_closed) return;
 
     size_t text_len = strlen(text);
     size_t total_len = text_len + 1;
 
+    /* Register the payload in ci->write_bufs so it lives until the connection
+       closes. ngtcp2 retains internal references to stream data for WRITE_MORE
+       coalescing and retransmission, so freeing immediately after submit races
+       with the I/O thread's next flush. Matches sn_quic_stream_write. */
     uint8_t *buf = (uint8_t *)malloc(total_len);
+    if (!buf) return;
     memcpy(buf, text, text_len);
     buf[text_len] = '\n';
 
-    RtQuicConnection *conn = (RtQuicConnection *)(uintptr_t)_stream->conn_ptr;
-    QuicConnectionInternal *ci = conn_internal(conn);
+    QuicWriteBuf *wb = (QuicWriteBuf *)malloc(sizeof(QuicWriteBuf));
+    if (!wb) { free(buf); return; }
+    wb->data = buf;
+    MUTEX_LOCK(&ci->write_bufs_mutex);
+    wb->next = ci->write_bufs;
+    ci->write_bufs = wb;
+    MUTEX_UNLOCK(&ci->write_bufs_mutex);
 
     QuicCommand cmd;
     memset(&cmd, 0, sizeof(cmd));
@@ -2681,7 +2822,6 @@ void sn_quic_stream_write_line(__sn__QuicStream *stream, char *text) {
     cmd.data_len = total_len;
 
     quic_submit_cmd_and_wait(ci, &cmd);
-    free(buf);
 }
 
 long long sn_quic_stream_get_id(__sn__QuicStream *stream) {
@@ -3375,4 +3515,38 @@ void sn_quic_listener_dispose(__sn__QuicListener *listener) {
     /* Publish NULL before free so any lingering listener_internal() load sees NULL */
     _listener->internal_ptr = 0;
     free(li);
+}
+
+/* ============================================================================
+ * Test-only fault injection hooks
+ * ============================================================================
+ * These functions exist solely to let the resilience test suite reproduce
+ * network faults that are otherwise hard to produce in a single-process test
+ * harness. They are NOT declared in quic.sn and are NOT part of the public
+ * SDK surface — the resilience test file declares its own native fn alias
+ * to reach them. Application code MUST NOT call these.
+ * ============================================================================ */
+
+/* Abruptly shut down the connection's underlying UDP socket. No graceful
+ * CONNECTION_CLOSE is sent. The peer goes silent from the local perspective
+ * and must detect the drop via its own idle timer.
+ *
+ * For client connections, this severs the client's network path (its own
+ * per-connection UDP socket). For server connections, this shuts down the
+ * listener's shared socket, which kills the network path for every
+ * connection on that listener — this is the in-process analogue of the
+ * server process being SIGKILLed.
+ *
+ * Idempotent. Uses shutdown(SHUT_RDWR) rather than close() so the fd stays
+ * valid for any concurrent users until the normal teardown path frees it. */
+void sn_quic_test_drop_socket(__sn__QuicConnection *conn) {
+    if (conn == NULL) return;
+    RtQuicConnection *_conn = (RtQuicConnection *)conn;
+    socket_t sock = (socket_t)_conn->socket_fd;
+    if (sock == INVALID_SOCKET_VAL) return;
+#ifdef _WIN32
+    shutdown(sock, SD_BOTH);
+#else
+    shutdown(sock, SHUT_RDWR);
+#endif
 }

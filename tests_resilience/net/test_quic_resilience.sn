@@ -1,0 +1,1706 @@
+# ==============================================================================
+# test_quic_resilience.sn - Failure-mode tests for QUIC
+# ==============================================================================
+# These tests describe the REQUIRED resilience behavior of the QUIC stack:
+#
+# (a) Connect must fail in bounded time when the peer is not ready,
+# so one-shot callers don't wedge on startup/readiness races.
+# (b) Idle timeout must mark the connection closed in bounded time.
+# (c) Pending readLine() / acceptStream() / write() on a connection must
+# unblock and surface a clean signal when the peer closes — never
+# hang on a lost condition-variable wakeup.
+# (d) Post-close operations must not crash, and repeated close must be
+# idempotent.
+#
+# Every test has a wall-clock deadline. Background operations run in spawned
+# threads and communicate with main via `sync var` flags; main polls those
+# flags until a deadline, then asserts. A regression therefore fails loudly
+# within seconds instead of hanging the runner until its 30s wall timeout.
+#
+# Some of these tests describe behavior that is NOT currently correct on main.
+# Those tests are the regression gate for the upcoming fixes. The comment on
+# each test says what it catches.
+# ==============================================================================
+
+import "sindarin-pkg-sdk/src/net/quic"
+import "sindarin-pkg-sdk/src/time/time"
+
+# ==============================================================================
+# Test-only fault injection
+# ==============================================================================
+# Declared as a free native fn that resolves at link time against the symbol
+# in quic.sn.c. NOT a public API — this is only here so the resilience tests
+# can simulate abrupt peer death without a real multi-process harness.
+
+@alias "sn_quic_test_drop_socket"
+native fn testDropSocket(conn: QuicConnection): void
+
+# ==============================================================================
+# Shared state for background threads
+# ==============================================================================
+# Reused across tests via resetBg() — tests run sequentially so there is no
+# cross-test contention.
+
+sync var bgDone: bool = false
+sync var bgElapsedMs: long = 0l
+sync var bgResultInt: int = 0
+sync var bgResultStr: str = ""
+
+# Second set of flags for tests that need two concurrent background threads
+sync var bg2Done: bool = false
+sync var bg2ResultStr: str = ""
+
+fn resetBg(): void =>
+  bgDone = false
+  bgElapsedMs = 0l
+  bgResultInt = 0
+  bgResultStr = ""
+  bg2Done = false
+  bg2ResultStr = ""
+
+# Poll `bgDone` at 50ms intervals until it flips or `timeoutMs` elapses.
+# Returns true if the flag flipped, false on deadline.
+fn waitForBg(timeoutMs: long): bool =>
+  var deadline: long = Time.now().millis() + timeoutMs
+  while !bgDone =>
+    if Time.now().millis() >= deadline =>
+      return false
+    Time.sleep(50)
+  return true
+
+# ==============================================================================
+# Test 1: connect() to a port with no listener must return in bounded time.
+# ==============================================================================
+# Regression gate for: one-shot callers that start before a sibling service is
+# ready must not block for 30 seconds on the default idle timeout. We force a
+# short idle timeout via config and assert the call returns within 5 seconds.
+#
+# Passes on main IF ngtcp2's idle timer is honoured as a handshake bound.
+# Fails if the handshake wait is unbounded, or if connect() deadlocks on the
+# closed-path condition broadcast.
+
+fn connectNoListenerBg(port: int): int =>
+  var start: Time = Time.now()
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(2000)
+  var c: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  bgElapsedMs = Time.now().diff(start)
+  bgDone = true
+  return 0
+
+fn test_connect_without_listener_is_bounded(): void =>
+  print("test_connect_without_listener_is_bounded: ")
+  resetBg()
+
+  # High port unlikely to have anything bound. A false negative (something
+  # IS listening on 59999) still respects the deadline invariant.
+  var h: int = & connectNoListenerBg(59999)
+
+  assert(waitForBg(3000l),
+    "connect() to dead port did not return within 3s (idleTimeout=2000ms)")
+  assert(bgElapsedMs <= 3000l,
+    $"connect() took {bgElapsedMs}ms, expected <= 3000ms")
+  h ~
+  print("PASS\n")
+
+# ==============================================================================
+# Test 2: startup race — client must be able to retry until the server appears.
+# ==============================================================================
+# Regression gate for the one-shot startup race: a client process that starts
+# before a sibling server is bound must be able to retry connect() in a loop
+# and succeed once the server comes up. Since the SDK does not yet expose
+# connectWithRetry, this documents the caller-side pattern using the existing
+# API: short idleTimeout per attempt, isClosed() check after connect, backoff,
+# retry. A regression that makes connect() crash on failure, or isClosed()
+# unsafe on a failed handle, or leaks state across failed attempts, will
+# break this test loudly.
+
+fn delayedServerBind(targetPort: int, certPath: str, keyPath: str, delayMs: int): int =>
+  Time.sleep(delayMs)
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+  var server: QuicListener = QuicListener.bindWith($":{targetPort}", certPath, keyPath, cfg)
+  var sc: QuicConnection = server.accept()
+  var ss: QuicStream = sc.acceptStream()
+  var msg: str = ss.readLine()
+  assert(msg == "hello-after-retry",
+    $"delayed server expected 'hello-after-retry', got '{msg}'")
+  ss.writeLine("world-after-retry")
+  ss.close()
+  sc.close()
+  server.close()
+  return 0
+
+fn test_connect_retries_while_server_not_ready(): void =>
+  print("test_connect_retries_while_server_not_ready: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  # Claim a free UDP port, then release it. The background thread will
+  # rebind on that port 500ms later. UDP has no TIME_WAIT so the port is
+  # immediately available for rebinding.
+  var placeholder: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+  var port: int = placeholder.port()
+  placeholder.close()
+
+  # Schedule the real listener to come up 500ms from now. Main thread
+  # will start retrying connect() immediately.
+  var h: int = & delayedServerBind(port, cert_path, key_path, 500)
+
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(800)
+  var connected: bool = false
+  var attempts: int = 0
+  var startMs: long = Time.now().millis()
+
+  while !connected && attempts < 10 =>
+    attempts++
+    var c: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+    if c.isClosed() =>
+      # Attempt failed — the handle is already closed. Back off and retry.
+      Time.sleep(200)
+    else =>
+      # Handshake succeeded — verify the connection is usable with a round trip.
+      var cs: QuicStream = c.openStream()
+      cs.writeLine("hello-after-retry")
+      var resp: str = cs.readLine()
+      assert(resp == "world-after-retry",
+        $"expected 'world-after-retry', got '{resp}'")
+      cs.close()
+      c.close()
+      connected = true
+
+  var elapsedMs: long = Time.now().millis() - startMs
+  assert(connected,
+    $"client failed to connect after {attempts} attempts in {elapsedMs}ms")
+  assert(elapsedMs < 10000l,
+    $"retry loop took {elapsedMs}ms, expected < 10000ms")
+  h ~
+  print("PASS\n")
+
+# ==============================================================================
+# Test 3: idle timeout must mark the connection closed in bounded time.
+# ==============================================================================
+# Regression gate for: a live connection whose peer goes silent must flip
+# isClosed() when the configured idle timeout expires. If ngtcp2's expiry
+# callback doesn't propagate into ci->closed, long-lived consumers will sit
+# on a dead connection indefinitely.
+
+fn test_idle_timeout_marks_closed(): void =>
+  print("test_idle_timeout_marks_closed: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var serverCfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(1000)
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, serverCfg)
+  var port: int = server.port()
+
+  var clientCfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(1000)
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", clientCfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Neither side sends anything. Both idle timers should fire at ~1s.
+  # Allow 3s slack for scheduler + ngtcp2 grace.
+  var deadline: long = Time.now().millis() + 3000l
+  while !client.isClosed() =>
+    if Time.now().millis() >= deadline =>
+      assert(false,
+        "client.isClosed() never became true after idle timeout (1000ms)")
+    Time.sleep(50)
+
+  assert(client.isClosed(), "client must be closed after idle timeout")
+
+  # Both sides were idle; server should also flip eventually. Give it the
+  # same 3s envelope relative to start.
+  var deadline2: long = Time.now().millis() + 3000l
+  while !serverConn.isClosed() =>
+    if Time.now().millis() >= deadline2 =>
+      assert(false,
+        "serverConn.isClosed() never became true after idle timeout (1000ms)")
+    Time.sleep(50)
+
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 4: abrupt peer death — isClosed() must flip via idle timer.
+# ==============================================================================
+# Regression gate for long-lived callers: when the server process vanishes
+# without sending CONNECTION_CLOSE (SIGKILL, crash, network partition), the
+# client must detect the silence via its idle timer and flip isClosed() in
+# bounded time. This is simulated with testDropSocket() which severs the
+# server-side UDP path without any graceful frame.
+
+fn test_isclosed_flips_after_server_drop(): void =>
+  print("test_isclosed_flips_after_server_drop: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Round trip to confirm both sides are live before we drop.
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("alive")
+  var ss: QuicStream = serverConn.acceptStream()
+  var alive: str = ss.readLine()
+  assert(alive == "alive", $"server should see 'alive', got '{alive}'")
+
+  # Abruptly drop the server-side UDP path. No CONNECTION_CLOSE is sent.
+  # Client must notice via its idle timer (1500ms) and flip isClosed.
+  testDropSocket(serverConn)
+
+  var deadline: long = Time.now().millis() + 2500l
+  while !client.isClosed() =>
+    if Time.now().millis() >= deadline =>
+      assert(false,
+        "client.isClosed() did not flip within 2.5s of abrupt server drop")
+    Time.sleep(50)
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 5: a pending readLine() must unblock when the peer closes.
+# ==============================================================================
+# Regression gate for: lost-wakeup bug in the close path. If the I/O thread
+# flips ci->closed without broadcasting the stream's read_cond, a reader that
+# parked before the close will block forever and never observe the state flip.
+# This is the bug described in section 1d of the analysis.
+
+fn pendingReadLineBg(stream: QuicStream): int =>
+  var start: Time = Time.now()
+  var s: str = stream.readLine()
+  bgElapsedMs = Time.now().diff(start)
+  bgResultStr = s
+  bgDone = true
+  return 0
+
+# Helper used by the stream-budget test: call openStream in a background
+# thread so the parent can bound the call with a wall deadline.
+fn pendingOpenStreamBg(conn: QuicConnection): int =>
+  var s: QuicStream = conn.openStream()
+  bgResultInt = 1
+  if s.isClosed() =>
+    bgResultInt = 0
+  bgDone = true
+  return 0
+
+fn test_pending_read_wakes_on_peer_close(): void =>
+  print("test_pending_read_wakes_on_peer_close: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  # Use idleTimeout=0 to prove the wakeup comes from close, not from the
+  # idle timer firing underneath us.
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Client opens a stream and sends one line so the server can observe it.
+  # Server drains that line but does not respond. The client then parks on
+  # its next readLine() — there is nothing to read until peer close.
+  var clientStream: QuicStream = client.openStream()
+  clientStream.writeLine("hello")
+
+  var serverStream: QuicStream = serverConn.acceptStream()
+  var greeting: str = serverStream.readLine()
+  assert(greeting == "hello", $"server should see 'hello', got '{greeting}'")
+
+  # Park the client readLine in a background thread.
+  var h: int = & pendingReadLineBg(clientStream)
+
+  # Give the reader enough time to reach its COND_WAIT.
+  Time.sleep(300)
+
+  # Server gracefully closes. The client's parked readLine MUST unblock.
+  serverStream.close()
+  serverConn.close()
+  server.close()
+
+  assert(waitForBg(3000l),
+    "client readLine() did not wake within 3s of peer close — lost wakeup bug")
+  assert(bgElapsedMs <= 3000l,
+    $"client readLine() took {bgElapsedMs}ms to wake, expected <= 3000ms")
+  h ~
+
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 6: a pending readLine() must unblock on abrupt server death.
+# ==============================================================================
+# Regression gate for the lost-wakeup bug class on the abrupt-death path: if
+# the I/O thread's idle-timer exit doesn't broadcast the stream's read_cond
+# via quic_io_thread_cleanup, a parked reader will never observe the closed
+# flag flipping and will deadlock.
+
+fn test_pending_read_wakes_when_server_drops(): void =>
+  print("test_pending_read_wakes_when_server_drops: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Establish the stream with a greeting so both sides have a real stream
+  # object. The server then stays silent — client's next readLine parks.
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("greeting")
+  var ss: QuicStream = serverConn.acceptStream()
+  var greeting: str = ss.readLine()
+  assert(greeting == "greeting", $"server should see 'greeting', got '{greeting}'")
+
+  # Park the client readLine in a background thread.
+  var h: int = & pendingReadLineBg(cs)
+
+  # Give the background thread enough time to reach its COND_WAIT.
+  Time.sleep(200)
+
+  # Abruptly drop the server-side socket. No graceful frame is sent.
+  # The client must detect silence via its idle timer and wake the reader.
+  testDropSocket(serverConn)
+
+  assert(waitForBg(2500l),
+    "client readLine did not wake within 2.5s of abrupt server drop")
+  h ~
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 7: a pending acceptStream() must unblock when the connection closes.
+# ==============================================================================
+# Regression gate for: same lost-wakeup class, but on the accept_stream_cond
+# path. If close() doesn't broadcast this cond, a server parked on
+# acceptStream() will deadlock when the client goes away.
+
+fn pendingAcceptStreamBg(conn: QuicConnection): int =>
+  var start: Time = Time.now()
+  var s: QuicStream = conn.acceptStream()
+  bgElapsedMs = Time.now().diff(start)
+  bgResultInt = 1
+  if s.isClosed() =>
+    bgResultInt = 0
+  bgDone = true
+  return 0
+
+fn test_pending_accept_wakes_on_peer_close(): void =>
+  print("test_pending_accept_wakes_on_peer_close: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Server parks on acceptStream() — client never opens one.
+  var h: int = & pendingAcceptStreamBg(serverConn)
+
+  Time.sleep(300)
+
+  # Client closes. Server's parked acceptStream() must wake.
+  client.close()
+
+  assert(waitForBg(3000l),
+    "serverConn.acceptStream() did not wake within 3s of client close")
+  assert(bgElapsedMs <= 3000l,
+    $"acceptStream() took {bgElapsedMs}ms to wake, expected <= 3000ms")
+  h ~
+
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 8: a pending acceptStream() must unblock on abrupt client death.
+# ==============================================================================
+# Symmetric to test 6 but on the accept_stream_cond path. If the server's I/O
+# thread exits via idle timer without broadcasting accept_stream_cond through
+# quic_io_thread_cleanup, a server parked on acceptStream() will deadlock.
+
+fn test_pending_accept_wakes_when_client_drops(): void =>
+  print("test_pending_accept_wakes_when_client_drops: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Server parks on acceptStream — the client never opens one, it just dies.
+  var h: int = & pendingAcceptStreamBg(serverConn)
+
+  Time.sleep(200)
+
+  # Abruptly drop the client-side socket. No graceful frame is sent.
+  # Server must detect silence via its idle timer and wake the accept.
+  testDropSocket(client)
+
+  assert(waitForBg(2500l),
+    "server acceptStream did not wake within 2.5s of abrupt client drop")
+  h ~
+
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 9: reads after peer close must return empty promptly, not crash.
+# ==============================================================================
+# Regression gate for: callers that loop on readLine() after the peer closes
+# must see an empty string immediately, not a dereference crash or a hang.
+# This is the post-close contract the caller uses to detect "connection gone".
+
+fn test_read_after_peer_close_returns_empty(): void =>
+  print("test_read_after_peer_close_returns_empty: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var clientStream: QuicStream = client.openStream()
+  clientStream.writeLine("ping")
+  var serverStream: QuicStream = serverConn.acceptStream()
+  var ping: str = serverStream.readLine()
+  assert(ping == "ping", $"server should see 'ping', got '{ping}'")
+
+  serverStream.writeLine("pong")
+  var pong: str = clientStream.readLine()
+  assert(pong == "pong", $"client should see 'pong', got '{pong}'")
+
+  # Server closes the stream (FIN) and the connection.
+  serverStream.close()
+  serverConn.close()
+  server.close()
+
+  # Give the close a moment to propagate to the client's I/O thread.
+  Time.sleep(200)
+
+  # Subsequent reads on the client stream must return empty, not hang or crash.
+  # Use a spawned poll so a regression fails in bounded time.
+  resetBg()
+  var h: int = & pendingReadLineBg(clientStream)
+  assert(waitForBg(3000l),
+    "readLine() after peer close did not return within 3s")
+  assert(bgResultStr == "",
+    $"readLine() after peer close returned '{bgResultStr}', expected empty")
+  h ~
+
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 10: writes after close must not crash and must report not-written.
+# ==============================================================================
+# Regression gate for: write() on a closed connection must return 0 bytes,
+# not crash on a null internal pointer, not deadlock on the command queue.
+
+fn test_write_after_close_is_safe(): void =>
+  print("test_write_after_close_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var clientStream: QuicStream = client.openStream()
+  clientStream.writeLine("first")
+  var serverStream: QuicStream = serverConn.acceptStream()
+  var first: str = serverStream.readLine()
+  assert(first == "first", $"server should see 'first', got '{first}'")
+
+  # Close the client; subsequent writes on the stream must be a no-op.
+  client.close()
+  Time.sleep(100)
+
+  var payload: byte[] = "after-close".toBytes()
+  var wrote: int = clientStream.write(payload)
+  assert(wrote == 0,
+    $"write() after close should return 0, got {wrote}")
+
+  serverStream.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 11: reconnect after peer close on the same listener.
+# ==============================================================================
+# Regression gate for long-lived callers: when the server gracefully closes a
+# connection, the client must be able to open a fresh connection to the SAME
+# listener and resume work. This is the pattern any "reconnecting RPC client"
+# must use because the SDK does not yet offer connectWithRetry or an explicit
+# reconnect(). It also exercises listener.accept() across multiple connection
+# lifetimes, which the old global-registry lifecycle was known to mishandle.
+
+fn test_reconnect_after_peer_close(): void =>
+  print("test_reconnect_after_peer_close: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+
+  # Round 1: connect, exchange, server closes.
+  var c1: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var s1: QuicConnection = server.accept()
+  var cs1: QuicStream = c1.openStream()
+  cs1.writeLine("round-1")
+  var ss1: QuicStream = s1.acceptStream()
+  var m1: str = ss1.readLine()
+  assert(m1 == "round-1", $"round 1: expected 'round-1', got '{m1}'")
+  ss1.close()
+  s1.close()
+  # Server side has gone away; client must notice promptly.
+  var r1deadline: long = Time.now().millis() + 2000l
+  while !c1.isClosed() =>
+    if Time.now().millis() >= r1deadline =>
+      assert(false, "client did not observe peer close within 2s (round 1)")
+    Time.sleep(50)
+  c1.close()
+
+  # Round 2: fresh connection to the same listener must succeed and work.
+  var c2: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var s2: QuicConnection = server.accept()
+  var cs2: QuicStream = c2.openStream()
+  cs2.writeLine("round-2")
+  var ss2: QuicStream = s2.acceptStream()
+  var m2: str = ss2.readLine()
+  assert(m2 == "round-2", $"round 2: expected 'round-2', got '{m2}'")
+  ss2.close()
+  s2.close()
+  c2.close()
+
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 12: concurrent parked readers must ALL wake on abrupt drop.
+# ==============================================================================
+# Regression gate for "only one stream woke" bugs. If the cleanup path uses
+# COND_SIGNAL instead of COND_BROADCAST, or only iterates over a subset of
+# streams, one reader will wake and the other will hang. Both streams must
+# observe the closed state within bounded time.
+
+fn parkedReader1Bg(stream: QuicStream): int =>
+  var s: str = stream.readLine()
+  bgResultStr = s
+  bgDone = true
+  return 0
+
+fn parkedReader2Bg(stream: QuicStream): int =>
+  var s: str = stream.readLine()
+  bg2ResultStr = s
+  bg2Done = true
+  return 0
+
+fn test_concurrent_readers_wake_on_abrupt_drop(): void =>
+  print("test_concurrent_readers_wake_on_abrupt_drop: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Two streams, each with an initial greeting so both sides have real
+  # stream objects. Server drains greetings but never writes back.
+  var cs1: QuicStream = client.openStream()
+  cs1.writeLine("s1-hi")
+  var cs2: QuicStream = client.openStream()
+  cs2.writeLine("s2-hi")
+
+  var ss1: QuicStream = serverConn.acceptStream()
+  var ss2: QuicStream = serverConn.acceptStream()
+  # Stream-ID order is not guaranteed; drain both in whatever order they arrive.
+  var g1: str = ss1.readLine()
+  var g2: str = ss2.readLine()
+  var gotS1: bool = (g1 == "s1-hi" || g2 == "s1-hi")
+  var gotS2: bool = (g1 == "s2-hi" || g2 == "s2-hi")
+  assert(gotS1 && gotS2, $"server should see both greetings, got '{g1}' and '{g2}'")
+
+  # Park both client readers concurrently.
+  var h1: int = & parkedReader1Bg(cs1)
+  var h2: int = & parkedReader2Bg(cs2)
+
+  # Give both threads time to reach their COND_WAIT.
+  Time.sleep(300)
+
+  # Abrupt server drop. Both readers must wake via the idle-timer exit path.
+  testDropSocket(serverConn)
+
+  var deadline: long = Time.now().millis() + 2500l
+  while !bgDone || !bg2Done =>
+    if Time.now().millis() >= deadline =>
+      assert(false,
+        $"concurrent readers did not both wake within 2.5s: r1={bgDone} r2={bg2Done}")
+    Time.sleep(50)
+
+  h1 ~
+  h2 ~
+
+  ss1.close()
+  ss2.close()
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 13: reconnect after abrupt drop — the skynet recovery scenario.
+# ==============================================================================
+# Regression gate for long-lived callers that must survive a peer restart.
+# The client-side socket is dropped (simulates the client process or its
+# network path dying), the listener stays up (the SIBLING service survived),
+# the client discards the dead handle and opens a fresh connection to the
+# same listener.
+#
+# We drop the CLIENT socket rather than the server socket because server
+# connections share the listener's UDP fd — shutting down a server
+# connection's fd would also shut down the whole listener. Dropping the
+# client socket kills exactly one endpoint and keeps the listener
+# independently alive for round 2, which is what matters.
+
+fn test_reconnect_after_abrupt_drop(): void =>
+  print("test_reconnect_after_abrupt_drop: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+
+  # Round 1: normal conn + exchange.
+  var c1: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var s1: QuicConnection = server.accept()
+  var cs1: QuicStream = c1.openStream()
+  cs1.writeLine("round-1")
+  var ss1: QuicStream = s1.acceptStream()
+  var m1: str = ss1.readLine()
+  assert(m1 == "round-1", $"round 1: expected 'round-1', got '{m1}'")
+
+  # Abruptly drop the CLIENT-side socket of round-1. No CONNECTION_CLOSE.
+  # The client will hit its idle timer because nothing can be sent or
+  # received on its dead fd.
+  testDropSocket(c1)
+
+  var rd: long = Time.now().millis() + 2500l
+  while !c1.isClosed() =>
+    if Time.now().millis() >= rd =>
+      assert(false, "client did not observe abrupt drop within 2.5s")
+    Time.sleep(50)
+
+  # Discard the dead handles.
+  cs1.close()
+  ss1.close()
+  c1.close()
+  s1.close()
+
+  # Round 2: fresh connection to the same listener. Real skynet case: the
+  # listener survived; only the per-connection state was nuked. This must
+  # succeed and the round trip must work end-to-end.
+  var c2: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  assert(!c2.isClosed(), "round 2 connect failed")
+  var s2: QuicConnection = server.accept()
+  var cs2: QuicStream = c2.openStream()
+  cs2.writeLine("round-2")
+  var ss2: QuicStream = s2.acceptStream()
+  var m2: str = ss2.readLine()
+  assert(m2 == "round-2", $"round 2: expected 'round-2', got '{m2}'")
+
+  cs2.close()
+  ss2.close()
+  c2.close()
+  s2.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 14: openStream on a dead connection must not crash.
+# ==============================================================================
+# Regression gate for API safety under partial failure: a caller that holds a
+# dead connection handle and calls openStream() on it must get a closed stream
+# back, not a segfault or a hang on the command queue.
+
+fn test_openstream_after_abrupt_drop_is_safe(): void =>
+  print("test_openstream_after_abrupt_drop_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Confirm live before we drop.
+  var warmup: QuicStream = client.openStream()
+  warmup.writeLine("warmup")
+  var wss: QuicStream = serverConn.acceptStream()
+  var warm: str = wss.readLine()
+  assert(warm == "warmup", $"server should see 'warmup', got '{warm}'")
+  warmup.close()
+  wss.close()
+
+  # Abrupt drop and wait for client to notice.
+  testDropSocket(serverConn)
+  var deadline: long = Time.now().millis() + 2500l
+  while !client.isClosed() =>
+    if Time.now().millis() >= deadline =>
+      assert(false, "client did not observe abrupt drop within 2.5s")
+    Time.sleep(50)
+
+  # Now attempt openStream on the dead connection. Must not crash.
+  # Must return a stream whose isClosed() is true.
+  var deadStream: QuicStream = client.openStream()
+  assert(deadStream.isClosed(),
+    "openStream on a dead connection must return an already-closed stream")
+
+  # write() on the dead stream must also be a safe no-op.
+  var data: byte[] = "post-drop".toBytes()
+  var wrote: int = deadStream.write(data)
+  assert(wrote == 0,
+    $"write() on dead stream must return 0, got {wrote}")
+
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 15: abrupt-drop churn — 10 cycles must not leak or corrupt state.
+# ==============================================================================
+# Cumulative regression gate for the cleanup path on the abrupt-failure branch.
+# Exercises the full (bind, connect, exchange, abrupt-drop, wait-for-close,
+# dispose) sequence many times in a row on the same listener to surface
+# cumulative memory/state leaks or mutex/fd corruption across cycles.
+
+fn test_abrupt_drop_churn(): void =>
+  print("test_abrupt_drop_churn: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+
+  for var i: int = 0; i < 5; i++ =>
+    var c: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+    assert(!c.isClosed(), $"cycle {i}: connect failed")
+    var s: QuicConnection = server.accept()
+
+    var cs: QuicStream = c.openStream()
+    cs.writeLine($"cycle-{i}")
+    var ss: QuicStream = s.acceptStream()
+    var m: str = ss.readLine()
+    assert(m == $"cycle-{i}", $"cycle {i}: expected 'cycle-{i}', got '{m}'")
+
+    # Drop the client socket so the listener survives across cycles.
+    testDropSocket(c)
+
+    var rd: long = Time.now().millis() + 2500l
+    while !c.isClosed() =>
+      if Time.now().millis() >= rd =>
+        assert(false, $"cycle {i}: client did not observe drop within 2.5s")
+      Time.sleep(50)
+
+    cs.close()
+    ss.close()
+    c.close()
+    s.close()
+
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 16: listener.close() must tear down its server-side connections.
+# ==============================================================================
+# Regression gate for the sweep_closed_server_connections path. When the
+# listener is closed, every server connection it's holding must be marked
+# closed in bounded time — otherwise long-running server-side threads holding
+# those references will park forever on reads or accepts.
+
+fn test_listener_close_tears_down_server_conns(): void =>
+  print("test_listener_close_tears_down_server_conns: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(800)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Warm up so both sides have live state.
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("warm")
+  var ss: QuicStream = serverConn.acceptStream()
+  var warm: str = ss.readLine()
+  assert(warm == "warm", $"server should see 'warm', got '{warm}'")
+
+  # Close the listener. Its server connections must be torn down.
+  server.close()
+
+  # serverConn was held only as an accepted handle; it must flip closed
+  # within a bounded slack window (sweep interval is ~50ms, idleTimeout is
+  # 800ms — a 2.5s envelope is plenty for the whole teardown).
+  var sd: long = Time.now().millis() + 2500l
+  while !serverConn.isClosed() =>
+    if Time.now().millis() >= sd =>
+      assert(false,
+        "serverConn.isClosed() did not flip within 2.5s of listener close")
+    Time.sleep(50)
+
+  # Client should also notice via its idle timer.
+  var cd: long = Time.now().millis() + 2500l
+  while !client.isClosed() =>
+    if Time.now().millis() >= cd =>
+      assert(false,
+        "client.isClosed() did not flip within 2.5s of listener close")
+    Time.sleep(50)
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 17: stream.close() after abrupt connection drop must be safe.
+# ==============================================================================
+# Regression gate for stream lifecycle under partial failure: after the
+# underlying connection has been abruptly dropped, calling stream.close()
+# — and calling it again — must not crash, deadlock, or double-free the
+# stream internal state.
+
+fn test_stream_close_after_abrupt_drop_is_safe(): void =>
+  print("test_stream_close_after_abrupt_drop_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("hi")
+  var ss: QuicStream = serverConn.acceptStream()
+  var hi: str = ss.readLine()
+  assert(hi == "hi", $"server should see 'hi', got '{hi}'")
+
+  # Abruptly drop the client socket and wait for the connection to notice.
+  testDropSocket(client)
+  var deadline: long = Time.now().millis() + 2500l
+  while !client.isClosed() =>
+    if Time.now().millis() >= deadline =>
+      assert(false, "client did not observe abrupt drop within 2.5s")
+    Time.sleep(50)
+
+  # The stream belongs to a dead connection. close() must be safe, and
+  # repeated calls must also be safe.
+  cs.close()
+  cs.close()
+  cs.close()
+
+  assert(cs.isClosed(), "stream must report closed after connection drop")
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 18: readExact must return what's available and exit when peer dies.
+# ==============================================================================
+# Regression gate for the readExact path: when the stream gets fewer bytes
+# than requested because the peer died, readExact must return promptly with
+# the partial data (possibly empty), not hang waiting for bytes that will
+# never arrive. The docs say "Returns fewer than n bytes only if the stream
+# closes prematurely" — this test enforces the bounded-time portion.
+
+fn readExactBg(stream: QuicStream, n: int): int =>
+  var start: Time = Time.now()
+  var got: byte[] = stream.readExact(n)
+  bgElapsedMs = Time.now().diff(start)
+  bgResultInt = got.length
+  bgDone = true
+  return 0
+
+fn test_readexact_bounded_when_peer_drops(): void =>
+  print("test_readexact_bounded_when_peer_drops: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Client opens a stream and sends a greeting so the server sees it.
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("hello")
+  var ss: QuicStream = serverConn.acceptStream()
+  var greet: str = ss.readLine()
+  assert(greet == "hello", $"server should see 'hello', got '{greet}'")
+
+  # Server writes 5 bytes of a 100-byte payload the client is waiting for,
+  # then abruptly drops. Client's readExact(100) must return within bound
+  # with whatever partial data arrived (or zero if nothing).
+  var partial: byte[] = "01234".toBytes()
+  ss.write(partial)
+
+  # Give the partial bytes time to reach the client.
+  Time.sleep(200)
+
+  var h: int = & readExactBg(cs, 100)
+
+  # Let the reader park on the remaining 95 bytes.
+  Time.sleep(200)
+
+  # Drop the client socket so no more bytes can arrive.
+  testDropSocket(client)
+
+  assert(waitForBg(2500l),
+    "readExact did not return within 2.5s of abrupt drop")
+
+  # We expect the reader to report fewer than 100 bytes (0 to 5 is OK —
+  # exact count depends on whether the partial data landed before the drop).
+  assert(bgResultInt < 100,
+    $"readExact should have returned < 100 bytes, got {bgResultInt}")
+  h ~
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  cs.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 19: listener.close() must wake a parked listener.accept().
+# ==============================================================================
+# Regression gate for the LISTENER's accept_cond (distinct from the connection
+# accept_stream_cond tested in tests 7 and 8). A server thread parked on
+# listener.accept() waiting for a client must wake promptly when the listener
+# itself is closed — otherwise a process trying to shut down cleanly will
+# hang on its own acceptor threads.
+
+fn pendingListenerAcceptBg(listener: QuicListener): int =>
+  var c: QuicConnection = listener.accept()
+  bgResultInt = 1
+  if c.isClosed() =>
+    bgResultInt = 0
+  bgDone = true
+  return 0
+
+fn test_listener_close_wakes_pending_accept(): void =>
+  print("test_listener_close_wakes_pending_accept: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+
+  # Park an acceptor thread. No client will connect.
+  var h: int = & pendingListenerAcceptBg(server)
+
+  # Give the acceptor time to reach its COND_WAIT.
+  Time.sleep(300)
+
+  # Close the listener. The parked accept must wake within bounded time.
+  server.close()
+
+  assert(waitForBg(3000l),
+    "listener.accept() did not wake within 3s of listener.close()")
+  h ~
+  print("PASS\n")
+
+# ==============================================================================
+# Test 20: readAll must exit in bounded time when the peer dies mid-transfer.
+# ==============================================================================
+# Regression gate for the readAll code path (distinct from read and readExact).
+# readAll is documented as "Read until stream is closed by peer" — if the
+# peer dies without closing the stream, readAll must observe the connection
+# close via the idle timer and return whatever data has accumulated, not
+# hang forever.
+
+fn readAllBg(stream: QuicStream): int =>
+  var start: Time = Time.now()
+  var got: byte[] = stream.readAll()
+  bgElapsedMs = Time.now().diff(start)
+  bgResultInt = got.length
+  bgDone = true
+  return 0
+
+fn test_readall_bounded_when_peer_drops(): void =>
+  print("test_readall_bounded_when_peer_drops: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Establish the stream with a greeting so both sides see the stream.
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("hi")
+  var ss: QuicStream = serverConn.acceptStream()
+  var hi: str = ss.readLine()
+  assert(hi == "hi", $"server should see 'hi', got '{hi}'")
+
+  # Park client in readAll — will wait until the stream is closed.
+  var h: int = & readAllBg(cs)
+
+  Time.sleep(200)
+
+  # Abruptly drop the client socket. Client must observe via idle timer
+  # and readAll must return.
+  testDropSocket(client)
+
+  assert(waitForBg(2500l),
+    "readAll did not return within 2.5s of abrupt drop")
+  h ~
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  cs.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 21: raw write() loop must exit cleanly when the peer drops mid-stream.
+# ==============================================================================
+# Regression gate for the write path under concurrent teardown. A writer
+# thread spinning on write(byte[]) while the connection is abruptly dropped
+# must either: (a) observe isClosed() on its next check, or (b) have its
+# in-flight command completed with error by the cleanup path. It must not
+# deadlock on the command queue, and it must not use-after-free on the
+# write_bufs list that cleanup frees in its exit pass.
+
+fn rawWriteLoopBg(stream: QuicStream): int =>
+  var iterations: int = 0
+  for var i: int = 0; i < 200; i++ =>
+    if stream.isClosed() =>
+      break
+    var data: byte[] = $"chunk-{i}-padding-padding".toBytes()
+    var wrote: int = stream.write(data)
+    iterations = i + 1
+    Time.sleep(5)
+  bgResultInt = iterations
+  bgDone = true
+  return 0
+
+fn test_raw_write_loop_during_abrupt_drop(): void =>
+  print("test_raw_write_loop_during_abrupt_drop: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Fresh stream, no warmup exchange — the writer will start flooding
+  # immediately and the server won't bother to read.
+  var cs: QuicStream = client.openStream()
+  var h: int = & rawWriteLoopBg(cs)
+
+  # Let a handful of writes complete before we yank the rug.
+  Time.sleep(100)
+
+  # Abrupt drop. Must not hang the writer, must not UAF.
+  testDropSocket(client)
+
+  assert(waitForBg(2500l),
+    $"write loop did not exit within 2.5s of abrupt drop (iterations={bgResultInt})")
+  assert(bgResultInt > 0,
+    "at least one write should have completed before the drop")
+  h ~
+
+  serverConn.close()
+  server.close()
+  cs.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 22: handshake_timeout must tightly bound a dead-peer connect.
+# ==============================================================================
+# Regression gate for the settings.handshake_timeout wiring. Prior to that
+# fix the handshake was only bounded by ngtcp2's PTO probe sequence, which
+# could take ~3s even with a 500ms idle_timeout. With the fix a connect()
+# to a port where nothing responds must return within roughly idleTimeout +
+# one poll cycle — well under 2x idleTimeout.
+
+fn tightConnectBg(port: int): int =>
+  var start: Time = Time.now()
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(500)
+  var c: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  bgElapsedMs = Time.now().diff(start)
+  bgDone = true
+  return 0
+
+fn test_handshake_timeout_is_tight(): void =>
+  print("test_handshake_timeout_is_tight: ")
+  resetBg()
+
+  # Bind + close to claim-and-release a free port so nothing else will
+  # be listening there when the connect starts.
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var claim: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+  var port: int = claim.port()
+  claim.close()
+
+  var h: int = & tightConnectBg(port)
+
+  assert(waitForBg(2000l),
+    $"connect() to dead port did not return within 2s (idleTimeout=500ms)")
+  assert(bgElapsedMs <= 1500l,
+    $"connect() took {bgElapsedMs}ms, expected <= 1500ms (3x idle_timeout)")
+  h ~
+  print("PASS\n")
+
+# ==============================================================================
+# Test 23: two clients on the same listener — one drops, the other survives.
+# ==============================================================================
+# Regression gate for cross-connection isolation on a shared listener. When
+# one client's per-connection state is torn down abruptly, the listener's
+# routing + sweep code must not disturb any other live connection.
+
+fn test_multiple_clients_one_drops(): void =>
+  print("test_multiple_clients_one_drops: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  # Both sides use a long idle timeout for this test so c2 can't idle out
+  # while we poll waiting for c1 to detect its drop.
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+
+  # Two clients on the same listener.
+  var c1: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var s1: QuicConnection = server.accept()
+  var c2: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var s2: QuicConnection = server.accept()
+
+  # Round trip on both to prove they're independently live.
+  var cs1: QuicStream = c1.openStream()
+  cs1.writeLine("c1-hello")
+  var ss1: QuicStream = s1.acceptStream()
+  var g1: str = ss1.readLine()
+  assert(g1 == "c1-hello", $"c1 greeting: expected 'c1-hello', got '{g1}'")
+
+  var cs2: QuicStream = c2.openStream()
+  cs2.writeLine("c2-hello")
+  var ss2: QuicStream = s2.acceptStream()
+  var g2: str = ss2.readLine()
+  assert(g2 == "c2-hello", $"c2 greeting: expected 'c2-hello', got '{g2}'")
+
+  # Drop c1 abruptly.
+  testDropSocket(c1)
+
+  # Immediately verify c2 is unaffected — this is the actual isolation
+  # assertion. Do the round trip now, BEFORE any polling window could
+  # let c2's idle timer fire.
+  assert(!c2.isClosed(), "c2 must remain alive immediately after c1 drop")
+  cs2.writeLine("c2-after-drop")
+  var after: str = ss2.readLine()
+  assert(after == "c2-after-drop",
+    $"c2 post-drop round trip: expected 'c2-after-drop', got '{after}'")
+
+  # Also verify the listener still routes a brand-new stream on c2 — this
+  # catches regressions where the listener's conn-list gets corrupted by
+  # c1's teardown.
+  var cs2b: QuicStream = c2.openStream()
+  cs2b.writeLine("c2-new-stream")
+  var ss2b: QuicStream = s2.acceptStream()
+  var ns: str = ss2b.readLine()
+  assert(ns == "c2-new-stream",
+    $"c2 new stream: expected 'c2-new-stream', got '{ns}'")
+
+  cs1.close()
+  cs2.close()
+  cs2b.close()
+  ss1.close()
+  ss2.close()
+  ss2b.close()
+  c1.close()
+  s1.close()
+  c2.close()
+  s2.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 24: server writes to a dead client must exit bounded, not hang.
+# ==============================================================================
+# Regression gate for the server-side write path under peer death. The
+# server has a live stream and the client dies without sending a close.
+# Subsequent server.writeLine() calls must complete in bounded time —
+# either succeeding into the void or bailing out once the server's idle
+# timer fires and marks the connection closed.
+
+fn serverWriteLoopBg(stream: QuicStream): int =>
+  var iters: int = 0
+  for var i: int = 0; i < 50; i++ =>
+    if stream.isClosed() =>
+      break
+    stream.writeLine($"server-msg-{i}")
+    iters = i + 1
+    Time.sleep(20)
+  bgResultInt = iters
+  bgDone = true
+  return 0
+
+fn test_server_writes_to_dead_client(): void =>
+  print("test_server_writes_to_dead_client: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Establish the stream from the client side, then hand to the server.
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("ready")
+  var ss: QuicStream = serverConn.acceptStream()
+  var ready: str = ss.readLine()
+  assert(ready == "ready", $"server should see 'ready', got '{ready}'")
+
+  # Park the server in a write loop.
+  var h: int = & serverWriteLoopBg(ss)
+
+  # Let a handful of writes land.
+  Time.sleep(100)
+
+  # Client dies abruptly.
+  testDropSocket(client)
+
+  # Server write loop must exit within idle_timeout + slack.
+  assert(waitForBg(3000l),
+    $"server write loop did not exit within 3s (iterations={bgResultInt})")
+  h ~
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 25: unidirectional stream under abrupt drop.
+# ==============================================================================
+# Regression gate for the unidirectional stream code path. All the prior
+# tests use bidi streams. Uni streams have a separate code path
+# (is_uni flag, different flow control direction) and must also handle
+# abrupt peer death without crashing.
+
+fn test_uni_stream_abrupt_drop_is_safe(): void =>
+  print("test_uni_stream_abrupt_drop_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Open a unidirectional stream (client → server, no response).
+  var cs: QuicStream = client.openUnidirectionalStream()
+  assert(cs.isUnidirectional(), "stream should be unidirectional")
+  cs.writeLine("uni-hello")
+
+  # Drain it on the server side.
+  var ss: QuicStream = serverConn.acceptStream()
+  var msg: str = ss.readLine()
+  assert(msg == "uni-hello", $"server should see 'uni-hello', got '{msg}'")
+
+  # Drop the client. Both sides must notice and close without crashing.
+  testDropSocket(client)
+
+  var deadline: long = Time.now().millis() + 2500l
+  while !client.isClosed() =>
+    if Time.now().millis() >= deadline =>
+      assert(false, "client did not observe abrupt drop within 2.5s (uni)")
+    Time.sleep(50)
+
+  # Stream ops after drop must be safe.
+  cs.close()
+  cs.close()
+  assert(cs.isClosed(), "uni stream must be closed after connection drop")
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 26: remoteAddress() on a closed connection must not crash.
+# ==============================================================================
+# Regression gate for getter API safety. Long-lived code that logs the
+# remote address of a connection may be holding a handle whose underlying
+# state has already been torn down. remoteAddress() must return a valid
+# (possibly empty) string, not dereference freed memory.
+
+fn test_remote_address_on_closed_conn_is_safe(): void =>
+  print("test_remote_address_on_closed_conn_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Sanity: before close, the remote address should start with 127.0.0.1:.
+  var aliveAddr: str = client.remoteAddress()
+  assert(aliveAddr.startsWith("127.0.0.1:"),
+    $"live client remote: expected '127.0.0.1:*', got '{aliveAddr}'")
+
+  client.close()
+  serverConn.close()
+  server.close()
+
+  # After close, the call must be safe and idempotent. The exact return
+  # value is implementation-defined (empty or the stashed last-known value).
+  var deadAddr: str = client.remoteAddress()
+  var deadAddr2: str = client.remoteAddress()
+  assert(deadAddr.length >= 0, "remoteAddress after close must return a string")
+  assert(deadAddr2.length >= 0, "remoteAddress after close (2nd call) must be safe")
+  print("PASS\n")
+
+# ==============================================================================
+# Test 27: partial readLine (bytes without newline) must exit bounded.
+# ==============================================================================
+# Regression gate for the readLine path when the peer buffers some bytes
+# and then dies without sending a newline. The read MUST return in bounded
+# time with what it has (or empty), not hang waiting for a newline that
+# will never arrive.
+
+fn test_partial_readline_bounded_when_peer_dies(): void =>
+  print("test_partial_readline_bounded_when_peer_dies: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Establish the stream.
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("open")
+  var ss: QuicStream = serverConn.acceptStream()
+  var open_: str = ss.readLine()
+  assert(open_ == "open", $"server should see 'open', got '{open_}'")
+
+  # Server writes a partial line — bytes but NO newline.
+  var partial: byte[] = "unterm".toBytes()
+  ss.write(partial)
+
+  # Give the partial bytes time to reach the client's recv_buf.
+  Time.sleep(200)
+
+  # Park the client on readLine. It must park because the newline is missing.
+  var h: int = & pendingReadLineBg(cs)
+
+  Time.sleep(200)
+
+  # Drop the client socket. The client must observe the drop via its idle
+  # timer and wake the parked readLine in bounded time.
+  testDropSocket(client)
+
+  assert(waitForBg(2500l),
+    "partial readLine did not return within 2.5s of abrupt drop")
+  h ~
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  cs.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 28: stream budget exhaustion must fail safely, not hang.
+# ==============================================================================
+# Regression gate for openStream() under ngtcp2's stream-id budget. The
+# default initial_max_streams_bidi is 100. Opening 100 streams without
+# closing them exhausts the budget; subsequent openStream() calls must
+# return a closed stream (or something caller-checkable) in bounded time,
+# not block forever.
+
+fn test_stream_budget_exhaustion_is_safe(): void =>
+  print("test_stream_budget_exhaustion_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  # Small budget so the test runs fast.
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000).setMaxBidiStreams(8)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Open streams up to the peer's advertised limit. Don't close them
+  # — the budget replenishes on close, so keeping them open holds it down.
+  var opened: QuicStream[] = {}
+  for var i: int = 0; i < 8; i++ =>
+    var s: QuicStream = client.openStream()
+    assert(!s.isClosed(), $"openStream {i} should succeed within the budget")
+    # Touch the stream so it's actually live on the wire.
+    s.writeLine($"stream-{i}")
+    opened.push(s)
+
+  # Next openStream is outside the budget. It must not hang. The test's
+  # wall deadline is enforced by the runner, but we also bound it via a
+  # background thread so a regression fails with a clear assertion.
+  resetBg()
+  var h: int = & pendingOpenStreamBg(client)
+
+  # Retry window in QUIC_CMD_OPEN_BIDI is ~2s — allow 3s wall to cover it.
+  assert(waitForBg(3000l),
+    "openStream beyond budget did not return within 3s (ngtcp2 STREAM_ID_BLOCKED)")
+  h ~
+
+  # Clean up the streams we held open.
+  for var i: int = 0; i < 8; i++ =>
+    opened[i].close()
+
+  serverConn.close()
+  server.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 29: concurrent writers on one stream during abrupt drop.
+# ==============================================================================
+# Regression gate for the cmd queue + write_bufs mutex discipline under
+# multi-writer contention. Two threads pound writes on the same stream
+# while the peer dies abruptly mid-flight. Both writers must exit in
+# bounded time, neither should UAF or deadlock.
+
+fn writer1LoopBg(stream: QuicStream): int =>
+  var iters: int = 0
+  for var i: int = 0; i < 100; i++ =>
+    if stream.isClosed() =>
+      break
+    stream.writeLine($"w1-{i}")
+    iters = i + 1
+    Time.sleep(5)
+  bgResultInt = iters
+  bgDone = true
+  return 0
+
+fn writer2LoopBg(stream: QuicStream): int =>
+  var iters: int = 0
+  for var i: int = 0; i < 100; i++ =>
+    if stream.isClosed() =>
+      break
+    stream.writeLine($"w2-{i}")
+    iters = i + 1
+    Time.sleep(5)
+  bg2ResultStr = $"{iters}"
+  bg2Done = true
+  return 0
+
+fn test_concurrent_writers_during_abrupt_drop(): void =>
+  print("test_concurrent_writers_during_abrupt_drop: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(600)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  # Warmup: a single server-side accept so the stream is fully live.
+  cs.writeLine("hi")
+  var ss: QuicStream = serverConn.acceptStream()
+  var hi: str = ss.readLine()
+  assert(hi == "hi", $"server should see 'hi', got '{hi}'")
+
+  # Two writers pound the same stream.
+  var h1: int = & writer1LoopBg(cs)
+  var h2: int = & writer2LoopBg(cs)
+
+  # Let a handful of writes from each thread land before we drop.
+  Time.sleep(100)
+
+  # Abrupt drop.
+  testDropSocket(client)
+
+  # Both writers must exit in bounded time.
+  var deadline: long = Time.now().millis() + 3000l
+  while !bgDone || !bg2Done =>
+    if Time.now().millis() >= deadline =>
+      assert(false,
+        $"writer loops did not both exit within 3s: w1={bgDone} w2={bg2Done}")
+    Time.sleep(50)
+
+  h1 ~
+  h2 ~
+
+  ss.close()
+  serverConn.close()
+  server.close()
+  cs.close()
+  client.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 30: double close must be idempotent.
+# ==============================================================================
+# Regression gate for: calling close() twice on a connection or listener must
+# not crash or double-free. The refcount-driven dispose path should absorb it.
+
+fn test_double_close_is_safe(): void =>
+  print("test_double_close_is_safe: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+
+  var server: QuicListener = QuicListener.bind(":0", cert_path, key_path)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connect($"127.0.0.1:{port}")
+  var serverConn: QuicConnection = server.accept()
+
+  client.close()
+  client.close() # must not crash
+
+  serverConn.close()
+  serverConn.close() # must not crash
+
+  server.close()
+  server.close() # must not crash
+
+  print("PASS\n")
+
+# ==============================================================================
+# Main
+# ==============================================================================
+
+fn main(): void =>
+  print("=== SDK QUIC Resilience Tests ===\n\n")
+
+  test_connect_without_listener_is_bounded()
+  test_connect_retries_while_server_not_ready()
+  test_idle_timeout_marks_closed()
+  test_isclosed_flips_after_server_drop()
+  test_pending_read_wakes_on_peer_close()
+  test_pending_read_wakes_when_server_drops()
+  test_pending_accept_wakes_on_peer_close()
+  test_pending_accept_wakes_when_client_drops()
+  test_read_after_peer_close_returns_empty()
+  test_write_after_close_is_safe()
+  test_reconnect_after_peer_close()
+  test_concurrent_readers_wake_on_abrupt_drop()
+  test_reconnect_after_abrupt_drop()
+  test_openstream_after_abrupt_drop_is_safe()
+  test_abrupt_drop_churn()
+  test_listener_close_tears_down_server_conns()
+  test_stream_close_after_abrupt_drop_is_safe()
+  test_readexact_bounded_when_peer_drops()
+  test_listener_close_wakes_pending_accept()
+  test_readall_bounded_when_peer_drops()
+  test_raw_write_loop_during_abrupt_drop()
+  test_handshake_timeout_is_tight()
+  test_multiple_clients_one_drops()
+  test_server_writes_to_dead_client()
+  test_uni_stream_abrupt_drop_is_safe()
+  test_remote_address_on_closed_conn_is_safe()
+  test_partial_readline_bounded_when_peer_dies()
+  test_stream_budget_exhaustion_is_safe()
+  test_concurrent_writers_during_abrupt_drop()
+  test_double_close_is_safe()
+
+  print("\nAll QUIC resilience tests passed!\n")

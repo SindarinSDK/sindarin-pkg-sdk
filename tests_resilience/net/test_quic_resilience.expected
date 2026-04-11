@@ -1,0 +1,34 @@
+=== SDK QUIC Resilience Tests ===
+
+test_connect_without_listener_is_bounded: PASS
+test_connect_retries_while_server_not_ready: PASS
+test_idle_timeout_marks_closed: PASS
+test_isclosed_flips_after_server_drop: PASS
+test_pending_read_wakes_on_peer_close: PASS
+test_pending_read_wakes_when_server_drops: PASS
+test_pending_accept_wakes_on_peer_close: PASS
+test_pending_accept_wakes_when_client_drops: PASS
+test_read_after_peer_close_returns_empty: PASS
+test_write_after_close_is_safe: PASS
+test_reconnect_after_peer_close: PASS
+test_concurrent_readers_wake_on_abrupt_drop: PASS
+test_reconnect_after_abrupt_drop: PASS
+test_openstream_after_abrupt_drop_is_safe: PASS
+test_abrupt_drop_churn: PASS
+test_listener_close_tears_down_server_conns: PASS
+test_stream_close_after_abrupt_drop_is_safe: PASS
+test_readexact_bounded_when_peer_drops: PASS
+test_listener_close_wakes_pending_accept: PASS
+test_readall_bounded_when_peer_drops: PASS
+test_raw_write_loop_during_abrupt_drop: PASS
+test_handshake_timeout_is_tight: PASS
+test_multiple_clients_one_drops: PASS
+test_server_writes_to_dead_client: PASS
+test_uni_stream_abrupt_drop_is_safe: PASS
+test_remote_address_on_closed_conn_is_safe: PASS
+test_partial_readline_bounded_when_peer_dies: PASS
+test_stream_budget_exhaustion_is_safe: PASS
+test_concurrent_writers_during_abrupt_drop: PASS
+test_double_close_is_safe: PASS
+
+All QUIC resilience tests passed!
