@@ -257,6 +257,13 @@ native struct QuicConnection as ref =>
   @alias "sn_quic_connection_dispose"
   native fn dispose(): void
 
+  # Test-only fault injection: shut down the underlying UDP socket to
+  # simulate abrupt peer death. Declared as a struct method (not a free
+  # native fn) so its C prototype is emitted at every call site —
+  # required for clang's -Wimplicit-function-declaration on macOS/Windows.
+  @alias "sn_quic_test_drop_socket"
+  native fn quicTestDropSocket(): void
+
 # ==============================================================================
 # QuicListener Native Struct Definition
 # ==============================================================================
@@ -349,10 +356,3 @@ native fn sn_quic_connection_remote_address(conn: QuicConnection): str
 native fn sn_quic_listener_bind(address: str, certFile: str, keyFile: str): QuicListener
 native fn sn_quic_listener_bind_with(address: str, certFile: str, keyFile: str, config: QuicConfig): QuicListener
 native fn sn_quic_listener_accept(listener: QuicListener): QuicConnection
-
-# Test-only fault injection hook. Shuts down a connection's socket so tests
-# can simulate abrupt peer death. Exported at module level so its C prototype
-# is visible to codegen in test files that use it — without this, clang on
-# macOS / Windows rejects the generated main.c with -Wimplicit-function-declaration.
-@alias "sn_quic_test_drop_socket"
-native fn quicTestDropSocket(conn: QuicConnection): void

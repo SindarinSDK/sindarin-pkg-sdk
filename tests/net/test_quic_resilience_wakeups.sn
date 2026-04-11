@@ -244,7 +244,7 @@ fn test_isclosed_flips_after_server_drop(): void =>
 
   # Abruptly drop the server-side UDP path. No CONNECTION_CLOSE is sent.
   # Client must notice via its idle timer (1500ms) and flip isClosed.
-  quicTestDropSocket(serverConn)
+  serverConn.quicTestDropSocket()
 
   var deadline: long = Time.now().millis() + 2500l
   while !client.isClosed() =>
@@ -369,7 +369,7 @@ fn test_pending_read_wakes_when_server_drops(): void =>
 
   # Abruptly drop the server-side socket. No graceful frame is sent.
   # The client must detect silence via its idle timer and wake the reader.
-  quicTestDropSocket(serverConn)
+  serverConn.quicTestDropSocket()
 
   assert(waitForBg(2500l),
     "client readLine did not wake within 2.5s of abrupt server drop")
@@ -456,7 +456,7 @@ fn test_pending_accept_wakes_when_client_drops(): void =>
 
   # Abruptly drop the client-side socket. No graceful frame is sent.
   # Server must detect silence via its idle timer and wake the accept.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
 
   assert(waitForBg(2500l),
     "server acceptStream did not wake within 2.5s of abrupt client drop")
@@ -665,7 +665,7 @@ fn test_concurrent_readers_wake_on_abrupt_drop(): void =>
   Time.sleep(300)
 
   # Abrupt server drop. Both readers must wake via the idle-timer exit path.
-  quicTestDropSocket(serverConn)
+  serverConn.quicTestDropSocket()
 
   var deadline: long = Time.now().millis() + 2500l
   while !bgDone || !bg2Done =>
@@ -721,7 +721,7 @@ fn test_reconnect_after_abrupt_drop(): void =>
   # Abruptly drop the CLIENT-side socket of round-1. No CONNECTION_CLOSE.
   # The client will hit its idle timer because nothing can be sent or
   # received on its dead fd.
-  quicTestDropSocket(c1)
+  c1.quicTestDropSocket()
 
   var rd: long = Time.now().millis() + 2500l
   while !c1.isClosed() =>
@@ -783,7 +783,7 @@ fn test_openstream_after_abrupt_drop_is_safe(): void =>
   wss.close()
 
   # Abrupt drop and wait for client to notice.
-  quicTestDropSocket(serverConn)
+  serverConn.quicTestDropSocket()
   var deadline: long = Time.now().millis() + 2500l
   while !client.isClosed() =>
     if Time.now().millis() >= deadline =>
@@ -837,7 +837,7 @@ fn test_abrupt_drop_churn(): void =>
     assert(m == $"cycle-{i}", $"cycle {i}: expected 'cycle-{i}', got '{m}'")
 
     # Drop the client socket so the listener survives across cycles.
-    quicTestDropSocket(c)
+    c.quicTestDropSocket()
 
     var rd: long = Time.now().millis() + 2500l
     while !c.isClosed() =>
@@ -934,7 +934,7 @@ fn test_stream_close_after_abrupt_drop_is_safe(): void =>
   assert(hi == "hi", $"server should see 'hi', got '{hi}'")
 
   # Abruptly drop the client socket and wait for the connection to notice.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
   var deadline: long = Time.now().millis() + 2500l
   while !client.isClosed() =>
     if Time.now().millis() >= deadline =>
@@ -1007,7 +1007,7 @@ fn test_readexact_bounded_when_peer_drops(): void =>
   Time.sleep(200)
 
   # Drop the client socket so no more bytes can arrive.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
 
   assert(waitForBg(2500l),
     "readExact did not return within 2.5s of abrupt drop")
@@ -1109,7 +1109,7 @@ fn test_readall_bounded_when_peer_drops(): void =>
 
   # Abruptly drop the client socket. Client must observe via idle timer
   # and readAll must return.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
 
   assert(waitForBg(2500l),
     "readAll did not return within 2.5s of abrupt drop")
@@ -1167,7 +1167,7 @@ fn test_raw_write_loop_during_abrupt_drop(): void =>
   Time.sleep(100)
 
   # Abrupt drop. Must not hang the writer, must not UAF.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
 
   assert(waitForBg(2500l),
     $"write loop did not exit within 2.5s of abrupt drop (iterations={bgResultInt})")
@@ -1258,7 +1258,7 @@ fn test_multiple_clients_one_drops(): void =>
   assert(g2 == "c2-hello", $"c2 greeting: expected 'c2-hello', got '{g2}'")
 
   # Drop c1 abruptly.
-  quicTestDropSocket(c1)
+  c1.quicTestDropSocket()
 
   # Immediately verify c2 is unaffected — this is the actual isolation
   # assertion. Do the round trip now, BEFORE any polling window could
@@ -1340,7 +1340,7 @@ fn test_server_writes_to_dead_client(): void =>
   Time.sleep(100)
 
   # Client dies abruptly.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
 
   # Server write loop must exit within idle_timeout + slack.
   assert(waitForBg(3000l),
@@ -1385,7 +1385,7 @@ fn test_uni_stream_abrupt_drop_is_safe(): void =>
   assert(msg == "uni-hello", $"server should see 'uni-hello', got '{msg}'")
 
   # Drop the client. Both sides must notice and close without crashing.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
 
   var deadline: long = Time.now().millis() + 2500l
   while !client.isClosed() =>
@@ -1483,7 +1483,7 @@ fn test_partial_readline_bounded_when_peer_dies(): void =>
 
   # Drop the client socket. The client must observe the drop via its idle
   # timer and wake the parked readLine in bounded time.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
 
   assert(waitForBg(2500l),
     "partial readLine did not return within 2.5s of abrupt drop")
@@ -1608,7 +1608,7 @@ fn test_concurrent_writers_during_abrupt_drop(): void =>
   Time.sleep(100)
 
   # Abrupt drop.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
 
   # Both writers must exit in bounded time.
   var deadline: long = Time.now().millis() + 3000l
@@ -2040,7 +2040,7 @@ fn test_serve_returns_when_connection_drops(): void =>
 
   # Drop the client. Server must notice via idle timer and serve() must
   # return when isClosed() flips.
-  quicTestDropSocket(client)
+  client.quicTestDropSocket()
 
   assert(waitForBg(3000l),
     "serve() did not return within 3s of peer death")
