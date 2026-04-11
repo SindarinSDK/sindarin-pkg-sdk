@@ -57,7 +57,7 @@ all: test
 # test - Run SDK tests using compiled Sindarin test runner
 #------------------------------------------------------------------------------
 test: hooks $(RUN_TESTS_BIN)
-	@$(RUN_TESTS_BIN)
+	@$(RUN_TESTS_BIN) --verbose
 
 #------------------------------------------------------------------------------
 # Build the test runner
