@@ -1330,8 +1330,18 @@ static void quic_drain_cmd_queue(RtQuicConnection *conn) {
     QuicConnectionInternal *ci = conn_internal(conn);
     QuicCommand *cmd;
     while ((cmd = cmd_queue_pop(&ci->cmd_queue)) != NULL) {
+        /* Snapshot cmd fields BEFORE dispatching. quic_execute_cmd calls
+         * quic_cmd_complete internally, which signals the caller's
+         * completion condvar — the caller may then wake and return from
+         * sn_quic_stream_write / sn_quic_stream_close / etc., tearing
+         * down the stack frame that holds the QuicCommand. Any access
+         * to `cmd->*` after quic_execute_cmd returns is a stack-use-
+         * after-return UAF (caught by ASAN). Snapshot here, log the
+         * locals. */
+        int cmd_type_snapshot = (int)cmd->type;
+        int64_t cmd_stream_id_snapshot = (int64_t)cmd->stream_id;
         QUIC_STRM_DBG("drain_cmd_queue: pop cmd conn=%p type=%d stream_id=%" PRId64,
-                      (void*)ci, (int)cmd->type, (int64_t)cmd->stream_id);
+                      (void*)ci, cmd_type_snapshot, cmd_stream_id_snapshot);
         if (ci->closed && cmd->type != QUIC_CMD_CLOSE_CONN
                        && cmd->type != QUIC_CMD_SHUTDOWN) {
             cmd->result_code = -1;
@@ -1339,8 +1349,8 @@ static void quic_drain_cmd_queue(RtQuicConnection *conn) {
             continue;
         }
         quic_execute_cmd(conn, cmd);
-        QUIC_STRM_DBG("drain_cmd_queue: done cmd conn=%p type=%d stream_id=%" PRId64 " result_code=%d",
-                      (void*)ci, (int)cmd->type, (int64_t)cmd->stream_id, cmd->result_code);
+        QUIC_STRM_DBG("drain_cmd_queue: done cmd conn=%p type=%d stream_id=%" PRId64,
+                      (void*)ci, cmd_type_snapshot, cmd_stream_id_snapshot);
     }
 }
 
