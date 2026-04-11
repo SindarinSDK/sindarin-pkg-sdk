@@ -3032,13 +3032,20 @@ __sn__QuicStream *sn_quic_connection_accept_stream(__sn__QuicConnection *conn) {
         /* Skip streams that were opened and immediately closed by the peer
          * with no data. Returning these produces an immediate EOF which the
          * caller interprets as connection death; we drop them and wait for
-         * the next real stream. Only skip when recv_buf is empty — a
-         * closed-but-non-empty stream still has unread payload. */
+         * the next real stream.
+         *
+         * Skip condition: the stream is empty AND the peer is done sending
+         * (either si->closed is set — which only happens for fully-closed
+         * streams — OR fin_received is set, which also fires on bidi streams
+         * where the peer sent FIN but our send direction is still open).
+         * Only skip when recv_buf is empty: a stream with buffered data
+         * still has unread payload even after the peer is done. */
         QuicStreamInternal *si = stream_internal(stream);
         if (si) {
             MUTEX_LOCK(&si->stream_mutex);
-            bool skip = si->closed &&
-                        stream_buf_available(&si->recv_buf) == 0;
+            bool peer_done = si->closed || si->recv_buf.fin_received;
+            bool empty = stream_buf_available(&si->recv_buf) == 0;
+            bool skip = peer_done && empty;
             MUTEX_UNLOCK(&si->stream_mutex);
             if (skip) {
                 __sn__QuicStream_release(&stream);

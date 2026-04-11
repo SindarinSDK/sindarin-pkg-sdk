@@ -70,5 +70,15 @@ test_listener_concurrent_connect_burst: PASS
 test_writeline_with_embedded_newline: PASS
 test_many_uni_streams_sequential: PASS
 test_connect_with_localhost_hostname: PASS
+test_server_initiated_uni_stream: PASS
+test_uni_stream_multiple_writes_before_close: PASS
+test_zero_data_stream_skipped_by_accept: PASS
+test_bidi_open_simultaneously_both_ends: PASS
+test_write_immediately_after_connect: PASS
+test_long_running_with_bursts: PASS
+test_many_small_rpcs_serialized: PASS
+test_many_uni_from_server_to_client: PASS
+test_mixed_bidi_and_uni_on_one_conn: PASS
+test_accept_order_matches_open_order: PASS
 
 All QUIC resilience tests passed!

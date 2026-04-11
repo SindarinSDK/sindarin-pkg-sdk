@@ -3625,6 +3625,531 @@ fn test_connect_with_localhost_hostname(): void =>
   print("PASS\n")
 
 # ==============================================================================
+# Test 71: server-initiated unidirectional stream must reach the client.
+# ==============================================================================
+# Regression gate for the reverse of the fix in test 69: a server opens a
+# uni stream to the client and writes data. The client must accept it
+# and read the payload. Exercises the server uni stream ID space (IDs
+# 3, 7, 11, ...) and the client-side acceptStream + uni recv path.
+
+fn test_server_initiated_uni_stream(): void =>
+  print("test_server_initiated_uni_stream: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Warm up with a client bidi stream so both sides are fully established.
+  var warm: QuicStream = client.openStream()
+  warm.writeLine("warm")
+  var warmSS: QuicStream = serverConn.acceptStream()
+  var warmMsg: str = warmSS.readLine()
+  assert(warmMsg == "warm", $"warm: expected 'warm', got '{warmMsg}'")
+
+  # Server opens a UNI stream to the client. stream.writeLine sends the
+  # payload, close() sends FIN.
+  var ss: QuicStream = serverConn.openUnidirectionalStream()
+  assert(!ss.isClosed(), "serverConn.openUnidirectionalStream() returned closed")
+  ss.writeLine("from-server-uni")
+  ss.close()
+
+  # Client accepts the server-initiated uni stream. A uni stream arriving
+  # with data + FIN in one packet may already report isClosed=true — the
+  # point is the payload is still readable.
+  var cs: QuicStream = client.acceptStream()
+  var msg: str = cs.readLine()
+  assert(msg == "from-server-uni",
+    $"expected 'from-server-uni', got '{msg}'")
+
+  warm.close()
+  warmSS.close()
+  cs.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 72: multiple writes on one uni stream before close must all be delivered.
+# ==============================================================================
+# Regression gate for the multi-write path on uni streams. Test 69 sends
+# one line per uni stream; this test sends FIVE lines on a single uni
+# stream before closing. The reader must observe all five in order via
+# readLine() calls. Exercises recv_buf accumulation across multiple
+# recv_stream_data_cb calls on a single stream.
+
+fn test_uni_stream_multiple_writes_before_close(): void =>
+  print("test_uni_stream_multiple_writes_before_close: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openUnidirectionalStream()
+  for var i: int = 0; i < 5; i++ =>
+    cs.writeLine($"part-{i}")
+
+  cs.close()
+
+  var ss: QuicStream = serverConn.acceptStream()
+  for var i: int = 0; i < 5; i++ =>
+    var m: str = ss.readLine()
+    assert(m == $"part-{i}",
+      $"part {i}: expected 'part-{i}', got '{m}'")
+
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 73: a stream opened + closed with no data must be skipped by accept.
+# ==============================================================================
+# Regression gate for the skip-on-empty-closed branch in accept_stream.
+# When the peer opens a stream and closes it without writing, the
+# resulting empty+closed stream must be silently dropped so the caller
+# doesn't get an immediate-EOF that looks like connection death. Then
+# when a real stream with data arrives, that one must come through.
+
+fn test_zero_data_stream_skipped_by_accept(): void =>
+  print("test_zero_data_stream_skipped_by_accept: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Client opens stream A and immediately closes without writing.
+  var empty: QuicStream = client.openStream()
+  empty.close()
+
+  # Give the empty stream time to fully land on the server (open+FIN).
+  Time.sleep(100)
+
+  # Client opens stream B with a real payload.
+  var real: QuicStream = client.openStream()
+  real.writeLine("real-data")
+
+  # Server accepts. With the skip-empty-closed path working, the FIRST
+  # stream the user sees should be the one carrying the real data.
+  var ss: QuicStream = serverConn.acceptStream()
+  var m: str = ss.readLine()
+  assert(m == "real-data",
+    $"expected the real-data stream, got '{m}'")
+
+  real.close()
+  empty.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 74: both sides call openStream at the same time — both must work.
+# ==============================================================================
+# Regression gate for simultaneous stream creation from both ends of one
+# connection. Stream ID spaces are disjoint (client=0,4,..., server=1,5,...)
+# so there's no ID collision, but a bug in the open-path mutex could
+# still deadlock or corrupt ci->streams[] if both sides call openStream
+# concurrently.
+
+fn clientOpenBg(conn: QuicConnection): int =>
+  var s: QuicStream = conn.openStream()
+  if s.isClosed() =>
+    bgResultInt = 0
+  else =>
+    bgResultInt = 1
+    s.writeLine("client-opened")
+    s.close()
+  bgDone = true
+  return 0
+
+fn serverOpenBg(conn: QuicConnection): int =>
+  var s: QuicStream = conn.openStream()
+  if s.isClosed() =>
+    bg2ResultStr = "closed"
+  else =>
+    bg2ResultStr = "ok"
+    s.writeLine("server-opened")
+    s.close()
+  bg2Done = true
+  return 0
+
+fn test_bidi_open_simultaneously_both_ends(): void =>
+  print("test_bidi_open_simultaneously_both_ends: ")
+  resetBg()
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Warm up so handshake is fully done before the race.
+  var warm: QuicStream = client.openStream()
+  warm.writeLine("warm")
+  var warmSS: QuicStream = serverConn.acceptStream()
+  var warmMsg: str = warmSS.readLine()
+  assert(warmMsg == "warm", $"warm: expected 'warm', got '{warmMsg}'")
+  warm.close()
+  warmSS.close()
+
+  # Both sides call openStream at the same moment. Both must succeed.
+  var h1: int = & clientOpenBg(client)
+  var h2: int = & serverOpenBg(serverConn)
+
+  var deadline: long = Time.now().millis() + 3000l
+  while !bgDone || !bg2Done =>
+    if Time.now().millis() >= deadline =>
+      assert(false,
+        $"simultaneous opens did not both finish within 3s: c={bgDone} s={bg2Done}")
+    Time.sleep(50)
+
+  assert(bgResultInt == 1, "client openStream did not return alive")
+  assert(bg2ResultStr == "ok", "server openStream did not return alive")
+  h1 ~
+  h2 ~
+
+  # Drain the streams so neither side hangs during teardown.
+  var srvRecv: QuicStream = serverConn.acceptStream()
+  var cm: str = srvRecv.readLine()
+  assert(cm == "client-opened",
+    $"server should see 'client-opened', got '{cm}'")
+  srvRecv.close()
+
+  var cliRecv: QuicStream = client.acceptStream()
+  var sm: str = cliRecv.readLine()
+  assert(sm == "server-opened",
+    $"client should see 'server-opened', got '{sm}'")
+  cliRecv.close()
+
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 75: openStream + write immediately after connect must not race.
+# ==============================================================================
+# Regression gate for any lurking "wait for handshake" gap between
+# connectWith returning and the first stream operation working. Per the
+# SDK contract connectWith blocks until handshake completes (or fails
+# bounded), so a subsequent openStream + writeLine pair must be usable
+# with no additional delay.
+
+fn test_write_immediately_after_connect(): void =>
+  print("test_write_immediately_after_connect: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(5000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  # NO sleep between connect and openStream. First op must just work.
+  var cs: QuicStream = client.openStream()
+  assert(!cs.isClosed(),
+    "openStream immediately after connect returned closed")
+  cs.writeLine("first-op")
+
+  var serverConn: QuicConnection = server.accept()
+  var ss: QuicStream = serverConn.acceptStream()
+  var m: str = ss.readLine()
+  assert(m == "first-op",
+    $"expected 'first-op', got '{m}'")
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 76: long-running connection with 3 bursts and idle gaps.
+# ==============================================================================
+# Regression gate for mixed steady-state: a conn that serves periodic
+# bursts separated by idle periods is the most common real-world pattern.
+# Validates that traffic burst → idle → next burst all work without the
+# idle timer firing between bursts. Uses 2s idle timeout with 1s idle gaps.
+
+fn test_long_running_with_bursts(): void =>
+  print("test_long_running_with_bursts: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(2000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # One long-lived stream for all 3 bursts.
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("open")
+  var ss: QuicStream = serverConn.acceptStream()
+  var open_: str = ss.readLine()
+  assert(open_ == "open", $"expected 'open', got '{open_}'")
+
+  for var burst: int = 0; burst < 3; burst++ =>
+    for var i: int = 0; i < 5; i++ =>
+      cs.writeLine($"b{burst}-m{i}")
+      var m: str = ss.readLine()
+      assert(m == $"b{burst}-m{i}",
+        $"burst {burst} msg {i}: expected 'b{burst}-m{i}', got '{m}'")
+
+    # Idle gap between bursts — must stay under the 2s idle timeout.
+    Time.sleep(1000)
+    assert(!client.isClosed(),
+      $"client closed during idle gap after burst {burst}")
+    assert(!serverConn.isClosed(),
+      $"server closed during idle gap after burst {burst}")
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 77: 30 back-to-back small RPCs on one long-lived stream.
+# ==============================================================================
+# Regression gate for the "persistent RPC client" pattern: one conn,
+# one stream, many request/response pairs. Different from
+# test_persistent_rpc_burst in tests/net/test_quic.sn which opens a
+# new stream per iteration. This test keeps ONE stream open for the
+# whole loop to exercise steady-state recv_buf management and readLine
+# framing across many small exchanges.
+
+fn test_many_small_rpcs_serialized(): void =>
+  print("test_many_small_rpcs_serialized: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(10000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var cs: QuicStream = client.openStream()
+  cs.writeLine("hello")
+  var ss: QuicStream = serverConn.acceptStream()
+  var hello: str = ss.readLine()
+  assert(hello == "hello", $"expected 'hello', got '{hello}'")
+
+  # 30 request/response pairs on the same stream.
+  for var i: int = 0; i < 30; i++ =>
+    cs.writeLine($"req-{i}")
+    var req: str = ss.readLine()
+    assert(req == $"req-{i}",
+      $"req {i}: expected 'req-{i}', got '{req}'")
+    ss.writeLine($"resp-{i}")
+    var resp: str = cs.readLine()
+    assert(resp == $"resp-{i}",
+      $"resp {i}: expected 'resp-{i}', got '{resp}'")
+
+  cs.close()
+  ss.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 78: 10 server-initiated uni streams reach the client in order.
+# ==============================================================================
+# Regression gate for the batch-server-uni path: 10 uni streams opened
+# on the server, each carrying one line, all received and readable on
+# the client side. Exercises the SERVER side of the same lifecycle fix
+# that test 69 exercises on the client.
+
+fn test_many_uni_from_server_to_client(): void =>
+  print("test_many_uni_from_server_to_client: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults()
+    .setIdleTimeout(10000)
+    .setMaxUniStreams(32)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Warm up a client bidi so handshake is settled.
+  var warm: QuicStream = client.openStream()
+  warm.writeLine("warm")
+  var warmSS: QuicStream = serverConn.acceptStream()
+  var warmMsg: str = warmSS.readLine()
+  assert(warmMsg == "warm", $"expected 'warm', got '{warmMsg}'")
+  warm.close()
+  warmSS.close()
+
+  # Server opens 10 uni streams, sends one line each, closes each.
+  for var i: int = 0; i < 10; i++ =>
+    var ss: QuicStream = serverConn.openUnidirectionalStream()
+    assert(!ss.isClosed(), $"server uni open {i} returned closed")
+    ss.writeLine($"srv-uni-{i}")
+    ss.close()
+
+  # Client drains all 10 in order.
+  for var i: int = 0; i < 10; i++ =>
+    var cs: QuicStream = client.acceptStream()
+    var m: str = cs.readLine()
+    assert(m == $"srv-uni-{i}",
+      $"client uni {i}: expected 'srv-uni-{i}', got '{m}'")
+    cs.close()
+
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 79: bidi and uni streams interleaved on one connection.
+# ==============================================================================
+# Regression gate for mixed stream types on one conn. Opens alternate
+# bidi and uni streams and verifies each arrives on the other side.
+# Exercises the accept queue's ability to interleave different stream
+# types without confusion.
+
+fn test_mixed_bidi_and_uni_on_one_conn(): void =>
+  print("test_mixed_bidi_and_uni_on_one_conn: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults()
+    .setIdleTimeout(10000)
+    .setMaxUniStreams(32)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  # Open a bidi, a uni, a bidi, a uni — 4 streams total.
+  var b1: QuicStream = client.openStream()
+  b1.writeLine("bidi-1")
+  var u1: QuicStream = client.openUnidirectionalStream()
+  u1.writeLine("uni-1")
+  u1.close()
+  var b2: QuicStream = client.openStream()
+  b2.writeLine("bidi-2")
+  var u2: QuicStream = client.openUnidirectionalStream()
+  u2.writeLine("uni-2")
+  u2.close()
+
+  # Server drains all 4. Collect the messages into a set-ish structure
+  # because stream arrival order across types is not guaranteed.
+  var count: int = 0
+  var seenBidi1: bool = false
+  var seenBidi2: bool = false
+  var seenUni1: bool = false
+  var seenUni2: bool = false
+
+  for var i: int = 0; i < 4; i++ =>
+    var ss: QuicStream = serverConn.acceptStream()
+    var m: str = ss.readLine()
+    if m == "bidi-1" =>
+      seenBidi1 = true
+    if m == "bidi-2" =>
+      seenBidi2 = true
+    if m == "uni-1" =>
+      seenUni1 = true
+    if m == "uni-2" =>
+      seenUni2 = true
+    ss.close()
+    count++
+
+  assert(count == 4, $"server should accept 4 streams, got {count}")
+  assert(seenBidi1, "server did not see bidi-1")
+  assert(seenBidi2, "server did not see bidi-2")
+  assert(seenUni1, "server did not see uni-1")
+  assert(seenUni2, "server did not see uni-2")
+
+  b1.close()
+  b2.close()
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
+# Test 80: streams arrive at acceptStream in their open order.
+# ==============================================================================
+# Regression gate for FIFO ordering of the accept queue. Within a single
+# stream type, streams are opened by the peer with monotonically
+# increasing IDs and must be delivered by acceptStream in that same
+# order. A bug in the queue management (e.g. using the wrong head/tail
+# index) would shuffle them.
+
+fn test_accept_order_matches_open_order(): void =>
+  print("test_accept_order_matches_open_order: ")
+
+  var cert_path: str = "tests/net/test_quic_cert.pem"
+  var key_path: str = "tests/net/test_quic_key.pem"
+  var cfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(10000)
+
+  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, cfg)
+  var port: int = server.port()
+  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", cfg)
+  var serverConn: QuicConnection = server.accept()
+
+  var count: int = 15
+  var openedIds: long[] = {}
+  for var i: int = 0; i < count; i++ =>
+    var cs: QuicStream = client.openStream()
+    cs.writeLine($"id-check-{i}")
+    openedIds.push(cs.id())
+    cs.close()
+
+  var acceptedIds: long[] = {}
+  for var i: int = 0; i < count; i++ =>
+    var ss: QuicStream = serverConn.acceptStream()
+    var m: str = ss.readLine()
+    assert(m == $"id-check-{i}",
+      $"stream {i}: expected 'id-check-{i}', got '{m}'")
+    acceptedIds.push(ss.id())
+    ss.close()
+
+  # The accepted stream IDs must be exactly the same (and in the same
+  # order) as the opened IDs.
+  for var i: int = 0; i < count; i++ =>
+    assert(openedIds[i] == acceptedIds[i],
+      $"stream {i}: opened id={openedIds[i]}, accepted id={acceptedIds[i]}")
+
+  client.close()
+  serverConn.close()
+  server.close()
+  print("PASS\n")
+
+# ==============================================================================
 # Main
 # ==============================================================================
 
@@ -3701,5 +4226,15 @@ fn main(): void =>
   test_writeline_with_embedded_newline()
   test_many_uni_streams_sequential()
   test_connect_with_localhost_hostname()
+  test_server_initiated_uni_stream()
+  test_uni_stream_multiple_writes_before_close()
+  test_zero_data_stream_skipped_by_accept()
+  test_bidi_open_simultaneously_both_ends()
+  test_write_immediately_after_connect()
+  test_long_running_with_bursts()
+  test_many_small_rpcs_serialized()
+  test_many_uni_from_server_to_client()
+  test_mixed_bidi_and_uni_on_one_conn()
+  test_accept_order_matches_open_order()
 
   print("\nAll QUIC resilience tests passed!\n")
