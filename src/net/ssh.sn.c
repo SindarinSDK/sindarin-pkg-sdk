@@ -244,6 +244,8 @@ static __sn__SshConnection *ssh_connect_and_handshake(const char *address) {
     /* Set connection options */
     ssh_options_set(session, SSH_OPTIONS_HOST, host);
     ssh_options_set(session, SSH_OPTIONS_PORT, &port);
+    long timeout_sec = 15;
+    ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &timeout_sec);
 
     /* Connect */
     int rc = ssh_connect(session);
