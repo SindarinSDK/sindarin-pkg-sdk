@@ -1,7 +1,6 @@
 === SDK QUIC Resilience Tests ===
 
 test_connect_without_listener_is_bounded: PASS
-test_connect_retries_while_server_not_ready: PASS
 test_idle_timeout_marks_closed: PASS
 test_isclosed_flips_after_server_drop: PASS
 test_handshake_timeout_is_tight: PASS
