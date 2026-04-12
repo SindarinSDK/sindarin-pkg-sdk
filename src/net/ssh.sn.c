@@ -251,6 +251,13 @@ static __sn__SshConnection *ssh_connect_and_handshake(const char *address) {
     long timeout_sec = 15;
     ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &timeout_sec);
 
+    /* Explicitly set known_hosts to none — we handle verification ourselves.
+     * This avoids filesystem access during connect that can fail on some
+     * platforms when called from a worker thread. */
+    ssh_options_set(session, SSH_OPTIONS_KNOWNHOSTS, NULL);
+    int process_config = 0;
+    ssh_options_set(session, SSH_OPTIONS_PROCESS_CONFIG, &process_config);
+
     /* Connect */
     int rc = ssh_connect(session);
     if (rc != SSH_OK) {
