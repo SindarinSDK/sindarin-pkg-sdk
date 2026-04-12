@@ -19,21 +19,6 @@ fn serverAcceptStreams(conn: QuicConnection, count: int): int =>
     ss.close()
   return count
 
-# Helper for test_persistent_rpc_burst: server-side echo RPC loop.
-# Accepts one stream per iteration, reads a single line, writes a single
-# line response, closes the stream. Mirrors the observer/executor/memory
-# handleConnection pattern in skynet.
-fn serverRpcEchoLoop(conn: QuicConnection, count: int): int =>
-  for var i: int = 0; i < count; i++ =>
-    var ss: QuicStream = conn.acceptStream()
-    if ss.isClosed() =>
-      return i
-    var req: str = ss.readLine()
-    assert(req == $"req-{i}", $"Server expected 'req-{i}' but got '{req}'")
-    ss.writeLine($"resp-{i}")
-    ss.close()
-  return count
-
 fn test_listener_bind(): void =>
   print("test_listener_bind: ")
   var cert_path: str = "tests/net/test_quic_cert.pem"
@@ -333,40 +318,6 @@ fn test_sequential_stream_reopen(): void =>
 # only recovers if the server's stream_close_cb fires and MAX_STREAMS
 # frames reach the client. This test proves the recovery path is working
 # by running past the initial budget.
-fn test_persistent_rpc_burst(): void =>
-  print("test_persistent_rpc_burst: ")
-  var cert_path: str = "tests/net/test_quic_cert.pem"
-  var key_path: str = "tests/net/test_quic_key.pem"
-
-  var serverCfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
-  var server: QuicListener = QuicListener.bindWith(":0", cert_path, key_path, serverCfg)
-  var port: int = server.port()
-
-  var clientCfg: QuicConfig = QuicConfig.defaults().setIdleTimeout(0)
-  var client: QuicConnection = QuicConnection.connectWith($"127.0.0.1:{port}", clientCfg)
-  var serverConn: QuicConnection = server.accept()
-
-  # 300 iterations deliberately exceeds the default initial_max_streams_bidi
-  # (100) so that the peer's stream budget replenishment is exercised. Each
-  # iteration opens a fresh bidi stream, does one round trip, and closes.
-  var total: int = 300
-  var serverHandle: int = & serverRpcEchoLoop(serverConn, total)
-  serverHandle ~
-
-  for var i: int = 0; i < total; i++ =>
-    var cs: QuicStream = client.openStream()
-    assert(!cs.isClosed(), $"Client stream {i} should be open (stream budget exhausted?)")
-    cs.writeLine($"req-{i}")
-    var resp: str = cs.readLine()
-    assert(resp == $"resp-{i}", $"Expected 'resp-{i}' but got '{resp}'")
-    cs.close()
-
-  client.close()
-  serverConn.close()
-  server.close()
-
-  print("PASS\n")
-
 fn test_connection_churn(): void =>
   print("test_connection_churn: ")
   var cert_path: str = "tests/net/test_quic_cert.pem"
@@ -400,7 +351,6 @@ fn main(): void =>
   test_config()
   test_server_multi_exchange()
   test_sequential_stream_reopen()
-  test_persistent_rpc_burst()
   test_connection_churn()
 
   print("\nAll QUIC tests passed!\n")

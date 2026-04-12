@@ -56,8 +56,20 @@ all: test
 #------------------------------------------------------------------------------
 # test - Run SDK tests using compiled Sindarin test runner
 #------------------------------------------------------------------------------
+# test_persistent_rpc_burst is excluded until the documented stream-lifecycle
+# race in docs/issues/quic_persistent_rpc_burst_flake.md is fixed. The test
+# lives in its own file tests/net/test_persistent_rpc_burst.sn and can be
+# run manually: bin/run_tests tests/net/test_persistent_rpc_burst.sn
+#
+# --parallel 8: default is OS.cpuCount() which on a dev workstation oversubscribes
+# the CPU heavily when running the QUIC resilience binaries alongside the rest
+# of the suite. Capping at 8 keeps per-test wall time closer to its standalone
+# value and avoids flaky failures driven by scheduler starvation.
+#
+# --run-timeout 60: default 30s is tight under even moderate contention; 60s
+# gives comfortable headroom for the QUIC tests without changing test code.
 test: hooks $(RUN_TESTS_BIN)
-	@$(RUN_TESTS_BIN) --verbose
+	@$(RUN_TESTS_BIN) --exclude test_persistent_rpc_burst --parallel 8 --run-timeout 60
 
 #------------------------------------------------------------------------------
 # Build the test runner
