@@ -66,10 +66,12 @@ all: test
 # of the suite. Capping at 8 keeps per-test wall time closer to its standalone
 # value and avoids flaky failures driven by scheduler starvation.
 #
-# --run-timeout 60: default 30s is tight under even moderate contention; 60s
-# gives comfortable headroom for the QUIC tests without changing test code.
+# --run-timeout 120: default 30s is tight under even moderate contention.
+# Mac CI (3-core arm64) stretches per-test wall time so aggressively that
+# test_quic_resilience_lifecycle (10 tests, 64s on mac) exceeds the 60s bound.
+# 120s gives comfortable headroom for the QUIC tests without changing test code.
 test: hooks $(RUN_TESTS_BIN)
-	@$(RUN_TESTS_BIN) --exclude test_persistent_rpc_burst --parallel 8 --run-timeout 60 --verbose
+	@$(RUN_TESTS_BIN) --exclude test_persistent_rpc_burst --parallel 8 --run-timeout 120 --verbose
 
 #------------------------------------------------------------------------------
 # Build the test runner
