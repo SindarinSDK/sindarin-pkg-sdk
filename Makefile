@@ -69,7 +69,7 @@ all: test
 # --run-timeout 60: default 30s is tight under even moderate contention; 60s
 # gives comfortable headroom for the QUIC tests without changing test code.
 test: hooks $(RUN_TESTS_BIN)
-	@$(RUN_TESTS_BIN) --exclude test_persistent_rpc_burst --parallel 8 --run-timeout 60
+	@$(RUN_TESTS_BIN) --exclude test_persistent_rpc_burst --parallel 8 --run-timeout 60 --verbose
 
 #------------------------------------------------------------------------------
 # Build the test runner
