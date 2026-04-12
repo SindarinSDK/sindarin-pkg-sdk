@@ -251,22 +251,11 @@ static __sn__SshConnection *ssh_connect_and_handshake(const char *address) {
     long timeout_sec = 15;
     ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &timeout_sec);
 
-    /* Explicitly set known_hosts to none — we handle verification ourselves.
-     * This avoids filesystem access during connect that can fail on some
-     * platforms when called from a worker thread. */
-    ssh_options_set(session, SSH_OPTIONS_KNOWNHOSTS, NULL);
-    int process_config = 0;
-    ssh_options_set(session, SSH_OPTIONS_PROCESS_CONFIG, &process_config);
-
     /* Connect */
     int rc = ssh_connect(session);
     if (rc != SSH_OK) {
-        const char *err = ssh_get_error(session);
         fprintf(stderr, "SshConnection: connection failed to '%s': %s\n",
-                address, err);
-        printf("SshConnection: connection failed to '%s': %s\n",
-               address, err);
-        fflush(stdout);
+                address, ssh_get_error(session));
         ssh_free(session);
         exit(1);
     }
@@ -300,12 +289,8 @@ __sn__SshConnection *sn_ssh_connect_password(char *address,
 
     int rc = ssh_userauth_password(session, username, password);
     if (rc != SSH_AUTH_SUCCESS) {
-        const char *err = ssh_get_error(session);
         fprintf(stderr, "SshConnection.connectPassword: auth failed for '%s@%s': %s\n",
-                username, address, err);
-        printf("SshConnection.connectPassword: auth failed for '%s@%s': %s\n",
-               username, address, err);
-        fflush(stdout);
+                username, address, ssh_get_error(session));
         sn_ssh_close(_conn);
         exit(1);
     }
@@ -829,10 +814,8 @@ __sn__SshSession *sn_ssh_listener_accept(__sn__SshListener *listener) {
     /* Accept the incoming connection */
     int rc = ssh_bind_accept(sshbind, session);
     if (rc != SSH_OK) {
-        const char *err = ssh_get_error(sshbind);
-        fprintf(stderr, "SshListener.accept: accept failed: %s\n", err);
-        printf("SshListener.accept: accept failed: %s\n", err);
-        fflush(stdout);
+        fprintf(stderr, "SshListener.accept: accept failed: %s\n",
+                ssh_get_error(sshbind));
         ssh_free(session);
         exit(1);
     }
@@ -840,10 +823,8 @@ __sn__SshSession *sn_ssh_listener_accept(__sn__SshListener *listener) {
     /* Perform key exchange */
     rc = ssh_handle_key_exchange(session);
     if (rc != SSH_OK) {
-        const char *err = ssh_get_error(session);
-        fprintf(stderr, "SshListener.accept: key exchange failed: %s\n", err);
-        printf("SshListener.accept: key exchange failed: %s\n", err);
-        fflush(stdout);
+        fprintf(stderr, "SshListener.accept: key exchange failed: %s\n",
+                ssh_get_error(session));
         ssh_disconnect(session);
         ssh_free(session);
         exit(1);
@@ -907,8 +888,6 @@ __sn__SshSession *sn_ssh_listener_accept(__sn__SshListener *listener) {
 
     if (!authenticated) {
         fprintf(stderr, "SshListener.accept: authentication failed\n");
-        printf("SshListener.accept: authentication failed\n");
-        fflush(stdout);
         ssh_disconnect(session);
         ssh_free(session);
         exit(1);
