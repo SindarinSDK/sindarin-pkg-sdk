@@ -96,9 +96,9 @@ static int libssh_initialized = 0;
 static void ensure_libssh_initialized(void) {
     if (!libssh_initialized) {
         /* Enable thread-safe operation — must be called before ssh_init().
-         * The noop callbacks are sufficient when threads use separate
-         * ssh_session objects (no shared sessions across threads). */
-        ssh_threads_set_callbacks(ssh_threads_get_noop());
+         * Use pthread callbacks for real mutex-based locking of libssh
+         * internal state (required for libssh 0.12+ on Windows/MinGW). */
+        ssh_threads_set_callbacks(ssh_threads_get_pthread());
         int rc = ssh_init();
         if (rc != SSH_OK) {
             fprintf(stderr, "SshConnection: ssh_init failed\n");
