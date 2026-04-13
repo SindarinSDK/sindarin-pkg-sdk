@@ -1,28 +1,8 @@
-# Build directories
-bin/
-
-# Sindarin package cache
 .sn/
-
-# Compiled objects and binaries
-*.o
-*.obj
-*.a
-*.lib
-*.so
-*.so.*
-*.dylib
-*.dll
+bin/
+libs/
+vcpkg/
 *.exe
-
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Debug files
-*.dSYM/
-*.pdb
+*.o
+*.so
+*.a
