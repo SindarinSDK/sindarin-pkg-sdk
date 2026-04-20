@@ -1,0 +1,10 @@
+test_empty: PASS
+test_append_str: PASS
+test_append_int: PASS
+test_append_double: PASS
+test_append_bool: PASS
+test_grow: PASS
+test_clear_and_reuse: PASS
+test_with_capacity: PASS
+test_weight_serialisation: PASS
+All text tests passed

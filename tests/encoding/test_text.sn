@@ -1,0 +1,120 @@
+// Test SDK StringBuilder (sdk/encoding/text)
+
+import "sindarin-pkg-sdk/src/encoding/text"
+
+fn test_empty(): void =>
+  print("test_empty: ")
+  var sb: StringBuilder = StringBuilder.create()
+  assert(sb.length() == 0, "length should be 0")
+  var s: str = sb.toString()
+  assert(s.length == 0, "toString should be empty")
+  sb.dispose()
+  print("PASS\n")
+
+fn test_append_str(): void =>
+  print("test_append_str: ")
+  var sb: StringBuilder = StringBuilder.create()
+  sb.append("hello")
+  sb.append(" ")
+  sb.append("world")
+  assert(sb.length() == 11, "length should be 11")
+  var s: str = sb.toString()
+  assert(s == "hello world", "content should be 'hello world'")
+  sb.dispose()
+  print("PASS\n")
+
+fn test_append_int(): void =>
+  print("test_append_int: ")
+  var sb: StringBuilder = StringBuilder.create()
+  sb.appendInt(0)
+  sb.append(",")
+  sb.appendInt(42)
+  sb.append(",")
+  sb.appendInt(-7)
+  var s: str = sb.toString()
+  assert(s == "0,42,-7", "content should be '0,42,-7'")
+  sb.dispose()
+  print("PASS\n")
+
+fn test_append_double(): void =>
+  print("test_append_double: ")
+  var sb: StringBuilder = StringBuilder.create()
+  sb.appendDouble(1.5)
+  sb.append(",")
+  sb.appendDouble(0.0)
+  sb.append(",")
+  sb.appendDouble(-3.25)
+  var s: str = sb.toString()
+  assert(s == "1.5,0,-3.25", $"content should be '1.5,0,-3.25', got '{s}'")
+  sb.dispose()
+  print("PASS\n")
+
+fn test_append_bool(): void =>
+  print("test_append_bool: ")
+  var sb: StringBuilder = StringBuilder.create()
+  sb.appendBool(true)
+  sb.append(",")
+  sb.appendBool(false)
+  var s: str = sb.toString()
+  assert(s == "true,false", "content should be 'true,false'")
+  sb.dispose()
+  print("PASS\n")
+
+fn test_grow(): void =>
+  print("test_grow: ")
+  // Default capacity is 256 bytes. Append past that to exercise growth.
+  var sb: StringBuilder = StringBuilder.create()
+  for i in 0..200 =>
+    sb.append("0123456789")
+  assert(sb.length() == 2000, "length should be 2000")
+  var s: str = sb.toString()
+  assert(s.length == 2000, "string length should be 2000")
+  sb.dispose()
+  print("PASS\n")
+
+fn test_clear_and_reuse(): void =>
+  print("test_clear_and_reuse: ")
+  var sb: StringBuilder = StringBuilder.create()
+  sb.append("first")
+  assert(sb.length() == 5, "length should be 5")
+  sb.clear()
+  assert(sb.length() == 0, "length should be 0 after clear")
+  sb.append("second")
+  var s: str = sb.toString()
+  assert(s == "second", "content after reuse should be 'second'")
+  sb.dispose()
+  print("PASS\n")
+
+fn test_with_capacity(): void =>
+  print("test_with_capacity: ")
+  var sb: StringBuilder = StringBuilder.createWithCapacity(1024)
+  sb.append("sized")
+  var s: str = sb.toString()
+  assert(s == "sized", "content should be 'sized'")
+  sb.dispose()
+  print("PASS\n")
+
+fn test_weight_serialisation(): void =>
+  print("test_weight_serialisation: ")
+  // The motivating case: serialise a large array of doubles without O(n^2).
+  var n: int = 5000
+  var sb: StringBuilder = StringBuilder.createWithCapacity(64 * 1024)
+  for i in 0..n =>
+    sb.appendDouble(0.5)
+    sb.append(",")
+  var s: str = sb.toString()
+  assert(s.length > 10000, "serialised blob should be large")
+  sb.dispose()
+  print("PASS\n")
+
+fn main(): void =>
+  test_empty()
+  test_append_str()
+  test_append_int()
+  test_append_double()
+  test_append_bool()
+  test_grow()
+  test_clear_and_reuse()
+  test_with_capacity()
+  test_weight_serialisation()
+  print("All text tests passed\n")

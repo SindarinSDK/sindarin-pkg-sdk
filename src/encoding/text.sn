@@ -1,0 +1,110 @@
+# ==============================================================================
+# sdk/encoding/text.sn - Mutable string builder for Sindarin
+# ==============================================================================
+# Amortized O(1) append-backed string buffer. Solves the O(n^2) cost of
+# `s = s + part` in a loop, which reallocates and copies the entire prefix
+# on every iteration. A StringBuilder grows its capacity geometrically
+# and appends in O(len(part)) per call.
+#
+# Usage:
+# import "sdk/encoding/text"
+#
+# var sb: StringBuilder = StringBuilder.create()
+# sb.append("[")
+# for i: int = 0; i < n; i += 1 =>
+# if i > 0 =>
+# sb.append(",")
+# sb.appendDouble(values[i])
+# sb.append("]")
+# var out: str = sb.toString()
+# sb.dispose()
+#
+# IMPORTANT: call dispose() to release the internal buffer. toString()
+# returns an owned heap copy -- the builder may be reused or disposed
+# after toString() returns.
+# ==============================================================================
+
+# Self-contained implementation
+@source "text.sn.c"
+
+# ==============================================================================
+# StringBuilder Native Struct Definition
+# ==============================================================================
+# Opaque pointer fields stored as long to prevent the auto-generated release
+# function from treating them as str (and freeing them behind our back).
+
+@alias "SnStringBuilder"
+native struct StringBuilder as ref =>
+  @alias "buf"
+  _buf: long
+  @alias "cap"
+  _cap: long
+  @alias "len"
+  _len: long
+
+  # ==========================================================================
+  # Construction
+  # ==========================================================================
+
+  # Create a new empty StringBuilder with a small initial capacity.
+  static fn create(): StringBuilder =>
+    return sn_text_new()
+
+  # Create a new empty StringBuilder with a caller-specified initial capacity
+  # in bytes. Useful when the final size is roughly known up front.
+  static fn createWithCapacity(initialCap: int): StringBuilder =>
+    return sn_text_new_with_capacity(initialCap)
+
+  # ==========================================================================
+  # Append
+  # ==========================================================================
+
+  # Append a string (no-op if NULL/empty).
+  @alias "sn_text_append"
+  native fn append(s: str): void
+
+  # Append an integer formatted as %lld.
+  @alias "sn_text_append_int"
+  native fn appendInt(n: int): void
+
+  # Append a double formatted as %.17g (lossless round-trip).
+  @alias "sn_text_append_double"
+  native fn appendDouble(v: double): void
+
+  # Append a bool as "true" or "false".
+  @alias "sn_text_append_bool"
+  native fn appendBool(b: bool): void
+
+  # ==========================================================================
+  # Size / Reset
+  # ==========================================================================
+
+  # Current byte length of the accumulated content.
+  @alias "sn_text_length"
+  native fn length(): int
+
+  # Reset length to 0 without freeing the underlying buffer. Useful when the
+  # same builder is reused across many serialisation cycles.
+  @alias "sn_text_clear"
+  native fn clear(): void
+
+  # ==========================================================================
+  # Extract / Dispose
+  # ==========================================================================
+
+  # Return an owned heap copy of the accumulated string. The builder is
+  # still valid after this call; call dispose() when done.
+  fn toString(): str =>
+    return sn_text_to_string(self)
+
+  # Release the internal buffer. Must be called before dropping the builder.
+  @alias "sn_text_dispose"
+  native fn dispose(): void
+
+# ==============================================================================
+# Runtime Function Declarations
+# ==============================================================================
+
+native fn sn_text_new(): StringBuilder
+native fn sn_text_new_with_capacity(initialCap: int): StringBuilder
+native fn sn_text_to_string(sb: StringBuilder): str
