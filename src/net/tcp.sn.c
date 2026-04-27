@@ -471,9 +471,11 @@ SnArray *sn_tcp_stream_read_all(__sn__TcpStream *stream) {
         if (stream_buffered(internal) == 0) {
             int n = stream_fill(sock, internal);
             if (n < 0 && n != -2) {
-                free(temp_buffer);
-                fprintf(stderr, "sn_tcp_stream_read_all: recv failed (%d)\n", GET_SOCKET_ERROR());
-                exit(1);
+                /* Peer reset or other recv error — treat as EOF and
+                 * return whatever we already accumulated. Previously
+                 * this exit(1)'d the process, which made any unclean
+                 * peer disconnect during a read fatal. */
+                break;
             }
             if (n == 0 || n == -2) {
                 break;  /* EOF or timeout */
@@ -686,7 +688,11 @@ void sn_tcp_stream_set_timeout(__sn__TcpStream *stream, long long timeout_ms) {
  * TcpStream Write Operations
  * ============================================================================ */
 
-/* Write bytes, return count written */
+/* Write bytes, return count written. Returns -1 on send failure (peer
+ * reset, broken pipe, etc.) so callers can handle the disconnect. The
+ * previous behaviour was exit(1), which terminated the entire process
+ * on every client disconnect — fatal for long-running servers (HTTP
+ * SSE, websockets, anything where peers come and go). */
 long long sn_tcp_stream_write(__sn__TcpStream *stream, SnArray *data) {
     if (stream == NULL || data == NULL) return 0;
 
@@ -697,14 +703,29 @@ long long sn_tcp_stream_write(__sn__TcpStream *stream, SnArray *data) {
     int bytes_sent = send(sock, (const char *)data->data, (int)length, 0);
 
     if (bytes_sent < 0) {
-        fprintf(stderr, "sn_tcp_stream_write: send failed (%d)\n", GET_SOCKET_ERROR());
-        exit(1);
+        /* Quiet on the common disconnect cases — they are normal in
+         * any server with abrupt clients. Anything else (rare) we log
+         * once so genuinely surprising failures stay visible. */
+        int err = GET_SOCKET_ERROR();
+#ifdef _WIN32
+        if (err != WSAECONNRESET && err != WSAECONNABORTED && err != WSAESHUTDOWN)
+#else
+        if (err != EPIPE && err != ECONNRESET)
+#endif
+        {
+            fprintf(stderr, "sn_tcp_stream_write: send failed (%d)\n", err);
+        }
+        return -1;
     }
 
     return (long long)bytes_sent;
 }
 
-/* Write string + newline */
+/* Write string + newline. Errors are swallowed (the function is void
+ * so the caller has no way to react). The previous behaviour was
+ * exit(1) on send failure, which killed the process on any client
+ * disconnect — see sn_tcp_stream_write for the rationale. Subsequent
+ * reads/writes on this stream will surface the broken state. */
 void sn_tcp_stream_write_line(__sn__TcpStream *stream, char *text) {
     if (stream == NULL) return;
 
@@ -715,8 +736,16 @@ void sn_tcp_stream_write_line(__sn__TcpStream *stream, char *text) {
         if (len > 0) {
             int result = send(sock, text, (int)len, 0);
             if (result < 0) {
-                fprintf(stderr, "sn_tcp_stream_write_line: send failed (%d)\n", GET_SOCKET_ERROR());
-                exit(1);
+                int err = GET_SOCKET_ERROR();
+#ifdef _WIN32
+                if (err != WSAECONNRESET && err != WSAECONNABORTED && err != WSAESHUTDOWN)
+#else
+                if (err != EPIPE && err != ECONNRESET)
+#endif
+                {
+                    fprintf(stderr, "sn_tcp_stream_write_line: send failed (%d)\n", err);
+                }
+                return;
             }
         }
     }
@@ -724,8 +753,15 @@ void sn_tcp_stream_write_line(__sn__TcpStream *stream, char *text) {
     /* Send newline */
     int result = send(sock, "\r\n", 2, 0);
     if (result < 0) {
-        fprintf(stderr, "sn_tcp_stream_write_line: send newline failed (%d)\n", GET_SOCKET_ERROR());
-        exit(1);
+        int err = GET_SOCKET_ERROR();
+#ifdef _WIN32
+        if (err != WSAECONNRESET && err != WSAECONNABORTED && err != WSAESHUTDOWN)
+#else
+        if (err != EPIPE && err != ECONNRESET)
+#endif
+        {
+            fprintf(stderr, "sn_tcp_stream_write_line: send newline failed (%d)\n", err);
+        }
     }
 }
 
