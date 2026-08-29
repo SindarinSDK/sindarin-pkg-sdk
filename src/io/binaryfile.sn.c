@@ -60,7 +60,7 @@ __sn__BinaryFile *sn_binary_file_open(char *path)
         }
     }
 
-    BinaryFile *file = (BinaryFile *)calloc(1, sizeof(BinaryFile));
+    BinaryFile *file = __sn__BinaryFile__new();
     if (file == NULL) {
         fclose(fp);
         fprintf(stderr, "SnBinaryFile.open: memory allocation failed\n");
