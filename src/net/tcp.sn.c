@@ -59,6 +59,8 @@ typedef __sn__TcpListener RtTcpListener;
 /* Cast macros for socket fd stored as long long */
 #define SOCK_FD(s) ((socket_t)(s)->socket_fd)
 #define SET_SOCK_FD(s, v) ((s)->socket_fd = (long long)(v))
+#define STREAM_INTERNAL(s) ((TcpStreamInternal *)(uintptr_t)(s)->internal)
+#define SET_STREAM_INTERNAL(s, v) ((s)->internal = (unsigned char *)(v))
 
 /* Internal stream state (not exposed to Sindarin) */
 typedef struct TcpStreamInternal {
@@ -70,50 +72,8 @@ typedef struct TcpStreamInternal {
     bool eof_reached;
 } TcpStreamInternal;
 
-/* Global table to associate stream pointers with internal state */
-#define MAX_TCP_STREAMS 1024
-static struct {
-    __sn__TcpStream *stream;
-    TcpStreamInternal *internal;
-} tcp_stream_table[MAX_TCP_STREAMS];
-static int tcp_stream_count = 0;
-
 static TcpStreamInternal *get_internal(__sn__TcpStream *stream) {
-    for (int i = 0; i < tcp_stream_count; i++) {
-        if (tcp_stream_table[i].stream == stream) {
-            return tcp_stream_table[i].internal;
-        }
-    }
-    return NULL;
-}
-
-static void register_internal(__sn__TcpStream *stream, TcpStreamInternal *internal) {
-    /* Check if slot already exists */
-    for (int i = 0; i < tcp_stream_count; i++) {
-        if (tcp_stream_table[i].stream == stream) {
-            tcp_stream_table[i].internal = internal;
-            return;
-        }
-    }
-    if (tcp_stream_count < MAX_TCP_STREAMS) {
-        tcp_stream_table[tcp_stream_count].stream = stream;
-        tcp_stream_table[tcp_stream_count].internal = internal;
-        tcp_stream_count++;
-    } else {
-        fprintf(stderr, "sn_tcp: too many open streams\n");
-        exit(1);
-    }
-}
-
-static void unregister_internal(__sn__TcpStream *stream) {
-    for (int i = 0; i < tcp_stream_count; i++) {
-        if (tcp_stream_table[i].stream == stream) {
-            /* Swap with last */
-            tcp_stream_table[i] = tcp_stream_table[tcp_stream_count - 1];
-            tcp_stream_count--;
-            return;
-        }
-    }
+    return stream == NULL ? NULL : STREAM_INTERNAL(stream);
 }
 
 /* ============================================================================
@@ -281,7 +241,7 @@ static __sn__TcpStream *sn_tcp_stream_create(socket_t sock, char *remote_addr) {
     internal->read_timeout_ms = -1;
     internal->eof_reached = false;
 
-    register_internal(stream, internal);
+    SET_STREAM_INTERNAL(stream, internal);
 
     return stream;
 }
@@ -801,7 +761,7 @@ void sn_tcp_stream_dispose(__sn__TcpStream *stream) {
             free(internal->read_buf);
             internal->read_buf = NULL;
         }
-        unregister_internal(stream);
+        SET_STREAM_INTERNAL(stream, NULL);
         free(internal);
     }
 

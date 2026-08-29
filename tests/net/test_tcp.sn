@@ -4,7 +4,15 @@
 # Tests the TcpListener and TcpStream structs and their methods.
 # ==============================================================================
 
-import "sindarin-pkg-sdk/src/net/tcp"
+import "../../src/net/tcp"
+
+fn concurrent_echo_client(port: int, message: str): void =>
+  var client: TcpStream = TcpStream.connect($"127.0.0.1:{port}")
+  client.writeLine(message)
+  var response: str = client.readLine()
+  assert(response == message, "Concurrent client should receive its echo")
+  client.writeLine("done")
+  client.dispose()
 
 fn test_listener_bind(): void =>
   print("test_listener_bind: ")
@@ -102,6 +110,28 @@ fn test_remote_address(): void =>
 
   print("PASS\n")
 
+fn test_concurrent_connect_and_accept(): void =>
+  print("test_concurrent_connect_and_accept: ")
+
+  # connect() and accept() create their TcpStream objects on different threads.
+  # Repeat the handshake to exercise concurrent stream-state registration.
+  var server: TcpListener = TcpListener.bind(":0")
+  var port: int = server.port()
+
+  for i in 0..64 =>
+    var message: str = $"echo-{i}"
+    & concurrent_echo_client(port, message)
+
+    var serverConn: TcpStream = server.accept()
+    var received: str = serverConn.readLine()
+    assert(received == message, "Server should receive concurrent client message")
+    serverConn.writeLine(received)
+    assert(serverConn.readLine() == "done", "Client should complete the handshake")
+    serverConn.dispose()
+
+  server.dispose()
+  print("PASS\n")
+
 fn main(): void =>
   print("=== SDK TCP Tests ===\n\n")
 
@@ -109,5 +139,6 @@ fn main(): void =>
   test_connect_and_echo()
   test_write_bytes()
   test_remote_address()
+  test_concurrent_connect_and_accept()
 
   print("\nAll TCP tests passed!\n")
