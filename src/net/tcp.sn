@@ -42,6 +42,12 @@ native struct TcpStream as ref =>
   @alias "remote_addr"
   _remote_addr: *byte
 
+  # Per-stream native read state. Keeping this on the stream avoids a
+  # process-global registry, which cannot safely be updated by concurrent
+  # connect() and accept() calls.
+  @alias "internal"
+  _internal: *byte
+
   # ==========================================================================
   # Static Factory Methods
   # ==========================================================================

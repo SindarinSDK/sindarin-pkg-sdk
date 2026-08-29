@@ -4,5 +4,6 @@ test_listener_bind: PASS
 test_connect_and_echo: PASS
 test_write_bytes: PASS
 test_remote_address: PASS
+test_concurrent_connect_and_accept: PASS
 
 All TCP tests passed!
