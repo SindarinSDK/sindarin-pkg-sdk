@@ -1,0 +1,184 @@
+{
+  "native": {
+    "sources": {
+      "src/io/textfile.sn": "cdff312be708a055409d97d108e77bc050a734fd375bb7fdd1d6b19eb9ef10a7",
+      "src/io/textfile.sn.c": "83ef97406e865836c0a5dcb399cc01b83bc562e9b34a0c610e10030ba9395e65",
+      "src/io/textfile.native.c": "32115f71185a1ce7c50f415c858f15b4d3af631fae708239c31c078d39fc8ac4",
+      "src/io/textfile.native.h": "ae52b2576719da162bb84ea5343cdaa149ce718ad3d1da56ee673b5cc3bb6cc3"
+    },
+    "cases": [
+      {
+        "kind": "independent C client/resource/array/field layout",
+        "passed": true
+      },
+      {
+        "kind": "original native nil-path error and exit",
+        "passed": true
+      },
+      {
+        "kind": "independent Rust client/shared runtime path/lifetimes",
+        "passed": true
+      },
+      {
+        "kind": "independent Go client/shared runtime/GC-safe ownership",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "c",
+        "opt": "-O0",
+        "mode": "default",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "c",
+        "opt": "-O0",
+        "mode": "checked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "c",
+        "opt": "-O0",
+        "mode": "unchecked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "c",
+        "opt": "-O1",
+        "mode": "default",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "c",
+        "opt": "-O1",
+        "mode": "checked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "c",
+        "opt": "-O1",
+        "mode": "unchecked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "c",
+        "opt": "-O2",
+        "mode": "default",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "c",
+        "opt": "-O2",
+        "mode": "checked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "c",
+        "opt": "-O2",
+        "mode": "unchecked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "rust",
+        "opt": "-O0",
+        "mode": "default",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "rust",
+        "opt": "-O0",
+        "mode": "checked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "rust",
+        "opt": "-O0",
+        "mode": "unchecked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "rust",
+        "opt": "-O1",
+        "mode": "default",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "rust",
+        "opt": "-O1",
+        "mode": "checked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "rust",
+        "opt": "-O1",
+        "mode": "unchecked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "rust",
+        "opt": "-O2",
+        "mode": "default",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "rust",
+        "opt": "-O2",
+        "mode": "checked",
+        "passed": true
+      },
+      {
+        "kind": "unchanged SDK Sindarin fixture",
+        "target": "rust",
+        "opt": "-O2",
+        "mode": "unchecked",
+        "passed": true
+      },
+      {
+        "kind": "public fields, alias mutation and sizeof",
+        "target": "c",
+        "passed": true
+      },
+      {
+        "kind": "public fields, alias mutation and sizeof",
+        "target": "rust",
+        "passed": true
+      }
+    ],
+    "complete_sdk_package": false,
+    "passed": true
+  },
+  "sanitizer": {
+    "sources": {
+      "src/io/textfile.sn": "cdff312be708a055409d97d108e77bc050a734fd375bb7fdd1d6b19eb9ef10a7",
+      "src/io/textfile.sn.c": "83ef97406e865836c0a5dcb399cc01b83bc562e9b34a0c610e10030ba9395e65",
+      "src/io/textfile.native.c": "32115f71185a1ce7c50f415c858f15b4d3af631fae708239c31c078d39fc8ac4",
+      "src/io/textfile.native.h": "ae52b2576719da162bb84ea5343cdaa149ce718ad3d1da56ee673b5cc3bb6cc3"
+    },
+    "cases": [
+      {
+        "kind": "sanitized C module/resources",
+        "passed": true
+      }
+    ],
+    "complete_sdk_package": false,
+    "passed": true
+  },
+  "hosted_acceptance": "pending",
+  "publication": "local; requires compiler integration acceptance"
+}

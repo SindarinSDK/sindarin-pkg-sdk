@@ -29,6 +29,28 @@
  * TextFile Type Definition
  * ============================================================================ */
 
+#include "textfile.native.h"
+
+#ifdef SN_SDK_TEXTFILE_STANDALONE
+typedef SnSdkTextFileRecord __sn__TextFile;
+static __sn__TextFile *sn_sdk_text_file_new(void)
+{
+    __sn__TextFile *file = calloc(1, sizeof(*file));
+    if (file) file->__rc__ = 1;
+    return file;
+}
+#define SN_TEXT_FILE_NEW sn_sdk_text_file_new
+#else
+/* Legacy callers retain their generated type and constructor. No cast between
+ * independent record definitions is performed in this translation unit. */
+typedef char SnTextFileSizeCompatible[(sizeof(__sn__TextFile) == sizeof(SnSdkTextFileRecord)) ? 1 : -1];
+typedef char SnTextFileRcCompatible[(offsetof(__sn__TextFile, __rc__) == offsetof(SnSdkTextFileRecord, __rc__)) ? 1 : -1];
+typedef char SnTextFileFpCompatible[(offsetof(__sn__TextFile, fp) == offsetof(SnSdkTextFileRecord, fp)) ? 1 : -1];
+typedef char SnTextFilePathCompatible[(offsetof(__sn__TextFile, path) == offsetof(SnSdkTextFileRecord, path)) ? 1 : -1];
+typedef char SnTextFileOpenCompatible[(offsetof(__sn__TextFile, is_open) == offsetof(SnSdkTextFileRecord, is_open)) ? 1 : -1];
+#define SN_TEXT_FILE_NEW __sn__TextFile__new
+#endif
+
 typedef __sn__TextFile TextFile;
 
 /* ============================================================================
@@ -53,7 +75,7 @@ __sn__TextFile *sn_text_file_open(char *path)
         }
     }
 
-    __sn__TextFile *file = __sn__TextFile__new();
+    __sn__TextFile *file = SN_TEXT_FILE_NEW();
     if (file == NULL) {
         fclose(fp);
         fprintf(stderr, "SnTextFile.open: memory allocation failed\n");
@@ -892,3 +914,5 @@ long long sn_text_file_get_size(__sn__TextFile *file)
 
     return size;
 }
+
+#undef SN_TEXT_FILE_NEW

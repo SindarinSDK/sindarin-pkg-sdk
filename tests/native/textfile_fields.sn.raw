@@ -1,0 +1,14 @@
+import "sindarin-pkg-sdk/src/io/textfile"
+
+fn main(): void =>
+  var file: TextFile = TextFile.open("sdk-fields.txt")
+  var alias: TextFile = file
+  println(file._is_open)
+  println(file._fp != nil)
+  file._path = "field-update"
+  println(alias.path())
+  println(sizeof(TextFile))
+  file.dispose()
+  println(alias._is_open)
+  println(alias._fp == nil)
+  TextFile.delete("sdk-fields.txt")
