@@ -10,3 +10,11 @@ on:
 jobs:
   sindarin-pkg-test:
     uses: SindarinSDK/sindarin-pipelines/.github/workflows/sindarin-pkg-test.yml@main
+
+  native-oracle-contract:
+    name: Native text oracle contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify authored and Windows-checkout byte oracles
+        run: python3 -m unittest discover -s tests/native -p 'test_*.py' -v

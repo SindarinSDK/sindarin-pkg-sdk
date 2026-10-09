@@ -22,6 +22,12 @@ def checked(command, cwd, env=None):
     return result
 
 
+def platform_text_oracle(data, windows):
+    # Git may already have converted the checkout to CRLF. Convert the authored
+    # text oracle to CRT output exactly once, retaining every other byte.
+    return data.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n') if windows else data
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=Path, required=True)
@@ -110,7 +116,7 @@ def main():
             source=project/'test_textfile.sn'
             shutil.copyfile(ROOT/'tests/io/test_textfile.sn',source)
             expected=(ROOT/'tests/io/test_textfile.expected').read_bytes()
-            if os.name=='nt': expected=expected.replace(b'\n', b'\r\n')
+            expected=platform_text_oracle(expected, os.name=='nt')
             for target in ('c','rust'):
                 for opt in ('-O0','-O1','-O2'):
                     for mode in ('default','checked','unchecked'):
@@ -124,7 +130,7 @@ def main():
             fields=project/'textfile_fields.sn'
             shutil.copyfile(ROOT/'tests/native/textfile_fields.sn.raw',fields)
             field_expected=(ROOT/'tests/native/textfile_fields.expected').read_bytes()
-            if os.name=='nt': field_expected=field_expected.replace(b'\n',b'\r\n')
+            field_expected=platform_text_oracle(field_expected, os.name=='nt')
             for target in ('c','rust'):
                 executable=project/'fields.exe'
                 checked([compiler,'textfile_fields.sn','--no-install','--target',target,'-o',executable],project)
