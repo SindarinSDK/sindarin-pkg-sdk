@@ -39,3 +39,22 @@ released-compiler fixture discovery; the script stages its identical `.sn` bytes
 
 This pilot does not claim that generated SDK package adapters or full Rust parity
 are complete, and does not introduce another SDK implementation language.
+
+## Typed shared-runtime bridge (local implementation)
+
+The standalone C module now exposes `sn_sdk_text_file_open_abi`, `path_abi`,
+`read_line_abi`, `dispose_abi` and `is_open_abi`. They use a shared-runtime resource
+handle tagged `SindarinSDK/sindarin-pkg-sdk:io.TextFile@1` and call the existing
+canonical C implementation. No Rust/Go SDK implementation is introduced and the
+Sindarin declarations, public fields and legacy C path remain unchanged.
+
+An opened handle owns one package record credit. Retaining the runtime handle
+preserves identity; its final release drops that record credit and performs
+canonical cleanup. Explicit disposal remains idempotent. Returned strings own
+independent C-runtime credits and survive resource release. Wrong resource types
+are rejected before a C record pointer is used, preserving output values.
+
+C, Rust and Go clients exercise the bridge alongside all existing native/legacy
+checks. This implementation requires compiler runtime typed-resource entry points
+currently under development. It is not yet a complete compiler-generated TextFile
+package artifact import; broader SDK/resource/array/method contracts remain work.

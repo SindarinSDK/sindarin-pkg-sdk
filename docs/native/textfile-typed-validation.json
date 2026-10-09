@@ -1,0 +1,19 @@
+{
+  "base_revision": "52bd4e4a688c0465f1e8d9648eced23bf42ffa77",
+  "compiler_runtime_revision": "23f528998d8b4dcf72e96184c1fe9426087186b9",
+  "scope": "Typed shared-runtime TextFile bridge reusing canonical C implementation; complete generated SDK package imports remain required",
+  "source_sha256": {
+    "src/io/textfile.native.h": "7e79c5ec9e53f9466f0ec8461070bdd5ecedbd520f243e4832d207890cdda49c",
+    "src/io/textfile.native.c": "67a3753f477e162b47e04eabfa00ceb5fbff058dadfbac8259cf3004db55b6bc",
+    "tests/native/textfile_resource.c": "48a600bed286dbe40f1d597dae9b3d26b268ca2e580bd9cb55b026f943103d95",
+    "tests/native/textfile_resource.rs": "0fbf93069d1dc62d30cbfbd17c52f307da1207c9680b417572b9150f0d67dad5",
+    "tests/native/textfile_go/main.go": "0f3d5186cbe555a9314a0e73cf36fa101eb91e72c43e4fc6d3288648771402a6"
+  },
+  "public_sindarin_and_c_implementation": "byte-identical to base",
+  "normal_checks": 24,
+  "sanitizer_checks": 1,
+  "normal_log_sha256": "143e77fbb19b0269b7f1d1c9cf4cb0ca492cacc203c0c6ef58d5fa8cad7f2847",
+  "sanitizer_log_sha256": "90fb7d2ceb17578311c70b450613fd11e739f78f19f04d77e5f5ae0490a9efc4",
+  "publication": "held until required compiler runtime CI succeeds",
+  "passed": true
+}

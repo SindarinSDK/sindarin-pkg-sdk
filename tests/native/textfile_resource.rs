@@ -24,6 +24,13 @@ extern "C" {
     fn sn_sdk_text_file_path(file: *mut File, out: *mut *mut Value) -> u32;
     fn sn_abi_v1_bytes(value: *const Value, out: *mut Bytes) -> u32;
     fn sn_abi_v1_release(value: *mut Value);
+    fn sn_abi_v1_retain(value: *mut Value) -> *mut Value;
+    fn sn_abi_v1_string_copy(text: *const c_char, out: *mut *mut Value) -> u32;
+    fn sn_sdk_text_file_open_abi(path: *const Value, out: *mut *mut Value) -> u32;
+    fn sn_sdk_text_file_path_abi(file: *const Value, out: *mut *mut Value) -> u32;
+    fn sn_sdk_text_file_read_line_abi(file: *const Value, out: *mut *mut Value) -> u32;
+    fn sn_sdk_text_file_dispose_abi(file: *const Value) -> u32;
+    fn sn_sdk_text_file_is_open_abi(file: *const Value, out: *mut i32) -> u32;
 }
 fn main() {
     unsafe {
@@ -56,6 +63,40 @@ fn main() {
         sn_abi_v1_release(value);
         assert_eq!(std::fs::read(path.to_str().unwrap()).unwrap(), b"alpha\n");
         std::fs::remove_file(path.to_str().unwrap()).unwrap();
+        std::fs::write("sdk-typed-rust.txt", b"typed\n").unwrap();
+        let path = CString::new("sdk-typed-rust.txt").unwrap();
+        let mut input = std::ptr::null_mut();
+        assert_eq!(sn_abi_v1_string_copy(path.as_ptr(), &mut input), 0);
+        let mut file = std::ptr::null_mut();
+        assert_eq!(sn_sdk_text_file_open_abi(input, &mut file), 0);
+        sn_abi_v1_release(input);
+        let alias = sn_abi_v1_retain(file);
+        sn_abi_v1_release(file);
+        let mut opened = -1;
+        assert_eq!(sn_sdk_text_file_is_open_abi(alias, &mut opened), 0);
+        assert_eq!(opened, 1);
+        let mut line = std::ptr::null_mut();
+        assert_eq!(sn_sdk_text_file_read_line_abi(alias, &mut line), 0);
+        assert_eq!(sn_abi_v1_bytes(line, &mut bytes), 0);
+        assert_eq!(
+            std::slice::from_raw_parts(bytes.data, bytes.length as usize),
+            b"typed"
+        );
+        let mut owned_path = std::ptr::null_mut();
+        assert_eq!(sn_sdk_text_file_path_abi(alias, &mut owned_path), 0);
+        assert_eq!(sn_sdk_text_file_dispose_abi(alias), 0);
+        assert_eq!(sn_sdk_text_file_dispose_abi(alias), 0);
+        assert_eq!(sn_sdk_text_file_is_open_abi(alias, &mut opened), 0);
+        assert_eq!(opened, 0);
+        sn_abi_v1_release(alias);
+        assert_eq!(sn_abi_v1_bytes(owned_path, &mut bytes), 0);
+        assert_eq!(
+            std::slice::from_raw_parts(bytes.data, bytes.length as usize),
+            path.to_bytes()
+        );
+        sn_abi_v1_release(owned_path);
+        sn_abi_v1_release(line);
+        std::fs::remove_file("sdk-typed-rust.txt").unwrap();
         println!("SDK native TextFile: pass");
     }
 }

@@ -42,3 +42,70 @@ uint64_t sn_sdk_text_file_field_offset(uint32_t field)
         default: return UINT64_MAX;
     }
 }
+
+static void sn_sdk_text_file_abi_destroy(void *record, uintptr_t context)
+{
+    (void)context;
+    sn_sdk_text_file_release(record);
+}
+
+static SnAbiStatus sn_sdk_text_file_abi_record(const SnAbiValue *value, SnSdkTextFileRecord **out)
+{
+    void *record = NULL;
+    SnAbiStatus status = sn_abi_v1_resource_data_typed(value, SN_SDK_TEXTFILE_ABI_TYPE, &record);
+    if (status) return status;
+    if (!record) return SN_ABI_INVALID_ARGUMENT;
+    *out = record;
+    return SN_ABI_OK;
+}
+
+SnAbiStatus sn_sdk_text_file_open_abi(const SnAbiValue *path, SnAbiValue **out)
+{
+    if (!out) return SN_ABI_INVALID_ARGUMENT;
+    SnAbiBytes bytes;
+    SnAbiStatus status = sn_abi_v1_string_bytes(path, &bytes);
+    if (status) return status;
+    /* Canonical open retains its existing nil-path/error behaviour. */
+    SnSdkTextFileRecord *record = sn_text_file_open((char *)bytes.data);
+    status = sn_abi_v1_resource_new_typed(SN_SDK_TEXTFILE_ABI_TYPE, record,
+                                         sn_sdk_text_file_abi_destroy, 0, out);
+    if (status) sn_sdk_text_file_release(record);
+    return status;
+}
+
+SnAbiStatus sn_sdk_text_file_path_abi(const SnAbiValue *file, SnAbiValue **out)
+{
+    if (!out) return SN_ABI_INVALID_ARGUMENT;
+    SnSdkTextFileRecord *record;
+    SnAbiStatus status = sn_sdk_text_file_abi_record(file, &record);
+    return status ? status : sn_sdk_text_file_path(record, out);
+}
+
+SnAbiStatus sn_sdk_text_file_read_line_abi(const SnAbiValue *file, SnAbiValue **out)
+{
+    if (!out) return SN_ABI_INVALID_ARGUMENT;
+    SnSdkTextFileRecord *record;
+    SnAbiStatus status = sn_sdk_text_file_abi_record(file, &record);
+    if (status) return status;
+    char *line = sn_text_file_read_line(record);
+    status = sn_abi_v1_string_copy(line, out);
+    free(line);
+    return status;
+}
+
+SnAbiStatus sn_sdk_text_file_dispose_abi(const SnAbiValue *file)
+{
+    SnSdkTextFileRecord *record;
+    SnAbiStatus status = sn_sdk_text_file_abi_record(file, &record);
+    if (!status) sn_text_file_dispose(record);
+    return status;
+}
+
+SnAbiStatus sn_sdk_text_file_is_open_abi(const SnAbiValue *file, int32_t *out)
+{
+    if (!out) return SN_ABI_INVALID_ARGUMENT;
+    SnSdkTextFileRecord *record;
+    SnAbiStatus status = sn_sdk_text_file_abi_record(file, &record);
+    if (!status) *out = sn_sdk_text_file_is_open(record);
+    return status;
+}

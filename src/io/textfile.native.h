@@ -60,6 +60,14 @@ void *sn_sdk_text_file_fp(SnSdkTextFileRecord *file);
 int32_t sn_sdk_text_file_is_open(SnSdkTextFileRecord *file);
 uint64_t sn_sdk_text_file_storage_size(void);
 uint64_t sn_sdk_text_file_field_offset(uint32_t field);
+/* Common runtime resource bridge. The canonical C record remains package-owned;
+ * foreign clients use typed handles and existing retain/release operations. */
+#define SN_SDK_TEXTFILE_ABI_TYPE "SindarinSDK/sindarin-pkg-sdk:io.TextFile@1"
+SnAbiStatus sn_sdk_text_file_open_abi(const SnAbiValue *path, SnAbiValue **out);
+SnAbiStatus sn_sdk_text_file_path_abi(const SnAbiValue *file, SnAbiValue **out);
+SnAbiStatus sn_sdk_text_file_read_line_abi(const SnAbiValue *file, SnAbiValue **out);
+SnAbiStatus sn_sdk_text_file_dispose_abi(const SnAbiValue *file);
+SnAbiStatus sn_sdk_text_file_is_open_abi(const SnAbiValue *file, int32_t *out);
 #ifdef __cplusplus
 }
 #endif
