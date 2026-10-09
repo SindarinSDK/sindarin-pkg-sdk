@@ -101,6 +101,30 @@ SnAbiStatus sn_sdk_text_file_dispose_abi(const SnAbiValue *file)
     return status;
 }
 
+SnAbiStatus sn_sdk_text_file_read_lines_abi(const SnAbiValue *file, SnAbiValue **out)
+{
+    if (!out) return SN_ABI_INVALID_ARGUMENT;
+    SnSdkTextFileRecord *record;
+    SnAbiStatus status = sn_sdk_text_file_abi_record(file, &record);
+    if (status) return status;
+    SnAbiInfo info;
+    status = sn_abi_v1_query(SN_ABI_V1_1_VERSION, SN_ABI_CAP_VALUE_ARRAYS, &info, sizeof(info));
+    if (status) return status;
+    SnArray *lines = sn_text_file_read_lines(record);
+    SnAbiValue *values = NULL;
+    status = sn_abi_v1_value_array_new(&values);
+    for (long long i = 0; !status && lines && i < lines->len; i++) {
+        SnAbiValue *line = NULL;
+        status = sn_abi_v1_string_copy(((char **)lines->data)[i], &line);
+        if (!status) status = sn_abi_v1_value_array_push(values, line);
+        sn_abi_v1_release(line);
+    }
+    sn_array_free(lines);
+    if (status) { sn_abi_v1_release(values); return status; }
+    *out = values;
+    return SN_ABI_OK;
+}
+
 SnAbiStatus sn_sdk_text_file_is_open_abi(const SnAbiValue *file, int32_t *out)
 {
     if (!out) return SN_ABI_INVALID_ARGUMENT;

@@ -58,3 +58,10 @@ C, Rust and Go clients exercise the bridge alongside all existing native/legacy
 checks. This implementation requires compiler runtime typed-resource entry points
 currently under development. It is not yet a complete compiler-generated TextFile
 package artifact import; broader SDK/resource/array/method contracts remain work.
+
+The local `sn_sdk_text_file_read_lines_abi` bridge negotiates ABI 1.1 managed-value
+arrays and reuses canonical C readLines. It copies each returned line into an
+owned runtime string, returns one owned array credit and releases the original
+C array. Retrieved owned elements remain valid after both array and file release.
+C/Rust/Go clients and SDK lifetime sanitizers cover that path. Publishing this
+extension also waits for managed-array runtime acceptance.

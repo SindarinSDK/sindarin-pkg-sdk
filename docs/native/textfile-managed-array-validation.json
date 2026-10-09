@@ -1,0 +1,20 @@
+{
+  "base_revision": "7dc685d95326767207721681d7afbae6dde2ee0b",
+  "compiler_runtime_revision": "6ea76011",
+  "requires_abi": "1.1 managed-value arrays",
+  "source_sha256": {
+    "src/io/textfile.native.h": "41dd12346e178111df7a5730fa9fe4563d0da96931c691bb6042b0da1cfc6b61",
+    "src/io/textfile.native.c": "7dbcfb5c2b5a07087aff36dbe5166d585076a9bb3bafd78c08d3f34626223d36",
+    "tests/native/textfile_resource.c": "090b501bd9a0f85c8616b8f0e0de3858c1cb48cc6d6ed503c8fc93b7f0e8011b",
+    "tests/native/textfile_resource.rs": "fc4ee287c12155d4701b38f0379188cf7578b982a0f35e721fb1309a19c0d4a9",
+    "tests/native/textfile_go/main.go": "4ff2e3d7abec869869414749fd01b86c67508faab301360afa14f533e3a5e827"
+  },
+  "public_sindarin_and_c_implementation": "byte-identical",
+  "normal_checks": 24,
+  "sanitizer_checks": 1,
+  "normal_log_sha256": "143e77fbb19b0269b7f1d1c9cf4cb0ca492cacc203c0c6ef58d5fa8cad7f2847",
+  "sanitizer_log_sha256": "90fb7d2ceb17578311c70b450613fd11e739f78f19f04d77e5f5ae0490a9efc4",
+  "scope": "Canonical C readLines to owned managed strings; generated SDK package imports remain required",
+  "publication": "held until runtime prerequisite CI succeeds",
+  "passed": true
+}

@@ -29,6 +29,8 @@ extern "C" {
     fn sn_sdk_text_file_open_abi(path: *const Value, out: *mut *mut Value) -> u32;
     fn sn_sdk_text_file_path_abi(file: *const Value, out: *mut *mut Value) -> u32;
     fn sn_sdk_text_file_read_line_abi(file: *const Value, out: *mut *mut Value) -> u32;
+    fn sn_sdk_text_file_read_lines_abi(file: *const Value, out: *mut *mut Value) -> u32;
+    fn sn_abi_v1_value_array_get(array: *const Value, index: u64, out: *mut *mut Value) -> u32;
     fn sn_sdk_text_file_dispose_abi(file: *const Value) -> u32;
     fn sn_sdk_text_file_is_open_abi(file: *const Value, out: *mut i32) -> u32;
 }
@@ -63,7 +65,7 @@ fn main() {
         sn_abi_v1_release(value);
         assert_eq!(std::fs::read(path.to_str().unwrap()).unwrap(), b"alpha\n");
         std::fs::remove_file(path.to_str().unwrap()).unwrap();
-        std::fs::write("sdk-typed-rust.txt", b"typed\n").unwrap();
+        std::fs::write("sdk-typed-rust.txt", b"typed\nsecond\nthird").unwrap();
         let path = CString::new("sdk-typed-rust.txt").unwrap();
         let mut input = std::ptr::null_mut();
         assert_eq!(sn_abi_v1_string_copy(path.as_ptr(), &mut input), 0);
@@ -82,6 +84,11 @@ fn main() {
             std::slice::from_raw_parts(bytes.data, bytes.length as usize),
             b"typed"
         );
+        let mut lines = std::ptr::null_mut();
+        assert_eq!(sn_sdk_text_file_read_lines_abi(alias, &mut lines), 0);
+        let mut owned_line = std::ptr::null_mut();
+        assert_eq!(sn_abi_v1_value_array_get(lines, 0, &mut owned_line), 0);
+        sn_abi_v1_release(lines);
         let mut owned_path = std::ptr::null_mut();
         assert_eq!(sn_sdk_text_file_path_abi(alias, &mut owned_path), 0);
         assert_eq!(sn_sdk_text_file_dispose_abi(alias), 0);
@@ -94,6 +101,12 @@ fn main() {
             std::slice::from_raw_parts(bytes.data, bytes.length as usize),
             path.to_bytes()
         );
+        assert_eq!(sn_abi_v1_bytes(owned_line, &mut bytes), 0);
+        assert_eq!(
+            std::slice::from_raw_parts(bytes.data, bytes.length as usize),
+            b"second"
+        );
+        sn_abi_v1_release(owned_line);
         sn_abi_v1_release(owned_path);
         sn_abi_v1_release(line);
         std::fs::remove_file("sdk-typed-rust.txt").unwrap();

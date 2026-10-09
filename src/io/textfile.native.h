@@ -66,6 +66,7 @@ uint64_t sn_sdk_text_file_field_offset(uint32_t field);
 SnAbiStatus sn_sdk_text_file_open_abi(const SnAbiValue *path, SnAbiValue **out);
 SnAbiStatus sn_sdk_text_file_path_abi(const SnAbiValue *file, SnAbiValue **out);
 SnAbiStatus sn_sdk_text_file_read_line_abi(const SnAbiValue *file, SnAbiValue **out);
+SnAbiStatus sn_sdk_text_file_read_lines_abi(const SnAbiValue *file, SnAbiValue **out);
 SnAbiStatus sn_sdk_text_file_dispose_abi(const SnAbiValue *file);
 SnAbiStatus sn_sdk_text_file_is_open_abi(const SnAbiValue *file, int32_t *out);
 #ifdef __cplusplus
