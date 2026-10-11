@@ -13,6 +13,19 @@ typedef struct {
     int32_t is_open;
 } SnSdkTextFileRecord;
 
+/* Public storage/lifecycle contract for generated package consumers. Legacy
+ * source callers keep their generated record and existing native declarations. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+SnSdkTextFileRecord *sn_sdk_text_file_create(void);
+SnSdkTextFileRecord *sn_sdk_text_file_retain(SnSdkTextFileRecord *file);
+void sn_sdk_text_file_release(SnSdkTextFileRecord *file);
+int sn_sdk_text_file_refs(SnSdkTextFileRecord *file);
+#ifdef __cplusplus
+}
+#endif
+
 #ifdef SN_SDK_TEXTFILE_STANDALONE
 #include "sn_array.h"
 #include "sn_abi.h"
@@ -51,8 +64,6 @@ long long sn_text_file_get_size(SnSdkTextFileRecord *file);
 
 /* Independent artifact lifecycle. Retaining preserves identity; final release
  * closes the resource and releases its C-owned fields and storage once. */
-SnSdkTextFileRecord *sn_sdk_text_file_retain(SnSdkTextFileRecord *file);
-void sn_sdk_text_file_release(SnSdkTextFileRecord *file);
 /* Owned shared-runtime string; outputs remain unchanged on invalid arguments. */
 SnAbiStatus sn_sdk_text_file_path(SnSdkTextFileRecord *file, SnAbiValue **out);
 /* Public field accessors used by foreign bindings without reinterpreting layouts. */

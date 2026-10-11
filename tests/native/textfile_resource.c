@@ -14,6 +14,14 @@ static void *credits(void *value)
 
 int main(int argc, char **argv)
 {
+    SnSdkTextFileRecord *empty = sn_sdk_text_file_create();
+    assert(empty && !empty->fp && !empty->path && !empty->is_open);
+    assert(sn_sdk_text_file_refs(empty) == 1);
+    assert(sn_sdk_text_file_retain(empty) == empty && sn_sdk_text_file_refs(empty) == 2);
+    sn_sdk_text_file_release(empty);
+    assert(sn_sdk_text_file_refs(empty) == 1);
+    sn_sdk_text_file_release(empty);
+    assert(sn_sdk_text_file_refs(NULL) == 0);
     if (argc > 1 && strcmp(argv[1], "--nil-open") == 0) {
         sn_text_file_open(NULL);
         return 99;

@@ -7,6 +7,16 @@
 #include "sn_minimal.h"
 #include "textfile.sn.c"
 
+SnSdkTextFileRecord *sn_sdk_text_file_create(void)
+{
+    return sn_sdk_text_file_new();
+}
+
+int sn_sdk_text_file_refs(SnSdkTextFileRecord *file)
+{
+    return file ? __atomic_load_n(&file->__rc__, __ATOMIC_RELAXED) : 0;
+}
+
 SnSdkTextFileRecord *sn_sdk_text_file_retain(SnSdkTextFileRecord *file)
 {
     if (file) __atomic_fetch_add(&file->__rc__, 1, __ATOMIC_RELAXED);

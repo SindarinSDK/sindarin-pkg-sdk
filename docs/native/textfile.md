@@ -11,6 +11,13 @@ Compile-time size/offset checks preserve the reference-count prefix and the
 existing `fp`, `path`, and `is_open` fields. The public `.sn` declarations are
 unchanged; underscore field names remain language-visible.
 
+Generated package consumers can call `sn_sdk_text_file_create` to obtain the
+canonical empty record with one owner credit, and `sn_sdk_text_file_refs` to
+read the atomic credit count (zero for nil). Their declarations and the existing
+retain/release declarations are public outside standalone compilation mode.
+Creation delegates to the existing C constructor. This storage contract enables
+facade adapters without another record allocator or a Rust SDK implementation.
+
 The standalone module exports the existing C file operations and independent
 retain/release functions. Final release closes the file and frees C-owned path and
 record storage once. Credits are atomic; file operations themselves retain their
