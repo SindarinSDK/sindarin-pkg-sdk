@@ -17,15 +17,13 @@ def runtime_paths(compiler, windows=None):
     windows = os.name == 'nt' if windows is None else windows
     folder = Path(compiler).resolve().parent
     override = os.environ.get('SN_SDK')
-    if override and Path(override).is_dir():
-        folder = Path(override).resolve()
-    elif not (folder/'sn.cfg').is_file() and (folder.parent/'lib/sindarin/sn.cfg').is_file():
-        folder = folder.parent/'lib/sindarin'
-    runtime = folder/'lib'/('clang' if windows else 'gcc')/'libsn_runtime_min.a'
-    includes = folder/'include/runtime'
-    if not runtime.is_file() or not (includes/'sn_array.h').is_file():
-        raise ValueError(f'compiler runtime/header installation is incomplete: {runtime}, {includes}')
-    return runtime, includes
+    roots = [Path(override).resolve()] if override and Path(override).is_dir() else [folder,folder.parent/'lib/sindarin']
+    for root in roots:
+        runtime = root/'lib'/('clang' if windows else 'gcc')/'libsn_runtime_min.a'
+        includes = root/'include/runtime'
+        if runtime.is_file() and (includes/'sn_array.h').is_file():
+            return runtime, includes
+    raise ValueError('compiler runtime/header installation is incomplete; searched: '+', '.join(str(root) for root in roots))
 
 
 def verify(compiler, sanitize=False, runtime_source=None):

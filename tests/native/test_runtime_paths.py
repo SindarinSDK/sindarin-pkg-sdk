@@ -32,6 +32,8 @@ class RuntimePathsTests(unittest.TestCase):
     def test_windows_installed_binary_copy_uses_resource_root(self):
         resources = self.root/'lib/sindarin'
         wanted = self.layout(resources,'clang')
+        # The exact v0.0.83 release contains only sn.windows.cfg, not sn.cfg.
+        (resources/'sn.cfg').rename(resources/'sn.windows.cfg')
         compiler = self.root/'bin/sn.exe'
         compiler.parent.mkdir(); compiler.write_bytes(b'copied executable')
         self.assertEqual(module.runtime_paths(compiler,windows=True),wanted)
