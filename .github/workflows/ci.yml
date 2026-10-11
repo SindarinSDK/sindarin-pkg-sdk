@@ -104,6 +104,13 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: python3 sdk/scripts/check_uuid_native.py --compiler bin/sn --sanitize
+      - name: Validate canonical StringBuilder and unchanged C/Rust callers
+        shell: bash
+        run: python3 sdk/scripts/check_stringbuilder_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument StringBuilder storage and actual shared runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_stringbuilder_native.py --compiler bin/sn --sanitize
       - name: Instrument canonical modules and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
@@ -128,3 +135,5 @@ jobs:
             sdk/.sn/random-sanitizers.json
             sdk/.sn/uuid-native.json
             sdk/.sn/uuid-sanitizers.json
+            sdk/.sn/stringbuilder-native.json
+            sdk/.sn/stringbuilder-sanitizers.json

@@ -19,6 +19,23 @@
  * Type alias
  * ============================================================================ */
 
+#include "text.native.h"
+#ifdef SN_SDK_TEXT_STANDALONE
+typedef SnSdkStringBuilderRecord __sn__StringBuilder;
+static __sn__StringBuilder *sn_sdk_text_new(void)
+{
+    __sn__StringBuilder *value=calloc(1,sizeof(*value));
+    if(value) value->__rc__=1;
+    return value;
+}
+#define __sn__StringBuilder__new sn_sdk_text_new
+#else
+typedef char SnSdkTextSizeCompatible[(sizeof(__sn__StringBuilder)==sizeof(SnSdkStringBuilderRecord)) ? 1 : -1];
+typedef char SnSdkTextRcCompatible[(offsetof(__sn__StringBuilder,__rc__)==offsetof(SnSdkStringBuilderRecord,__rc__)) ? 1 : -1];
+typedef char SnSdkTextBufCompatible[(offsetof(__sn__StringBuilder,buf)==offsetof(SnSdkStringBuilderRecord,buf)) ? 1 : -1];
+typedef char SnSdkTextCapCompatible[(offsetof(__sn__StringBuilder,cap)==offsetof(SnSdkStringBuilderRecord,cap)) ? 1 : -1];
+typedef char SnSdkTextLenCompatible[(offsetof(__sn__StringBuilder,len)==offsetof(SnSdkStringBuilderRecord,len)) ? 1 : -1];
+#endif
 typedef __sn__StringBuilder SnStringBuilder;
 
 /* ============================================================================

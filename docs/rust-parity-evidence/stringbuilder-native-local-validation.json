@@ -1,0 +1,37 @@
+{
+  "status": "Local canonical C StringBuilder validated; unpublished; required compiler correction pending",
+  "SDK_base": "840f5ba6aac34018659542458c3f5894cc9b9e57",
+  "accepted_compiler": "4211bf0f37b2941faa4534e349aabf46697ba907",
+  "original_operation_bodies": 10,
+  "canonical_record_size": 32,
+  "normal_native_and_legacy_cases": 20,
+  "actual_runtime_sanitizer_cases": 1,
+  "legacy_SDK_cases": 28,
+  "native_helper_tests": 7,
+  "controls": [
+    "C/Rust independent native archives",
+    "buffer growth beyond initial capacity",
+    "aliases share fields and updates",
+    "clear keeps backing buffer",
+    "owned string survives owner destruction",
+    "idempotent manual disposal",
+    "forty automatic last-credit buffer cleanups",
+    "typed wire owner destruction exactly once",
+    "deep canonical buffer copy owns independent storage"
+  ],
+  "public_module_and_original_oracle_unchanged": true,
+  "logs": {
+    "sindarin-sdk-stringbuilder-native-final.log": "d94ba06cedd0db4250399aead73af6bc9eb468afb5dc809554e0d71925aafc3a",
+    "sindarin-sdk-stringbuilder-native-final-san.log": "dd9c8a99975cc5f064c4b7eb756d2df54409db2943556edc1a32f8fd519e4bc6",
+    "sindarin-sdk-stringbuilder-accepted.log": "d94ba06cedd0db4250399aead73af6bc9eb468afb5dc809554e0d71925aafc3a",
+    "sindarin-sdk-stringbuilder-accepted-san.log": "dd9c8a99975cc5f064c4b7eb756d2df54409db2943556edc1a32f8fd519e4bc6",
+    "sindarin-sdk-stringbuilder-legacy.log": "efb4c80064d22f64e0b4d011f1b024beebd42df9d930b66b084b5d130fbe8a31",
+    "sindarin-sdk-stringbuilder-helpers.log": "50e4786ed78da4134c32a3228a342d02640949cd1673a568669a7a5c52e20e0c"
+  },
+  "remaining": [
+    "SDK hosted platform acceptance",
+    "compiler StringBuilder artifact hosted registration and acceptance",
+    "canonical language/package as-val copy hook integration",
+    "whole SDK and final corpus/platform proof"
+  ]
+}
