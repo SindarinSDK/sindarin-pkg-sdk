@@ -1,0 +1,27 @@
+{
+  "failed_revision": "101702bce29f6e1755a6c28ad08adfc3d3fee6c3",
+  "failed_CI": 38163905630,
+  "failed_jobs": {
+    "Darwin": 114542352958,
+    "Windows": 114542353053
+  },
+  "root_causes": [
+    "Clang rejects GCC atomic builtins when the generated legacy Rust XML field has _Atomic int pointer type",
+    "Windows Rust native client did not link pthread needed by XML document registry"
+  ],
+  "correction": [
+    "Explicit int storage pointer for shared GCC/Clang atomics on both legacy atomic and canonical integer field layouts",
+    "Windows Rust native archive client explicitly links pthread"
+  ],
+  "local_normal_native_original_cases": 20,
+  "actual_runtime_sanitizer_cases": 1,
+  "native_helpers": 10,
+  "logs": {
+    "sindarin-sdk-xml-ci-macos-failure.log": "0a689529992d3b10b0e5731e248b01afba71e72ef63cfde62d338905f642a711",
+    "sindarin-sdk-xml-ci-windows-failure.log": "f24da54c2cea80b600bd8e1f5a41d49c368143b6a6e7bc0f65201618606e58f3",
+    "sindarin-sdk-xml-correction-normal.log": "3e0d9151913d7b54934974b3bbc3be219c3156c2cf734500d9f56f602e14df94",
+    "sindarin-sdk-xml-correction-san.log": "20b2cc69a6c7473c81b014d140d8033c39422e772d1ee81b08bb4c257be6a634",
+    "sindarin-sdk-xml-correction-helpers.log": "909f52c326e93a36a906f97f3ce279de12902b0bc33925fd6d521e482a10517c"
+  },
+  "status": "One combined correction locally validated; full hosted SDK platform acceptance required"
+}

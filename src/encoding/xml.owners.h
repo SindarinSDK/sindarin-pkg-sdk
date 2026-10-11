@@ -92,12 +92,12 @@ static void sn_xml_retarget_node(xmlDocPtr document, xmlNodePtr original, xmlNod
 
 static SnXml *sn_xml_wrapper_retain(SnXml *value)
 {
-    if (value) __atomic_fetch_add(&value->__rc__, 1, __ATOMIC_RELAXED);
+    if (value) __atomic_fetch_add((int *)&value->__rc__, 1, __ATOMIC_RELAXED);
     return value;
 }
 static void sn_xml_wrapper_release(SnXml *value)
 {
-    if (value && __atomic_sub_fetch(&value->__rc__, 1, __ATOMIC_ACQ_REL) == 0) {
+    if (value && __atomic_sub_fetch((int *)&value->__rc__, 1, __ATOMIC_ACQ_REL) == 0) {
         sn_xml_owner_detach(value);
         free(value);
     }

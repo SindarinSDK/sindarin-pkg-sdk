@@ -78,7 +78,7 @@ def main():
             links=[arg for archive in archives for arg in ('-C','link-arg='+str(archive))]
             links+=['-C','link-arg='+str(runtime),'-C','link-arg='+str(xml_library),'-C','link-arg='+str(zlib),'-C','link-arg=-lm']
             if os.name!='nt':links+=['-C','link-arg=-pthread']
-            else:links+=['-C','link-arg=-lbcrypt']
+            else:links+=['-C','link-arg=-pthread','-C','link-arg=-lbcrypt']
             checked(rustc+['--edition=2021','-C','default-linker-libraries=yes',ROOT/'tests/native/xml.rs','-o',work/'rust-client.exe']+links+shlex.split(os.environ.get('SN_RUSTFLAGS','')),work)
             run=checked([work/'rust-client.exe'],work);assert run.stdout.splitlines()==[b'SDK canonical Xml Rust: pass'] and not run.stderr
             cases.append({'kind':'Rust independent C archives','passed':True})
