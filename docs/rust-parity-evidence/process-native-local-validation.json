@@ -1,0 +1,46 @@
+{
+  "status": "Local canonical C Process and POSIX dual-pipe repair validated; unpublished; required compiler correction pending",
+  "SDK_base": "840f5ba6aac34018659542458c3f5894cc9b9e57",
+  "accepted_compiler": "4211bf0f37b2941faa4534e349aabf46697ba907",
+  "original_public_operation_bodies": 5,
+  "canonical_record_size": 24,
+  "normal_native_and_legacy_cases": 20,
+  "actual_runtime_sanitizer_cases": 1,
+  "legacy_SDK_cases": 28,
+  "native_helper_tests": 7,
+  "public_module_and_original_oracle_unchanged": true,
+  "controls": [
+    "Independent C and Rust archive clients",
+    "Atomic alias credits and exact typed wire destruction",
+    "Deep copies own independent stdout/stderr strings",
+    "Getter strings survive owner destruction",
+    "Forty last-credit field cleanup cycles",
+    "131072 bytes from each pipe in both child output orders"
+  ],
+  "POSIX_capture_repair": {
+    "original_failure": {
+      "deadlock": true,
+      "timeout_seconds": 3,
+      "stdout": "",
+      "stderr": "",
+      "process_group_terminated": true
+    },
+    "original_reproduction_sha256": "42d7e0a5f43b1f2731ab754564335c2e9724beb5a90dc7d374c202a0fe5fb329",
+    "repair": "poll and drain both child pipes before waitpid",
+    "Windows_capture": "existing concurrent reader threads unchanged"
+  },
+  "logs": {
+    "sindarin-sdk-process-drain-normal.log": "d5fee532b1a57708b87e7d1d3164db1a6ba42874ee71eb743195526703b8f3a8",
+    "sindarin-sdk-process-drain-san.log": "e7962bcc4e5af0c65b84bfb8bf9a11ca8231a9b07e6648081dd14e5e83a63026",
+    "sindarin-sdk-process-accepted.log": "d5fee532b1a57708b87e7d1d3164db1a6ba42874ee71eb743195526703b8f3a8",
+    "sindarin-sdk-process-accepted-san.log": "e7962bcc4e5af0c65b84bfb8bf9a11ca8231a9b07e6648081dd14e5e83a63026",
+    "sindarin-sdk-process-drain-legacy.log": "a9c5ae4428ca6f5c6734724e00195df574ae827087f0c87beb90db3837544377",
+    "sindarin-sdk-process-helpers.log": "50e4786ed78da4134c32a3228a342d02640949cd1673a568669a7a5c52e20e0c"
+  },
+  "remaining": [
+    "SDK hosted platform acceptance",
+    "Compiler source/sealed Process artifact hosted acceptance",
+    "Canonical language/package copy hook integration",
+    "Whole SDK and final corpus/platform proof"
+  ]
+}

@@ -111,6 +111,13 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: python3 sdk/scripts/check_stringbuilder_native.py --compiler bin/sn --sanitize
+      - name: Validate canonical Process output capture and unchanged callers
+        shell: bash
+        run: python3 sdk/scripts/check_process_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument Process storage and dual-pipe capture
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_process_native.py --compiler bin/sn --sanitize
       - name: Instrument canonical modules and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
@@ -137,3 +144,5 @@ jobs:
             sdk/.sn/uuid-sanitizers.json
             sdk/.sn/stringbuilder-native.json
             sdk/.sn/stringbuilder-sanitizers.json
+            sdk/.sn/process-native.json
+            sdk/.sn/process-sanitizers.json

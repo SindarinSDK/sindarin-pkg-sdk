@@ -16,12 +16,31 @@
 #else
     #include <unistd.h>
     #include <sys/wait.h>
+    #include <poll.h>
+    #include <errno.h>
 #endif
 
 /* ============================================================================
  * Process Type Definition
  * ============================================================================ */
 
+#include "process.native.h"
+#ifdef SN_SDK_PROCESS_STANDALONE
+typedef SnSdkProcessRecord __sn__Process;
+static __sn__Process *sn_sdk_process_new(void)
+{
+    __sn__Process *value=calloc(1,sizeof(*value));
+    if(value) value->__rc__=1;
+    return value;
+}
+#define __sn__Process__new sn_sdk_process_new
+#else
+typedef char SnSdkProcessSizeCompatible[(sizeof(__sn__Process)==sizeof(SnSdkProcessRecord)) ? 1 : -1];
+typedef char SnSdkProcessRcCompatible[(offsetof(__sn__Process,__rc__)==offsetof(SnSdkProcessRecord,__rc__)) ? 1 : -1];
+typedef char SnSdkProcessExitCompatible[(offsetof(__sn__Process,exit_code)==offsetof(SnSdkProcessRecord,exit_code)) ? 1 : -1];
+typedef char SnSdkProcessOutCompatible[(offsetof(__sn__Process,stdout_str)==offsetof(SnSdkProcessRecord,stdout_str)) ? 1 : -1];
+typedef char SnSdkProcessErrCompatible[(offsetof(__sn__Process,stderr_str)==offsetof(SnSdkProcessRecord,stderr_str)) ? 1 : -1];
+#endif
 typedef __sn__Process RtProcess;
 
 /* ============================================================================
@@ -257,56 +276,41 @@ static RtProcess *sn_process_run_internal(const char *cmd, char **args, size_t a
  * POSIX Implementation using fork/exec
  * ============================================================================ */
 
-/* Read all data from a file descriptor until EOF.
- * Returns a null-terminated malloc'd string.
- * Closes the file descriptor after reading.
- */
-static char *read_fd_to_string(int fd)
+/* Drain stdout and stderr together: a child may fill either pipe before
+ * closing the other. Reading one complete stream first can deadlock. */
+static void read_process_pipes(int stdout_fd, int stderr_fd, char **stdout_data, char **stderr_data)
 {
-    if (fd < 0) {
-        return strdup("");
+    struct pollfd pipes[2] = {{stdout_fd, POLLIN, 0}, {stderr_fd, POLLIN, 0}};
+    size_t capacity[2] = {READ_BUFFER_INITIAL_SIZE, READ_BUFFER_INITIAL_SIZE};
+    size_t length[2] = {0, 0};
+    char *buffers[2] = {malloc(capacity[0]), malloc(capacity[1])};
+    for (int i = 0; i < 2; i++) {
+        if (!buffers[i]) { close(pipes[i].fd);pipes[i].fd = -1; }
     }
-
-    size_t capacity = READ_BUFFER_INITIAL_SIZE;
-    size_t length = 0;
-    char *buffer = (char *)malloc(capacity);
-    if (buffer == NULL) {
-        close(fd);
-        return strdup("");
-    }
-
-    while (1) {
-        if (length + 1 >= capacity) {
-            size_t new_capacity = capacity * 2;
-            char *new_buffer = (char *)realloc(buffer, new_capacity);
-            if (new_buffer == NULL) {
-                buffer[length] = '\0';
-                close(fd);
-                return buffer;
+    while (pipes[0].fd >= 0 || pipes[1].fd >= 0) {
+        int ready = poll(pipes, 2, -1);
+        if (ready < 0 && errno == EINTR) continue;
+        if (ready < 0) break;
+        for (int i = 0; i < 2; i++) {
+            if (pipes[i].fd < 0 || !pipes[i].revents) continue;
+            if (length[i] + 1 >= capacity[i]) {
+                size_t grown = capacity[i] * 2;
+                char *buffer = realloc(buffers[i], grown);
+                if (!buffer) { close(pipes[i].fd);pipes[i].fd = -1;continue; }
+                buffers[i] = buffer;capacity[i] = grown;
             }
-            buffer = new_buffer;
-            capacity = new_capacity;
+            ssize_t count = read(pipes[i].fd, buffers[i] + length[i], capacity[i] - length[i] - 1);
+            if (count < 0 && errno == EINTR) continue;
+            if (count <= 0) { close(pipes[i].fd);pipes[i].fd = -1; }
+            else length[i] += (size_t)count;
         }
-
-        ssize_t bytes_read = read(fd, buffer + length, capacity - length - 1);
-
-        if (bytes_read < 0) {
-            buffer[length] = '\0';
-            close(fd);
-            return buffer;
-        }
-
-        if (bytes_read == 0) {
-            break;
-        }
-
-        length += (size_t)bytes_read;
     }
-
-    buffer[length] = '\0';
-    close(fd);
-
-    return buffer;
+    for (int i = 0; i < 2; i++) {
+        if (pipes[i].fd >= 0) close(pipes[i].fd);
+        if (buffers[i]) buffers[i][length[i]] = '\0';
+        else buffers[i] = strdup("");
+    }
+    *stdout_data = buffers[0];*stderr_data = buffers[1];
 }
 
 /* Build argv array for execvp */
@@ -403,8 +407,8 @@ static RtProcess *sn_process_run_internal(const char *cmd, char **args, size_t a
     close(stdout_pipe[1]);
     close(stderr_pipe[1]);
 
-    char *stdout_data = read_fd_to_string(stdout_pipe[0]);
-    char *stderr_data = read_fd_to_string(stderr_pipe[0]);
+    char *stdout_data = NULL, *stderr_data = NULL;
+    read_process_pipes(stdout_pipe[0], stderr_pipe[0], &stdout_data, &stderr_data);
 
     int status;
     if (waitpid(pid, &status, 0) < 0) {
