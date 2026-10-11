@@ -1,0 +1,16 @@
+{
+  "status": "local validation complete; ready for hosted SDK publication",
+  "accepted_compiler_revision": "2c0f1c087cb887bfeead1e756756358881e6ddee",
+  "accepted_compiler_ci": 38128023413,
+  "compiler_sha256": "5ac84c00949631df31f6dcbeb20f4c03de82d0be2547efeeea90de47ea38cbc9",
+  "local_cases": 38,
+  "instrumented_runtime_cases": 1,
+  "oracle_checks": 5,
+  "public_sn_and_oracles_unchanged": true,
+  "workflow_platforms": [
+    "ubuntu-latest",
+    "windows-latest",
+    "macos-latest"
+  ],
+  "whole_sdk_complete": false
+}

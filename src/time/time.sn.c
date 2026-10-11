@@ -26,6 +26,22 @@
  * RtTime Structure (matches runtime definition)
  * ============================================================================ */
 
+#include "time.native.h"
+#ifdef SN_SDK_TIME_STANDALONE
+typedef SnSdkTimeRecord __sn__Time;
+static __sn__Time *sn_sdk_time_new(void)
+{
+    __sn__Time *value = calloc(1, sizeof(*value));
+    if (value) value->__rc__ = 1;
+    return value;
+}
+#define __sn__Time__new sn_sdk_time_new
+#else
+/* Existing source consumers retain their generated type and constructor. */
+typedef char SnSdkTimeSizeCompatible[(sizeof(__sn__Time) == sizeof(SnSdkTimeRecord)) ? 1 : -1];
+typedef char SnSdkTimeRcCompatible[(offsetof(__sn__Time, __rc__) == offsetof(SnSdkTimeRecord, __rc__)) ? 1 : -1];
+typedef char SnSdkTimeFieldCompatible[(offsetof(__sn__Time, milliseconds) == offsetof(SnSdkTimeRecord, milliseconds)) ? 1 : -1];
+#endif
 typedef __sn__Time RtTime;
 
 /* ============================================================================

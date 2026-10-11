@@ -23,6 +23,22 @@
  * Date Type Definition
  * ============================================================================ */
 
+#include "date.native.h"
+#ifdef SN_SDK_DATE_STANDALONE
+typedef SnSdkDateRecord __sn__Date;
+static __sn__Date *sn_sdk_date_new(void)
+{
+    __sn__Date *value = calloc(1, sizeof(*value));
+    if (value) value->__rc__ = 1;
+    return value;
+}
+#define __sn__Date__new sn_sdk_date_new
+#else
+/* Existing source consumers retain their generated type and constructor. */
+typedef char SnSdkDateSizeCompatible[(sizeof(__sn__Date) == sizeof(SnSdkDateRecord)) ? 1 : -1];
+typedef char SnSdkDateRcCompatible[(offsetof(__sn__Date, __rc__) == offsetof(SnSdkDateRecord, __rc__)) ? 1 : -1];
+typedef char SnSdkDateFieldCompatible[(offsetof(__sn__Date, days) == offsetof(SnSdkDateRecord, days)) ? 1 : -1];
+#endif
 typedef __sn__Date RtDate;
 
 /* ============================================================================
@@ -494,10 +510,15 @@ __sn__Date *sn_date_end_of_year(__sn__Date *date)
  * ============================================================================ */
 
 /* RtTime layout — must match compiler-generated __sn__Time (as ref with __rc__) */
+#ifdef SN_SDK_DATE_STANDALONE
+#include "time.native.h"
+typedef SnSdkTimeRecord RtTime;
+#else
 typedef struct RtTime {
     int __rc__;
     long long milliseconds;
 } RtTime;
+#endif
 
 /* Convert date to time (midnight on that date in UTC) */
 void *sn_date_to_time(__sn__Date *date)

@@ -18,3 +18,72 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify authored and Windows-checkout byte oracles
         run: python3 -m unittest discover -s tests/native -p 'test_*.py' -v
+
+  canonical-time-date:
+    name: Canonical Time/Date (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rust_target: ''
+            sn_cc: gcc
+            sn_cflags: ''
+            sn_rustflags: ''
+            exe_ext: ''
+          - os: macos-latest
+            rust_target: ''
+            sn_cc: clang
+            sn_cflags: ''
+            sn_rustflags: ''
+            exe_ext: ''
+          - os: windows-latest
+            rust_target: x86_64-pc-windows-gnullvm
+            sn_cc: clang
+            sn_cflags: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+            sn_rustflags: --target=x86_64-pc-windows-gnullvm -C linker=clang
+            exe_ext: .exe
+    env:
+      SN_CC: ${{ matrix.sn_cc }}
+      SN_CFLAGS: ${{ matrix.sn_cflags }}
+      SN_RUSTFLAGS: ${{ matrix.sn_rustflags }}
+    steps:
+      - name: Checkout accepted compiler
+        uses: actions/checkout@v7
+        with:
+          repository: SindarinSDK/sindarin-compiler
+          ref: 2c0f1c087cb887bfeead1e756756358881e6ddee
+          persist-credentials: false
+      - name: Checkout exact SDK revision
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          path: sdk
+          persist-credentials: false
+      - name: Use accepted compiler toolchains and project dependencies
+        uses: ./.github/actions/compiler-toolchain
+        with:
+          build_deps: 'true'
+          rust_target: ${{ matrix.rust_target }}
+      - name: Build accepted compiler
+        shell: bash
+        run: make build
+      - name: Validate independent C/Rust archives and unchanged SDK callers
+        shell: bash
+        run: python3 sdk/scripts/check_time_date_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument canonical modules and actual shared runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_time_date_native.py --compiler bin/sn --sanitize
+      - name: Retain calendar ABI and lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: time-date-native-${{ matrix.os }}
+          path: |
+            sdk/.sn/time-date-native.json
+            sdk/.sn/time-date-sanitizers.json

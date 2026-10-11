@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "kind": "C modules and actual runtime address/undefined/leak",
+      "passed": true
+    }
+  ],
+  "complete_sdk_package": false,
+  "compiler_sha256": "5ac84c00949631df31f6dcbeb20f4c03de82d0be2547efeeea90de47ea38cbc9",
+  "platform": "Linux",
+  "sources": {
+    "src/time/time.native.c": "01e6449a61b877700ce8329033569927f994fe399d9e3defc3dd8e48a74c4ff0",
+    "src/time/time.sn.c": "70431e50973eaa3e5672f33e13a5d4812cf9f46d4e724709d9ae5ee45bb4f8e1",
+    "src/time/time.sn": "6b494afe070762049ee40734d32a980314ee82fdb9d72d8ce0b10a099bb52d92",
+    "src/time/date.sn.c": "e5350f3af9f9f42b61fc0f0bd2ee055129807ba49e6b369d1ea8a444625e6925",
+    "src/time/date.sn": "4f308d5da8903fa170dc4bd459247123239f1f08aaf94e999b472674e80507ea",
+    "src/time/date.native.h": "966ef17b975a5523f11965e9b7e0e6b3f2dbd2aa68fa68c29ffd512c12946d78",
+    "src/time/time.native.h": "1bebd983d2e98e18aa89089eb3e6a52de06dde58dea9ce65eabb3de4704a8ad7",
+    "src/time/date.native.c": "ed19ec6216fad8f17e5dfbc29af44c43025b7ce8283ea63fe0bcc7b18d5b4f16",
+    "tests/time/test_time.sn": "1bf85b5bb1ea1c24165397a8fd3f99b453ee53a95cca9ed04765461826a50a94",
+    "tests/time/test_time.expected": "51d71ef285aaf5a6830f63be783eae7136c6332e0110c62feda012c563611a62",
+    "tests/time/test_date.sn": "413835df398076d2c6df6f2ebe2631415ba60c9cb112e08a5f59b2f0bb431289",
+    "tests/time/test_date.expected": "796ff20c468f890ea0dec4ee17f7201975785942c824502337f5e27205f2fe17"
+  },
+  "scope": "Canonical C Time/Date storage and unchanged legacy callers; hosted compiler artifact adapters and broader SDK migration remain required"
+}
