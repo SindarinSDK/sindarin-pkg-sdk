@@ -1,0 +1,51 @@
+[1mCompiling[0m .sn/sindarin-pkg-test/src/execute.sn...
+  Parsing... [1;36mdone[0m
+  Type checking... [1;36mdone[0m
+  Code generation... [1;36mdone[0m
+  Linking... [1;36mdone[0m
+[1;36mDone[0m: bin/run_tests (151.6 KB)
+Compiler: /home/gavin/.sn/bin/sn
+Platform: Linux
+Parallel: 20 workers
+
+[1mTests[0m
+============================================================
+
+  Running tests... [0/28]
+  Running tests... [1/28]
+  Running tests... [2/28]
+  Running tests... [3/28]
+  Running tests... [4/28]
+  Running tests... [5/28]
+  Running tests... [6/28]
+  Running tests... [7/28]
+  Running tests... [8/28]
+  Running tests... [9/28]
+  Running tests... [10/28]
+  Running tests... [11/28]
+  Running tests... [12/28]
+  Running tests... [13/28]
+  Running tests... [14/28]
+  Running tests... [15/28]
+  Running tests... [16/28]
+  Running tests... [17/28]
+  Running tests... [18/28]
+  Running tests... [19/28]
+  Running tests... [20/28]
+  Running tests... [21/28]
+  Running tests... [22/28]
+  Running tests... [23/28]
+  Running tests... [24/28]
+  Running tests... [25/28]
+  Running tests... [26/28]
+  Running tests... [27/28]
+  Running tests... [28/28]
+
+  [0;32mPASS[0m
+
+------------------------------------------------------------
+Results: [0;32m28 passed[0m, [0;31m0 failed[0m, [0;33m0 skipped[0m  (2493ms)
+
+[0;32m[1mAll tests passed![0m
+PASS: independent canonical C SDK Bytes module
+PASS: independent canonical C SDK BinaryFile module

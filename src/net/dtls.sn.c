@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 
 /* OpenSSL includes */
 #include <openssl/ssl.h>
@@ -630,7 +631,7 @@ typedef struct DtlsListenerData {
     socket_t socket_fd;
     long long bound_port;
     SSL_CTX *ssl_ctx;
-    bool running;
+    atomic_bool running;
 
     /* Accept queue (thread-safe) */
     __sn__DtlsConnection *accept_queue[DTLS_MAX_ACCEPT_QUEUE];
@@ -662,6 +663,20 @@ static DtlsListenerData *dtls_find_listener_data(__sn__DtlsListener *listener) {
         if (g_dtls_ls[i] == listener) return g_dtls_ld[i];
     }
     return NULL;
+}
+
+static void dtls_unregister_listener(__sn__DtlsListener *listener) {
+    for (int i = 0; i < g_dtls_ld_count; i++) {
+        if (g_dtls_ls[i] != listener) continue;
+        for (int j = i + 1; j < g_dtls_ld_count; j++) {
+            g_dtls_ls[j - 1] = g_dtls_ls[j];
+            g_dtls_ld[j - 1] = g_dtls_ld[j];
+        }
+        g_dtls_ld_count--;
+        g_dtls_ls[g_dtls_ld_count] = NULL;
+        g_dtls_ld[g_dtls_ld_count] = NULL;
+        return;
+    }
 }
 
 /* ============================================================================
@@ -903,7 +918,7 @@ __sn__DtlsListener *sn_dtls_listener_bind(char *address, char *cert_file, char *
     ld->socket_fd = sock;
     ld->bound_port = bound_port;
     ld->ssl_ctx = ctx;
-    ld->running = true;
+    atomic_init(&ld->running, true);
 
     /* Set receive timeout on listener socket so thread can check running flag */
 #ifdef _WIN32
@@ -1019,16 +1034,17 @@ void sn_dtls_listener_close(__sn__DtlsListener *listener) {
     /* Close socket first to unblock recvfrom in the thread */
     if (ld->socket_fd != INVALID_SOCKET_VAL) {
         CLOSE_SOCKET(ld->socket_fd);
-        ld->socket_fd = INVALID_SOCKET_VAL;
     }
 
     /* Wait for listener thread */
 #ifdef _WIN32
-    WaitForSingleObject(ld->listen_thread, 5000);
+    WaitForSingleObject(ld->listen_thread, INFINITE);
     CloseHandle(ld->listen_thread);
 #else
     pthread_join(ld->listen_thread, NULL);
 #endif
+    ld->socket_fd = INVALID_SOCKET_VAL;
+    dtls_unregister_listener(listener);
 
     if (ld->ssl_ctx != NULL) {
         SSL_CTX_free(ld->ssl_ctx);

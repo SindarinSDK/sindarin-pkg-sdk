@@ -1,0 +1,5 @@
+{
+  "exit": -6,
+  "stdout": "",
+  "stderr": "sindarin-dtls-registry-before.exe: tests/native/dtls_listener_registry.c:22: main: Assertion `dtls_find_listener_data(listener) == NULL && g_dtls_ld_count == 0' failed.\n"
+}

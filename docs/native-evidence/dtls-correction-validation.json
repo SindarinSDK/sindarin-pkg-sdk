@@ -1,0 +1,36 @@
+{
+  "status": "local combined correction validated; ready for hosted publication",
+  "failed_revision": "ca47676f88ac70a1131261a72b466c022bd869a6",
+  "failed_sdk_ci": 38131909523,
+  "failed_job": 114447806049,
+  "known_defect": "listener close frees internal data without unregistering its mapping; deterministic pre-fix failure",
+  "fixes": [
+    "remove closed listener mapping before freeing internal data",
+    "atomic worker stop flag",
+    "keep socket field stable until worker has joined",
+    "wait for Windows worker completion before freeing",
+    "retain diagnostic stdout/stderr without changing primary failure status"
+  ],
+  "local": {
+    "listener_cycles": 40,
+    "original_c_mode_cases": 9,
+    "instrumented_runtime_cases": 1,
+    "oracle_and_diagnostic_tests": 7,
+    "complete_original_sdk_cases": 28,
+    "bytes_binaryfile_native_modules": true
+  },
+  "scope": "SDK CI correction, not a passing Rust DTLS claim",
+  "limitations": [
+    "macOS failing caller original stderr unavailable; direct failure diagnostics now retained",
+    "accepted compiler Rust DTLS caller has canonical byte-array initializer mismatch; preserved as remaining compiler parity work"
+  ],
+  "source_sha256": {
+    "src/net/dtls.sn.c": "cf0548e4ab9beca57106e2afa8c904662a9f0b939e24b905bd2741dd1738e9eb",
+    "scripts/check_dtls_lifecycle.py": "09f4a2404654c2f388f8b5487df1c70b55b7e4573fbd8c2472c81e8b139b22c1",
+    "scripts/run_tests_with_diagnostics.py": "c7e46bcc41a2da7c0b7635d30770e777310e3ddb115ccc41bae786602cf0be0e",
+    "tests/native/dtls_listener_registry.c": "7c493884e4612f5783ea96e50062a6ffe901ffc818267943cb2b8decc6e05594",
+    "tests/native/test_diagnostic_status.py": "a318b7d571f567e7f4d735bf04af948fc464d4f9773a3850a721f181cb46acd6",
+    "Makefile": "f649252475849b5bcb747f07d44f313a91b4610f3b4f6463f178d0fdb030813a",
+    ".github/workflows/ci.yml": "a0f3687ecff95940373dbc5e0e3cefac7a529e5c678ee2b9ca09298b7d2fe0aa"
+  }
+}

@@ -75,10 +75,17 @@ jobs:
       - name: Validate independent C/Rust archives and unchanged SDK callers
         shell: bash
         run: python3 sdk/scripts/check_time_date_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Validate DTLS teardown and retain original C caller streams
+        shell: bash
+        run: python3 sdk/scripts/check_dtls_lifecycle.py --compiler "bin/sn${{ matrix.exe_ext }}" --targets c
       - name: Instrument canonical modules and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
         run: python3 sdk/scripts/check_time_date_native.py --compiler bin/sn --sanitize
+      - name: Instrument DTLS listener teardown and actual runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_dtls_lifecycle.py --compiler bin/sn --sanitize
       - name: Retain calendar ABI and lifecycle evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -87,3 +94,5 @@ jobs:
           path: |
             sdk/.sn/time-date-native.json
             sdk/.sn/time-date-sanitizers.json
+            sdk/.sn/dtls-lifecycle.json
+            sdk/.sn/dtls-lifecycle-sanitizers.json

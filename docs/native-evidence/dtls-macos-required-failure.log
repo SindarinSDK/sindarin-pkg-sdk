@@ -1,0 +1,335 @@
+﻿2026-10-11T10:26:04.2425940Z Current runner version: '2.337.0'
+2026-10-11T10:26:04.2442060Z ##[group]Runner Image Provisioner
+2026-10-11T10:26:04.2442600Z Hosted Compute Agent
+2026-10-11T10:26:04.2442950Z Version: 20260828.587
+2026-10-11T10:26:04.2443340Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-10-11T10:26:04.2443790Z Build Date: 2026-08-28T16:44:25Z
+2026-10-11T10:26:04.2444210Z Worker ID: {aa539fb9-6ed3-455e-9d2c-142e48d2743f}
+2026-10-11T10:26:04.2444650Z Azure Region: westus
+2026-10-11T10:26:04.2444990Z ##[endgroup]
+2026-10-11T10:26:04.2445810Z ##[group]Operating System
+2026-10-11T10:26:04.2446190Z macOS
+2026-10-11T10:26:04.2446500Z 26.6.2
+2026-10-11T10:26:04.2446810Z 25G83
+2026-10-11T10:26:04.2447130Z ##[endgroup]
+2026-10-11T10:26:04.2447590Z ##[group]Runner Image
+2026-10-11T10:26:04.2448020Z Image: macos-26-arm64
+2026-10-11T10:26:04.2448390Z Version: 20260907.0351.1
+2026-10-11T10:26:04.2449230Z Included Software: https://github.com/actions/runner-images/blob/macos-26-arm64/20260907.0351/images/macos/macos-26-arm64-Readme.md
+2026-10-11T10:26:04.2450230Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-26-arm64%2F20260907.0351
+2026-10-11T10:26:04.2450910Z ##[endgroup]
+2026-10-11T10:26:04.2451660Z ##[group]GITHUB_TOKEN Permissions
+2026-10-11T10:26:04.2452710Z Contents: read
+2026-10-11T10:26:04.2453110Z Metadata: read
+2026-10-11T10:26:04.2453450Z Packages: read
+2026-10-11T10:26:04.2453790Z ##[endgroup]
+2026-10-11T10:26:04.2455450Z Secret source: Actions
+2026-10-11T10:26:04.2455990Z Cache mode: write
+2026-10-11T10:26:04.2456400Z Prepare workflow directory
+2026-10-11T10:26:04.2673160Z Prepare all required actions
+2026-10-11T10:26:04.2705830Z Getting action download info
+2026-10-11T10:26:04.4165270Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-11T10:26:04.6481050Z Download action repository 'SindarinSDK/sindarin-pipelines@main' (SHA:506f9a41a898e699770e53182b175b61b3ed4b4e)
+2026-10-11T10:26:05.2125500Z Uses: SindarinSDK/sindarin-pipelines/.github/workflows/sindarin-pkg-test.yml@refs/heads/main (506f9a41a898e699770e53182b175b61b3ed4b4e)
+2026-10-11T10:26:05.2128610Z ##[group] Inputs
+2026-10-11T10:26:05.2129120Z   platforms: ["ubuntu-latest","windows-latest","macos-latest"]
+2026-10-11T10:26:05.2129660Z ##[endgroup]
+2026-10-11T10:26:05.2130170Z Complete job name: sindarin-pkg-test / Test (macos-latest)
+2026-10-11T10:26:05.2564430Z ##[group]Run actions/checkout@v4
+2026-10-11T10:26:05.2565470Z with:
+2026-10-11T10:26:05.2565840Z   repository: SindarinSDK/sindarin-pkg-sdk
+2026-10-11T10:26:05.2568810Z   token: ***
+2026-10-11T10:26:05.2569200Z   ssh-strict: true
+2026-10-11T10:26:05.2569540Z   ssh-user: git
+2026-10-11T10:26:05.2569890Z   persist-credentials: true
+2026-10-11T10:26:05.2570270Z   clean: true
+2026-10-11T10:26:05.2570620Z   sparse-checkout-cone-mode: true
+2026-10-11T10:26:05.2571070Z   fetch-depth: 1
+2026-10-11T10:26:05.2571410Z   fetch-tags: false
+2026-10-11T10:26:05.2571760Z   show-progress: true
+2026-10-11T10:26:05.2572100Z   lfs: false
+2026-10-11T10:26:05.2572450Z   submodules: false
+2026-10-11T10:26:05.2572790Z   set-safe-directory: true
+2026-10-11T10:26:05.2573190Z   allow-unsafe-pr-checkout: false
+2026-10-11T10:26:05.2573750Z ##[endgroup]
+2026-10-11T10:26:05.5308340Z Syncing repository: SindarinSDK/sindarin-pkg-sdk
+2026-10-11T10:26:05.5309910Z ##[group]Getting Git version info
+2026-10-11T10:26:05.5310620Z Working directory is '/Users/runner/work/sindarin-pkg-sdk/sindarin-pkg-sdk'
+2026-10-11T10:26:05.5311520Z [command]/opt/homebrew/bin/git version
+2026-10-11T10:26:05.5846980Z git version 2.55.0
+2026-10-11T10:26:05.5857750Z ##[endgroup]
+2026-10-11T10:26:05.5863590Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/975b7af4-39eb-4e19-8fb9-90130e8439e3/.gitconfig'
+2026-10-11T10:26:05.5869910Z Temporarily overriding HOME='/Users/runner/work/_temp/975b7af4-39eb-4e19-8fb9-90130e8439e3' before making global git config changes
+2026-10-11T10:26:05.5871050Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-11T10:26:05.5873640Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/sindarin-pkg-sdk/sindarin-pkg-sdk
+2026-10-11T10:26:05.5982590Z Deleting the contents of '/Users/runner/work/sindarin-pkg-sdk/sindarin-pkg-sdk'
+2026-10-11T10:26:05.5985510Z ##[group]Initializing the repository
+2026-10-11T10:26:05.5991700Z [command]/opt/homebrew/bin/git init /Users/runner/work/sindarin-pkg-sdk/sindarin-pkg-sdk
+2026-10-11T10:26:05.6193170Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-11T10:26:05.6194330Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-11T10:26:05.6195220Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-11T10:26:05.6195830Z hint: call:
+2026-10-11T10:26:05.6196210Z hint:
+2026-10-11T10:26:05.6196930Z hint: 	git config --global init.defaultBranch <name>
+2026-10-11T10:26:05.6197450Z hint:
+2026-10-11T10:26:05.6197990Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-11T10:26:05.6198920Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-11T10:26:05.6199510Z hint:
+2026-10-11T10:26:05.6199960Z hint: 	git branch -m <name>
+2026-10-11T10:26:05.6215730Z hint:
+2026-10-11T10:26:05.6216500Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-11T10:26:05.6217890Z Initialized empty Git repository in /Users/runner/work/sindarin-pkg-sdk/sindarin-pkg-sdk/.git/
+2026-10-11T10:26:05.6219560Z [command]/opt/homebrew/bin/git remote add origin https://github.com/SindarinSDK/sindarin-pkg-sdk
+2026-10-11T10:26:05.6283100Z ##[endgroup]
+2026-10-11T10:26:05.6284010Z ##[group]Disabling automatic garbage collection
+2026-10-11T10:26:05.6285000Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-11T10:26:05.6349040Z ##[endgroup]
+2026-10-11T10:26:05.6349710Z ##[group]Setting up auth
+2026-10-11T10:26:05.6352570Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:26:05.6410230Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-11T10:26:05.7286800Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:26:05.7342840Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-11T10:26:05.8089420Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:26:05.8143030Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-11T10:26:05.9462320Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-11T10:26:05.9524660Z ##[endgroup]
+2026-10-11T10:26:05.9525580Z ##[group]Fetching the repository
+2026-10-11T10:26:05.9527380Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +ca47676f88ac70a1131261a72b466c022bd869a6:refs/remotes/origin/main
+2026-10-11T10:26:06.7018500Z From https://github.com/SindarinSDK/sindarin-pkg-sdk
+2026-10-11T10:26:06.7019150Z  * [new ref]         ca47676f88ac70a1131261a72b466c022bd869a6 -> origin/main
+2026-10-11T10:26:06.7021060Z ##[endgroup]
+2026-10-11T10:26:06.7021480Z ##[group]Determining the checkout info
+2026-10-11T10:26:06.7021990Z ##[endgroup]
+2026-10-11T10:26:06.7025290Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-11T10:26:06.7096010Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-11T10:26:06.7176060Z ##[group]Checking out the ref
+2026-10-11T10:26:06.7176650Z [command]/opt/homebrew/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-10-11T10:26:06.7484400Z Switched to a new branch 'main'
+2026-10-11T10:26:06.7487260Z branch 'main' set up to track 'origin/main'.
+2026-10-11T10:26:06.7490930Z ##[endgroup]
+2026-10-11T10:26:06.7573610Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-11T10:26:06.7638080Z ca47676f88ac70a1131261a72b466c022bd869a6
+2026-10-11T10:26:06.7796750Z ##[group]Run SindarinSDK/sindarin-pipelines/.github/actions/install-sindarin@main
+2026-10-11T10:26:06.7797250Z ##[endgroup]
+2026-10-11T10:26:06.7838660Z ##[start-action display=Install Sindarin (Linux/macOS);id=__SindarinSDK_sindarin-pipelines.__run]
+2026-10-11T10:26:06.7889870Z ##[group]Run curl -fsSL https://raw.githubusercontent.com/SindarinSDK/sindarin-compiler/main/scripts/install.sh \
+2026-10-11T10:26:06.7890630Z [36;1mcurl -fsSL https://raw.githubusercontent.com/SindarinSDK/sindarin-compiler/main/scripts/install.sh \[0m
+2026-10-11T10:26:06.7891150Z [36;1m  -o /tmp/install.sh[0m
+2026-10-11T10:26:06.7891430Z [36;1mbash /tmp/install.sh[0m
+2026-10-11T10:26:06.7930580Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-11T10:26:06.7930920Z ##[endgroup]
+2026-10-11T10:26:06.9365050Z 
+2026-10-11T10:26:06.9366960Z [0;35m========================================[0m
+2026-10-11T10:26:06.9367710Z [0;35m    Sindarin Compiler Installer[0m
+2026-10-11T10:26:06.9368610Z [0;35m========================================[0m
+2026-10-11T10:26:06.9368950Z 
+2026-10-11T10:26:06.9423630Z [0;36m[*][0m Detected OS: darwin (arm64)
+2026-10-11T10:26:06.9450420Z [0;36m[*][0m Fetching prerequisites installer...
+2026-10-11T10:26:07.0422230Z 
+2026-10-11T10:26:07.0422920Z [0;35m========================================[0m
+2026-10-11T10:26:07.0423800Z [0;35m  Sindarin Prerequisites Installer[0m
+2026-10-11T10:26:07.0424410Z [0;35m========================================[0m
+2026-10-11T10:26:07.0424740Z 
+2026-10-11T10:26:07.0447480Z [0;36m[*][0m Detected macOS
+2026-10-11T10:26:07.0448220Z [0;36m[*][0m Installing coreutils via Homebrew...
+2026-10-11T10:26:08.7324180Z [33mWarning:[0m cmake 4.4.3 is already installed and up-to-date.
+2026-10-11T10:26:08.7324530Z To reinstall 4.4.3, run:
+2026-10-11T10:26:08.7324750Z   brew reinstall cmake
+2026-10-11T10:26:08.7336190Z [33mWarning:[0m ninja 1.13.2 is already installed and up-to-date.
+2026-10-11T10:26:08.7336620Z To reinstall 1.13.2, run:
+2026-10-11T10:26:08.7336940Z   brew reinstall ninja
+2026-10-11T10:26:08.7392300Z [33mWarning:[0m pkgconf 3.0.7 is already installed and up-to-date.
+2026-10-11T10:26:08.7392860Z To reinstall 3.0.7, run:
+2026-10-11T10:26:08.7393290Z   brew reinstall pkgconf
+2026-10-11T10:26:09.1364100Z [32m==>[0m [1mDownloading bottle manifests[0m
+2026-10-11T10:26:09.1848950Z ✔︎ Bottle Manifest coreutils (9.11)
+2026-10-11T10:26:09.1849750Z [34m==>[0m [1mWould install 1 formula:[0m
+2026-10-11T10:26:09.1850040Z coreutils
+2026-10-11T10:26:09.2449700Z [32m==>[0m [1mFetching downloads for: [32mcoreutils[39m[0m
+2026-10-11T10:26:09.6714610Z ✔︎ Bottle coreutils (9.11)
+2026-10-11T10:26:09.6793090Z [34m==>[0m [1mPouring coreutils--9.11.arm64_tahoe.bottle.1.tar.gz[0m
+2026-10-11T10:26:09.9420810Z 🍺  /opt/homebrew/Cellar/coreutils/9.11: 443 files, 12.6MB
+2026-10-11T10:26:09.9502330Z [32m==>[0m [1mCaveats[0m
+2026-10-11T10:26:09.9502700Z [34m==>[0m [1mcoreutils[0m
+2026-10-11T10:26:09.9503290Z Commands also provided by macOS and the commands dir, dircolors, vdir have been installed with the prefix "g".
+2026-10-11T10:26:09.9503980Z If you need to use these commands with their normal names, you can add a "gnubin" directory to your PATH with:
+2026-10-11T10:26:09.9504490Z   PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"
+2026-10-11T10:26:09.9516200Z [0;36m[*][0m Installing vcpkg to /Users/runner/vcpkg...
+2026-10-11T10:26:09.9610400Z Cloning into '/Users/runner/vcpkg'...
+2026-10-11T10:26:20.6404680Z Updating files:  78% (11205/14337)
+2026-10-11T10:26:20.6542990Z Updating files:  79% (11327/14337)
+2026-10-11T10:26:20.6660980Z Updating files:  80% (11470/14337)
+2026-10-11T10:26:20.6800530Z Updating files:  81% (11613/14337)
+2026-10-11T10:26:20.6927100Z Updating files:  82% (11757/14337)
+2026-10-11T10:26:20.7039440Z Updating files:  83% (11900/14337)
+2026-10-11T10:26:20.7173490Z Updating files:  84% (12044/14337)
+2026-10-11T10:26:20.7310550Z Updating files:  85% (12187/14337)
+2026-10-11T10:26:20.7422140Z Updating files:  86% (12330/14337)
+2026-10-11T10:26:20.7546080Z Updating files:  87% (12474/14337)
+2026-10-11T10:26:20.7657510Z Updating files:  88% (12617/14337)
+2026-10-11T10:26:20.7795390Z Updating files:  89% (12760/14337)
+2026-10-11T10:26:20.7920780Z Updating files:  90% (12904/14337)
+2026-10-11T10:26:20.8041570Z Updating files:  91% (13047/14337)
+2026-10-11T10:26:20.8179250Z Updating files:  92% (13191/14337)
+2026-10-11T10:26:20.8306310Z Updating files:  93% (13334/14337)
+2026-10-11T10:26:20.8422410Z Updating files:  94% (13477/14337)
+2026-10-11T10:26:20.8551130Z Updating files:  95% (13621/14337)
+2026-10-11T10:26:20.8667000Z Updating files:  96% (13764/14337)
+2026-10-11T10:26:20.8791080Z Updating files:  97% (13907/14337)
+2026-10-11T10:26:20.8918620Z Updating files:  98% (14051/14337)
+2026-10-11T10:26:20.9025540Z Updating files:  99% (14194/14337)
+2026-10-11T10:26:20.9025830Z Updating files: 100% (14337/14337)
+2026-10-11T10:26:20.9026070Z Updating files: 100% (14337/14337), done.
+2026-10-11T10:26:20.9439960Z Downloading vcpkg-macos...
+2026-10-11T10:26:21.3622550Z vcpkg package management program version 2026-09-26-51bf87ca6e9bf3e622d84ff323bd202ab1ca0c0b
+2026-10-11T10:26:21.3622980Z 
+2026-10-11T10:26:21.3623240Z See LICENSE.txt for license information.
+2026-10-11T10:26:21.3659120Z [0;32m[+][0m vcpkg installed
+2026-10-11T10:26:21.3661550Z 
+2026-10-11T10:26:21.3662180Z [0;32m[+][0m Prerequisites installed successfully!
+2026-10-11T10:26:21.3662440Z 
+2026-10-11T10:26:21.3694550Z [0;36m[*][0m Fetching latest version...
+2026-10-11T10:26:21.6520540Z [0;32m[+][0m Found release: v0.0.83
+2026-10-11T10:26:21.6623670Z [0;36m[*][0m Downloading sindarin-0.0.83-darwin-arm64.tar.gz...
+2026-10-11T10:26:22.5174890Z [0;32m[+][0m Download complete
+2026-10-11T10:26:22.5200750Z [0;36m[*][0m Extracting to /Users/runner/.sn...
+2026-10-11T10:26:22.5569870Z [0;36m[*][0m Flattening nested directory structure...
+2026-10-11T10:26:22.5645610Z [0;32m[+][0m Extraction complete
+2026-10-11T10:26:22.5646160Z [0;36m[*][0m Configuring PATH...
+2026-10-11T10:26:22.5646520Z [0;36m[*][0m GitHub Actions detected, registering in GITHUB_PATH...
+2026-10-11T10:26:22.5647480Z [0;32m[+][0m Added /Users/runner/.sn/bin to GITHUB_PATH
+2026-10-11T10:26:22.5647870Z 
+2026-10-11T10:26:22.5648260Z [0;32m[+][0m Sindarin compiler installed successfully!
+2026-10-11T10:26:22.5648530Z 
+2026-10-11T10:26:22.5648710Z [1;37m  Installed to: /Users/runner/.sn[0m
+2026-10-11T10:26:22.5649030Z [1;37m  Version:      v0.0.83[0m
+2026-10-11T10:26:22.5649390Z 
+2026-10-11T10:26:22.5650060Z [1;33m  ============================================[0m
+2026-10-11T10:26:22.5650460Z [1;33m  IMPORTANT: Please restart your terminal[0m
+2026-10-11T10:26:22.5650840Z [1;33m  for PATH changes to take effect.[0m
+2026-10-11T10:26:22.5651730Z [1;33m  ============================================[0m
+2026-10-11T10:26:22.5651900Z 
+2026-10-11T10:26:22.5652200Z [1;37m  After restarting, you can compile Sindarin programs:[0m
+2026-10-11T10:26:22.5652560Z [1;37m    sn myprogram.sn -o myprogram[0m
+2026-10-11T10:26:22.5652740Z 
+2026-10-11T10:26:22.5692680Z ##[end-action id=__SindarinSDK_sindarin-pipelines.__run;outcome=success;conclusion=success;duration_ms=15785]
+2026-10-11T10:26:22.5695010Z ##[start-action display=Install Sindarin (Windows);id=__SindarinSDK_sindarin-pipelines.__run_2]
+2026-10-11T10:26:22.5703330Z ##[end-action id=__SindarinSDK_sindarin-pipelines.__run_2;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-11T10:26:22.5705050Z ##[start-action display=Verify compiler;id=__SindarinSDK_sindarin-pipelines.__run_3]
+2026-10-11T10:26:22.5722060Z ##[group]Run sn --version && sn --install
+2026-10-11T10:26:22.5722470Z [36;1msn --version && sn --install[0m
+2026-10-11T10:26:22.5758860Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-11T10:26:22.5759150Z env:
+2026-10-11T10:26:22.5759290Z   VCPKG_ROOT: /Users/runner/vcpkg
+2026-10-11T10:26:22.5759460Z ##[endgroup]
+2026-10-11T10:26:22.6073250Z sn 0.0.83
+2026-10-11T10:26:22.6192920Z Installing dependencies from sn.yaml...
+2026-10-11T10:26:23.2045520Z   sindarin-pkg-libs (main) ... [1;36mdone[0m
+2026-10-11T10:26:23.2045830Z     running install script...
+2026-10-11T10:26:23.2207080Z [0;36msindarin-pkg-libs — native library installer[0m
+2026-10-11T10:26:23.2207510Z [0;36m========================================[0m
+2026-10-11T10:26:23.2266350Z [0;36mDetected OS: darwin (arm64)[0m
+2026-10-11T10:26:23.2266660Z [0;36mPackage version: v0.0.18[0m
+2026-10-11T10:26:23.2267490Z [0;36mDownloading sindarin-pkg-libs v0.0.18 for darwin-arm64...[0m
+2026-10-11T10:26:23.2394560Z   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2026-10-11T10:26:23.2395190Z                                  Dload  Upload   Total   Spent    Left  Speed
+2026-10-11T10:26:23.2395410Z 
+2026-10-11T10:26:23.6296150Z   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2026-10-11T10:26:24.2435780Z   0 9473k    0 69224    0     0   174k      0  0:00:54 --:--:--  0:00:54  174k
+2026-10-11T10:26:24.2436590Z 100 9473k  100 9473k    0     0  9435k      0  0:00:01  0:00:01 --:--:-- 9436k
+2026-10-11T10:26:24.2504690Z [0;36mExtracting to /Users/runner/work/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/darwin...[0m
+2026-10-11T10:26:24.4220690Z [0;32mSuccessfully installed sindarin-pkg-libs v0.0.18 to /Users/runner/work/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/darwin[0m
+2026-10-11T10:26:24.4221630Z 
+2026-10-11T10:26:24.4222920Z [0;32mInstallation complete![0m
+2026-10-11T10:26:24.9857370Z   sindarin-pkg-test (main) ... [1;36mdone[0m
+2026-10-11T10:26:25.8324460Z   sindarin-pkg-sdk (main) ... [1;36mdone[0m
+2026-10-11T10:26:25.8349880Z ##[end-action id=__SindarinSDK_sindarin-pipelines.__run_3;outcome=success;conclusion=success;duration_ms=3264]
+2026-10-11T10:26:25.8392650Z ##[group]Run sn --format --check
+2026-10-11T10:26:25.8392940Z [36;1msn --format --check[0m
+2026-10-11T10:26:25.8432190Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-11T10:26:25.8432500Z env:
+2026-10-11T10:26:25.8432700Z   VCPKG_ROOT: /Users/runner/vcpkg
+2026-10-11T10:26:25.8432960Z ##[endgroup]
+2026-10-11T10:26:25.9134230Z All files already formatted.
+2026-10-11T10:26:25.9221320Z ##[group]Run make test
+2026-10-11T10:26:25.9221520Z [36;1mmake test[0m
+2026-10-11T10:26:25.9258850Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-11T10:26:25.9259130Z env:
+2026-10-11T10:26:25.9259300Z   VCPKG_ROOT: /Users/runner/vcpkg
+2026-10-11T10:26:25.9259490Z ##[endgroup]
+2026-10-11T10:26:27.4364950Z Installing dependencies from sn.yaml...
+2026-10-11T10:26:27.4366320Z   sindarin-pkg-libs (main) ... [1;36mdone[0m
+2026-10-11T10:26:27.4367130Z   sindarin-pkg-test (main) ... [1;36mdone[0m
+2026-10-11T10:26:27.4367970Z   sindarin-pkg-sdk (main) ... [1;36mdone[0m
+2026-10-11T10:26:28.2484100Z [1mCompiling[0m .sn/sindarin-pkg-test/src/execute.sn...
+2026-10-11T10:26:28.2535460Z   Parsing... [1;36mdone[0m
+2026-10-11T10:26:28.2548890Z   Type checking... [1;36mdone[0m
+2026-10-11T10:26:28.5449410Z   Code generation... [1;36mdone[0m
+2026-10-11T10:26:30.4943460Z   Linking... [1;36mdone[0m
+2026-10-11T10:26:30.4943930Z [1;36mDone[0m: bin/run_tests (124.0 KB)
+2026-10-11T10:26:30.5086970Z Compiler: /Users/runner/.sn/bin/sn
+2026-10-11T10:26:30.5087400Z Platform: macOS
+2026-10-11T10:26:30.5087640Z Parallel: 3 workers
+2026-10-11T10:26:30.5087830Z 
+2026-10-11T10:26:30.5088080Z [1mTests[0m
+2026-10-11T10:26:30.5088410Z ============================================================
+2026-10-11T10:26:30.5088680Z 
+2026-10-11T10:26:32.1635450Z   Running tests... [0/28]
+2026-10-11T10:26:32.1734270Z   Running tests... [1/28]
+2026-10-11T10:26:32.1735280Z   Running tests... [2/28]
+2026-10-11T10:26:33.6590710Z   Running tests... [3/28]
+2026-10-11T10:26:33.6591040Z   Running tests... [4/28]
+2026-10-11T10:26:33.6591240Z   Running tests... [5/28]
+2026-10-11T10:26:35.2426740Z   Running tests... [6/28]
+2026-10-11T10:26:35.2427130Z   Running tests... [7/28]
+2026-10-11T10:26:35.2427360Z   Running tests... [8/28]
+2026-10-11T10:26:36.2968830Z   Running tests... [9/28]
+2026-10-11T10:26:36.2969140Z   Running tests... [10/28]
+2026-10-11T10:26:36.2969400Z   Running tests... [11/28]
+2026-10-11T10:26:37.2651380Z   Running tests... [12/28]
+2026-10-11T10:26:37.2652840Z   Running tests... [13/28]
+2026-10-11T10:26:37.2653360Z   Running tests... [14/28]
+2026-10-11T10:26:38.3275540Z   Running tests... [15/28]
+2026-10-11T10:26:38.3276040Z   Running tests... [16/28]
+2026-10-11T10:26:38.3277740Z   Running tests... [17/28]
+2026-10-11T10:26:39.4096510Z   Running tests... [18/28]
+2026-10-11T10:26:39.4096930Z   Running tests... [19/28]
+2026-10-11T10:26:39.4097150Z   Running tests... [20/28]
+2026-10-11T10:26:40.6827450Z   Running tests... [21/28]
+2026-10-11T10:26:40.6827880Z   Running tests... [22/28]
+2026-10-11T10:26:40.6828150Z   Running tests... [23/28]
+2026-10-11T10:26:41.8293260Z   Running tests... [24/28]
+2026-10-11T10:26:41.8293790Z   Running tests... [25/28]
+2026-10-11T10:26:41.8294660Z   Running tests... [26/28]
+2026-10-11T10:26:42.6710380Z   Running tests... [27/28]
+2026-10-11T10:26:42.6727200Z   Running tests... [28/28]
+2026-10-11T10:26:42.6737840Z make: *** [test] Error 1
+2026-10-11T10:26:42.6747480Z                                         
+2026-10-11T10:26:42.6762500Z   test_dtls                                [0;31mFAIL[0m (exit code: 1) (1.584s)
+2026-10-11T10:26:42.6769450Z     === SDK DTLS Tests ===
+2026-10-11T10:26:42.6785130Z     
+2026-10-11T10:26:42.6785430Z     test_listener_bind: PASS
+2026-10-11T10:26:42.6785760Z     test_dtls_connect_and_close: 
+2026-10-11T10:26:42.6786040Z 
+2026-10-11T10:26:42.6786250Z ------------------------------------------------------------
+2026-10-11T10:26:42.6786840Z Results: [0;32m27 passed[0m, [0;31m1 failed[0m, [0;33m0 skipped[0m  (12162ms)
+2026-10-11T10:26:42.6787220Z 
+2026-10-11T10:26:42.6787420Z [0;31m[1mSome tests failed![0m
+2026-10-11T10:26:42.6799170Z ##[error]Process completed with exit code 2.
+2026-10-11T10:26:42.6928970Z Post job cleanup.
+2026-10-11T10:26:42.9273090Z [command]/opt/homebrew/bin/git version
+2026-10-11T10:26:42.9939490Z git version 2.55.0
+2026-10-11T10:26:42.9965240Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/457a3c08-e4e4-4bc1-a9d9-ec0f1d7c6ce0/.gitconfig'
+2026-10-11T10:26:43.0032380Z Temporarily overriding HOME='/Users/runner/work/_temp/457a3c08-e4e4-4bc1-a9d9-ec0f1d7c6ce0' before making global git config changes
+2026-10-11T10:26:43.0033230Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-11T10:26:43.0035490Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/sindarin-pkg-sdk/sindarin-pkg-sdk
+2026-10-11T10:26:43.0534970Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:26:43.0608180Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-11T10:26:43.2484680Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:26:43.2539140Z http.https://github.com/.extraheader
+2026-10-11T10:26:43.2605600Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-11T10:26:43.2609520Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-11T10:26:43.3366780Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:26:43.3429590Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-11T10:26:43.4321300Z Cleaning up orphan processes
+2026-10-11T10:26:44.3455620Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

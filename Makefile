@@ -22,7 +22,7 @@ setup:
 	@$(SN) --install
 
 test: setup $(RUN_TESTS)
-	@$(RUN_TESTS) --verbose
+	@$(PYTHON) scripts/run_tests_with_diagnostics.py --compiler "$(SN)" --runner "$(RUN_TESTS)"
 	@$(PYTHON) scripts/check_bytes_native.py --compiler "$(SN)"
 	@$(PYTHON) scripts/check_bytes_native.py --compiler "$(SN)" --module binaryfile
 
