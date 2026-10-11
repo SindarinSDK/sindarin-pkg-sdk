@@ -118,6 +118,13 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: python3 sdk/scripts/check_process_native.py --compiler bin/sn --sanitize
+      - name: Validate canonical Json storage and unchanged C/Rust callers
+        shell: bash
+        run: python3 sdk/scripts/check_json_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument Json storage and actual shared runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_json_native.py --compiler bin/sn --sanitize
       - name: Instrument canonical modules and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
@@ -146,3 +153,5 @@ jobs:
             sdk/.sn/stringbuilder-sanitizers.json
             sdk/.sn/process-native.json
             sdk/.sn/process-sanitizers.json
+            sdk/.sn/json-native.json
+            sdk/.sn/json-sanitizers.json

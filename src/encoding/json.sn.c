@@ -21,6 +21,23 @@
  * Json Type Definition
  * ============================================================================ */
 
+#include "json.native.h"
+#ifdef SN_SDK_JSON_STANDALONE
+typedef SnSdkJsonRecord __sn__Json;
+static __sn__Json *sn_sdk_json_new(void)
+{
+    __sn__Json *value = calloc(1, sizeof(*value));
+    if (value) value->__rc__ = 1;
+    return value;
+}
+#define __sn__Json__new sn_sdk_json_new
+#else
+typedef char SnSdkJsonSizeCompatible[(sizeof(__sn__Json) == sizeof(SnSdkJsonRecord)) ? 1 : -1];
+typedef char SnSdkJson___rc___Compatible[(offsetof(__sn__Json, __rc__) == offsetof(SnSdkJsonRecord, __rc__)) ? 1 : -1];
+typedef char SnSdkJson_obj_Compatible[(offsetof(__sn__Json, obj) == offsetof(SnSdkJsonRecord, obj)) ? 1 : -1];
+typedef char SnSdkJson_handle_Compatible[(offsetof(__sn__Json, handle) == offsetof(SnSdkJsonRecord, handle)) ? 1 : -1];
+typedef char SnSdkJson_is_root_Compatible[(offsetof(__sn__Json, is_root) == offsetof(SnSdkJsonRecord, is_root)) ? 1 : -1];
+#endif
 typedef __sn__Json SnJson;
 
 /* ============================================================================

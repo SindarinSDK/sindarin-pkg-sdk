@@ -1,0 +1,35 @@
+{
+  "status": "Local canonical C Json validated; unpublished; required compiler correction pending",
+  "SDK_base": "840f5ba6aac34018659542458c3f5894cc9b9e57",
+  "accepted_compiler": "4211bf0f37b2941faa4534e349aabf46697ba907",
+  "original_public_operation_bodies": 42,
+  "canonical_record_size": 32,
+  "normal_native_and_legacy_cases": 20,
+  "actual_runtime_sanitizer_cases": 1,
+  "legacy_SDK_cases": 28,
+  "native_helper_tests": 7,
+  "public_module_and_original_oracle_unchanged": true,
+  "controls": [
+    "Independent C/Rust native archive clients",
+    "Wrapper aliases and atomic credits",
+    "Deep json-c copies preserve independent object identity and mutation",
+    "Object child remains live after parent removal/disposal",
+    "Array first/last children survive element removal and array cleanup",
+    "Owned strings survive producer destruction",
+    "Idempotent manual disposal",
+    "Exactly forty json-c child destructor callbacks after final owners leave",
+    "Exactly one typed wire destructor"
+  ],
+  "logs": {
+    "sindarin-sdk-json-native-final.log": "19cd6357b9a1c7c11ff788a94a063d93fc17bbde2b7ad933640d40431def8e96",
+    "sindarin-sdk-json-native-final-san.log": "20ba9114539c1408d25697501bf7cab1b7823dbe42b35bfd6a8c45c2e1b2ff9c",
+    "sindarin-sdk-json-legacy.log": "f1e3fef569a93177ea8bf24526bb97a99e1c961391e5b904a254aabc4428f9a5",
+    "sindarin-sdk-json-helpers.log": "f177c8bf332e5e9bb771e80d9c1d407c40786bb8da1752ffe60bdb3a97048b36"
+  },
+  "remaining": [
+    "SDK hosted platform acceptance",
+    "Compiler source/sealed Json artifact hosted acceptance",
+    "Canonical language/package copy hook integration",
+    "Whole SDK and final corpus/platform proof"
+  ]
+}
