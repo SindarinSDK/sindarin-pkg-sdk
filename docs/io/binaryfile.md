@@ -6,6 +6,30 @@ permalink: /sdk/io/binaryfile/
 
 `BinaryFile` is used for reading and writing raw bytes.
 
+## Independent C module
+
+`src/io/binaryfile.native.c` builds the existing file operations in
+`binaryfile.sn.c` against the canonical C runtime. Its public
+`SnSdkBinaryFileRecord` storage has the same layout as existing generated
+`BinaryFile` records. Legacy callers retain their generated constructor; the
+standalone module supplies its own constructor and atomic retain/release functions.
+Final release closes an open file and frees its owned path and record. Calling
+`dispose` closes the handle immediately and can be repeated through aliases.
+
+Define `SN_SDK_BINARYFILE_STANDALONE` when including `binaryfile.native.h` to
+access the original C file-operation declarations. Returned byte arrays are owned
+by the caller and released with `sn_array_free`; returned paths/names are owned
+C strings released with `free`. Input byte arrays are borrowed. `readInto`
+mutates their existing storage, so aliases observe the bytes immediately.
+The public `binaryfile.sn` API and its existing fixtures remain unchanged.
+
+`make test` validates this module on the installed compiler runtime. To run it
+directly, use `python3 scripts/check_bytes_native.py --compiler /path/to/bin/sn
+--module binaryfile`. Add `--sanitize --runtime-source
+/path/to/compiler/src/runtime` to instrument the actual C runtime and module.
+This module is part of the SDK migration; complete SDK artifact packaging remains
+in progress.
+
 ## Import
 
 ```sindarin

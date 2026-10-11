@@ -24,6 +24,7 @@ setup:
 test: setup $(RUN_TESTS)
 	@$(RUN_TESTS) --verbose
 	@$(PYTHON) scripts/check_bytes_native.py --compiler "$(SN)"
+	@$(PYTHON) scripts/check_bytes_native.py --compiler "$(SN)" --module binaryfile
 
 $(BIN_DIR):
 	@mkdir -p $(BIN_DIR)

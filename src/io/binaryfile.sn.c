@@ -34,6 +34,19 @@
  *   int32_t  is_open
  * ============================================================================ */
 
+#include "binaryfile.native.h"
+#ifdef SN_SDK_BINARYFILE_STANDALONE
+typedef SnSdkBinaryFileRecord __sn__BinaryFile;
+#define SN_BINARY_FILE_NEW sn_sdk_binary_file_create
+#else
+/* Existing callers retain their generated storage and constructor. */
+typedef char SnBinaryFileSizeCompatible[(sizeof(__sn__BinaryFile) == sizeof(SnSdkBinaryFileRecord)) ? 1 : -1];
+typedef char SnBinaryFileRcCompatible[(offsetof(__sn__BinaryFile, __rc__) == offsetof(SnSdkBinaryFileRecord, __rc__)) ? 1 : -1];
+typedef char SnBinaryFileFpCompatible[(offsetof(__sn__BinaryFile, fp) == offsetof(SnSdkBinaryFileRecord, fp)) ? 1 : -1];
+typedef char SnBinaryFilePathCompatible[(offsetof(__sn__BinaryFile, path) == offsetof(SnSdkBinaryFileRecord, path)) ? 1 : -1];
+typedef char SnBinaryFileOpenCompatible[(offsetof(__sn__BinaryFile, is_open) == offsetof(SnSdkBinaryFileRecord, is_open)) ? 1 : -1];
+#define SN_BINARY_FILE_NEW __sn__BinaryFile__new
+#endif
 typedef __sn__BinaryFile BinaryFile;
 
 /* ============================================================================
@@ -60,7 +73,7 @@ __sn__BinaryFile *sn_binary_file_open(char *path)
         }
     }
 
-    BinaryFile *file = __sn__BinaryFile__new();
+    BinaryFile *file = SN_BINARY_FILE_NEW();
     if (file == NULL) {
         fclose(fp);
         fprintf(stderr, "SnBinaryFile.open: memory allocation failed\n");
