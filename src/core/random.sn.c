@@ -28,6 +28,23 @@
  * RtRandom Type Definition
  * ============================================================================ */
 
+#include "random.native.h"
+#ifdef SN_SDK_RANDOM_STANDALONE
+typedef SnSdkRandomRecord __sn__Random;
+static __sn__Random *sn_sdk_random_new(void)
+{
+    __sn__Random *value = calloc(1, sizeof(*value));
+    if (value) value->__rc__ = 1;
+    return value;
+}
+#define __sn__Random__new sn_sdk_random_new
+#else
+/* Existing source callers retain their generated layout and constructor. */
+typedef char SnSdkRandomSizeCompatible[(sizeof(__sn__Random) == sizeof(SnSdkRandomRecord)) ? 1 : -1];
+typedef char SnSdkRandomRcCompatible[(offsetof(__sn__Random, __rc__) == offsetof(SnSdkRandomRecord, __rc__)) ? 1 : -1];
+typedef char SnSdkRandomSeededCompatible[(offsetof(__sn__Random, is_seeded) == offsetof(SnSdkRandomRecord, is_seeded)) ? 1 : -1];
+typedef char SnSdkRandomStateCompatible[(offsetof(__sn__Random, state) == offsetof(SnSdkRandomRecord, state)) ? 1 : -1];
+#endif
 typedef __sn__Random RtRandom;
 
 /* ============================================================================
