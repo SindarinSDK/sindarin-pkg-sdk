@@ -26,7 +26,12 @@ int sn_sdk_text_file_refs(SnSdkTextFileRecord *file);
 }
 #endif
 
-#ifdef SN_SDK_TEXTFILE_STANDALONE
+#endif /* SN_SDK_TEXTFILE_NATIVE_H: public record/lifecycle declarations */
+
+/* A provider's forced public header may precede the standalone implementation's
+ * mode selection. Make the operation declarations independently idempotent. */
+#if defined(SN_SDK_TEXTFILE_STANDALONE) && !defined(SN_SDK_TEXTFILE_STANDALONE_DECLARED)
+#define SN_SDK_TEXTFILE_STANDALONE_DECLARED 1
 #include "sn_array.h"
 #include "sn_abi.h"
 #ifdef __cplusplus
@@ -82,6 +87,5 @@ SnAbiStatus sn_sdk_text_file_dispose_abi(const SnAbiValue *file);
 SnAbiStatus sn_sdk_text_file_is_open_abi(const SnAbiValue *file, int32_t *out);
 #ifdef __cplusplus
 }
-#endif
 #endif
 #endif

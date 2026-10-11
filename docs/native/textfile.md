@@ -6,6 +6,10 @@ compiler-generated import/export adapters remain implementation work.
 
 `src/io/textfile.native.c` selects package-owned storage in
 `textfile.native.h` and includes the canonical `textfile.sn.c` implementation.
+Public record declarations and standalone operation declarations have separate
+include guards. A generated provider can include the public header first; the
+implementation can then enable standalone mode and include it again without
+losing its runtime ABI declarations or defining them twice.
 Existing Sindarin imports still use their generated record/constructor path.
 Compile-time size/offset checks preserve the reference-count prefix and the
 existing `fp`, `path`, and `is_open` fields. The public `.sn` declarations are

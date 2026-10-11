@@ -1,4 +1,6 @@
+#include "textfile.native.h"
 #define SN_SDK_TEXTFILE_STANDALONE 1
+#include "textfile.native.h"
 #include "textfile.native.h"
 #include <assert.h>
 #include <stdio.h>
