@@ -1,6 +1,6 @@
 {
-  "status": "local prototype validated; unpublished; waits for compiler array-search hosted acceptance",
-  "sdk_base": "bd210cfcd14ef8d5023483e110f7fc93aa2228e4",
+  "status": "Local validation passed against accepted compiler; SDK workflow registered locally; unpublished",
+  "sdk_base": "a70d43edd3a4f0662ca27519a48b5b905380f035",
   "native_operations": 67,
   "storage": "16-byte canonical C record; original operation bodies retained; atomic native credits; last release cleans xoshiro state",
   "normal_cases": 20,
@@ -16,9 +16,8 @@
     "unchanged original Random caller across nine C/Rust modes"
   ],
   "remaining": [
-    "compiler array-search hosted acceptance",
-    "SDK hosted registration and acceptance",
-    "canonical Random artifact staging",
+    "SDK hosted acceptance",
+    "compiler hosted Random artifact registration and acceptance",
     "whole SDK and final corpus/platform proof"
   ],
   "reports": {
@@ -161,7 +160,7 @@
         }
       ],
       "complete_sdk_package": false,
-      "compiler_sha256": "74c34698a7cc06447e9b2461f4e78d45659a8537b27a70960a4db5e1834048bd",
+      "compiler_sha256": "3fa6fb9ca7c8f27dd0507de329293ba9a3dad59eb33adbe1d29d4e25e43b342c",
       "platform": "Linux",
       "sources": {
         "src/core/random.native.h": "115c787f9a409f041331ac66d74a5837216024d7548800e7bafe613174700ec3",
@@ -172,7 +171,7 @@
         "src/core/random.sn.c": "d2deb7e4c3449cb16df2e1ccaea60bb2f08840ec2372378cfab0e5fe71c31df3",
         "src/core/fields.sn": "dd74fe52f13965f14aabf0ad2d84c70560ed0340e2382a42455d93fb4a2146d1",
         "src/core/version.sn": "2841affe8659ad124d0178d643b108b8cc54808af4878e434e803528180e1b1f",
-        "src/core/uuid.sn.c": "94994d2fe0ed8605f302b87872f24be5cfe8110397ed96512b5bf7a0565e6319",
+        "src/core/uuid.sn.c": "7494ff1903132a613dc1916e6337fe2017a25809e2b2582372da0925bf43f7ea",
         "tests/core/test_random.sn": "ef21705cdec5cf4105bf1565e0e378acfec8b4dda51dda8daea795d24d85a72f",
         "tests/core/test_random.expected": "db52e2a6098c2c3b1608eb7c726a64ede0f3e79c592eaf0cbb76eb9788a58286"
       },
@@ -187,7 +186,7 @@
         }
       ],
       "complete_sdk_package": false,
-      "compiler_sha256": "74c34698a7cc06447e9b2461f4e78d45659a8537b27a70960a4db5e1834048bd",
+      "compiler_sha256": "3fa6fb9ca7c8f27dd0507de329293ba9a3dad59eb33adbe1d29d4e25e43b342c",
       "platform": "Linux",
       "sources": {
         "src/core/random.native.h": "115c787f9a409f041331ac66d74a5837216024d7548800e7bafe613174700ec3",
@@ -198,7 +197,7 @@
         "src/core/random.sn.c": "d2deb7e4c3449cb16df2e1ccaea60bb2f08840ec2372378cfab0e5fe71c31df3",
         "src/core/fields.sn": "dd74fe52f13965f14aabf0ad2d84c70560ed0340e2382a42455d93fb4a2146d1",
         "src/core/version.sn": "2841affe8659ad124d0178d643b108b8cc54808af4878e434e803528180e1b1f",
-        "src/core/uuid.sn.c": "94994d2fe0ed8605f302b87872f24be5cfe8110397ed96512b5bf7a0565e6319",
+        "src/core/uuid.sn.c": "7494ff1903132a613dc1916e6337fe2017a25809e2b2582372da0925bf43f7ea",
         "tests/core/test_random.sn": "ef21705cdec5cf4105bf1565e0e378acfec8b4dda51dda8daea795d24d85a72f",
         "tests/core/test_random.expected": "db52e2a6098c2c3b1608eb7c726a64ede0f3e79c592eaf0cbb76eb9788a58286"
       },
@@ -212,5 +211,13 @@
     "tests/native/random.c": "496d7243bf576fb0429adddb36c25ed13c7d4928b6a3b3e8f9ef43a18e0ce05c",
     "tests/native/random.rs": "a9db52346d6f601354ff166743457fcb8ccdd3ab7b66734374fb5e940942af8f",
     "scripts/check_random_native.py": "8effb384bb61511071e4607f21d905038bf0aed0138ac8821129912f8d672056"
+  },
+  "accepted_compiler": "4211bf0f37b2941faa4534e349aabf46697ba907",
+  "legacy_sdk": {
+    "passed": 28,
+    "failed": 0,
+    "skipped": 0,
+    "compiler": "4211bf0f37b2941faa4534e349aabf46697ba907",
+    "log_sha256": "8d650b42a0159fcfb3eebea79112187692981dbdfc2b35688a38e29049115209"
   }
 }
