@@ -24,7 +24,7 @@ def checked(command, cwd):
 def verify(compiler, sanitize=False, targets=('c', 'rust')):
     compiler = Path(compiler).resolve()
     cc = shlex.split(os.environ.get('SN_CC') or ('clang' if os.name == 'nt' or platform.system() == 'Darwin' else 'gcc'))
-    flags = ['-std=c11', '-D_GNU_SOURCE', '-UNDEBUG'] + shlex.split(os.environ.get('SN_CFLAGS', ''))
+    flags = ['-std=c11', '-D_GNU_SOURCE', '-UNDEBUG', '-Werror=incompatible-pointer-types', '-Werror=pointer-sign'] + shlex.split(os.environ.get('SN_CFLAGS', ''))
     flags += ['-I', compiler.parent/'include/runtime', '-I', compiler.parent/'deps/include']
     links = ['-L', compiler.parent/'deps/lib', '-lssl', '-lcrypto', '-pthread']
     if os.name == 'nt':

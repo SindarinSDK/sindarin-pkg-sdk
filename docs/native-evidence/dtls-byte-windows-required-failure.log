@@ -1,0 +1,1586 @@
+﻿2026-10-11T10:43:44.0889751Z Current runner version: '2.337.0'
+2026-10-11T10:43:44.0915225Z ##[group]Runner Image Provisioner
+2026-10-11T10:43:44.0915879Z Hosted Compute Agent
+2026-10-11T10:43:44.0916326Z Version: 20260901.588
+2026-10-11T10:43:44.0916813Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-11T10:43:44.0917383Z Build Date: 2026-09-01T19:56:44Z
+2026-10-11T10:43:44.0917907Z Worker ID: {26b5412c-b402-4cd2-87ae-a9e0fa48c803}
+2026-10-11T10:43:44.0918445Z Azure Region: northcentralus
+2026-10-11T10:43:44.0918921Z ##[endgroup]
+2026-10-11T10:43:44.0919925Z ##[group]Operating System
+2026-10-11T10:43:44.0920412Z Microsoft Windows Server 2025
+2026-10-11T10:43:44.0920863Z 10.0.26100
+2026-10-11T10:43:44.0921229Z Datacenter
+2026-10-11T10:43:44.0921640Z ##[endgroup]
+2026-10-11T10:43:44.0922053Z ##[group]Runner Image
+2026-10-11T10:43:44.0922525Z Image: windows-2025-vs2026
+2026-10-11T10:43:44.0923012Z Version: 20260925.250.1
+2026-10-11T10:43:44.0924204Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20260925.250/images/windows/Windows2025-VS2026-Readme.md
+2026-10-11T10:43:44.0925829Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20260925.250
+2026-10-11T10:43:44.0926607Z ##[endgroup]
+2026-10-11T10:43:44.0927492Z ##[group]GITHUB_TOKEN Permissions
+2026-10-11T10:43:44.0928970Z Contents: read
+2026-10-11T10:43:44.0929430Z Metadata: read
+2026-10-11T10:43:44.0929867Z ##[endgroup]
+2026-10-11T10:43:44.0931532Z Secret source: Actions
+2026-10-11T10:43:44.0932189Z Cache mode: write
+2026-10-11T10:43:44.0932770Z Prepare workflow directory
+2026-10-11T10:43:44.1470370Z Prepare all required actions
+2026-10-11T10:43:44.1512736Z Getting action download info
+2026-10-11T10:43:44.3303510Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-11T10:43:44.4361342Z Download action repository 'actions/upload-artifact@v7' (SHA:cf430e030ddbb5b0abf93d22962f4752f3646cd9)
+2026-10-11T10:43:44.8610516Z Complete job name: Canonical Time/Date (windows-latest)
+2026-10-11T10:43:44.9833626Z ##[group]Run actions/checkout@v7
+2026-10-11T10:43:44.9834469Z with:
+2026-10-11T10:43:44.9834811Z   repository: SindarinSDK/sindarin-compiler
+2026-10-11T10:43:44.9835271Z   ref: 2c0f1c087cb887bfeead1e756756358881e6ddee
+2026-10-11T10:43:44.9835713Z   persist-credentials: false
+2026-10-11T10:43:44.9839331Z   token: ***
+2026-10-11T10:43:44.9839650Z   ssh-strict: true
+2026-10-11T10:43:44.9839971Z   ssh-user: git
+2026-10-11T10:43:44.9840266Z   clean: true
+2026-10-11T10:43:44.9840581Z   sparse-checkout-cone-mode: true
+2026-10-11T10:43:44.9840953Z   fetch-depth: 1
+2026-10-11T10:43:44.9841254Z   fetch-tags: false
+2026-10-11T10:43:44.9841567Z   show-progress: true
+2026-10-11T10:43:44.9841877Z   lfs: false
+2026-10-11T10:43:44.9842157Z   submodules: false
+2026-10-11T10:43:44.9842469Z   set-safe-directory: true
+2026-10-11T10:43:44.9842821Z   allow-unsafe-pr-checkout: false
+2026-10-11T10:43:44.9843385Z env:
+2026-10-11T10:43:44.9843662Z   SN_CC: clang
+2026-10-11T10:43:44.9844259Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:43:44.9844983Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:43:44.9845479Z ##[endgroup]
+2026-10-11T10:43:45.1092668Z Syncing repository: SindarinSDK/sindarin-compiler
+2026-10-11T10:43:45.1094909Z ##[group]Getting Git version info
+2026-10-11T10:43:45.1096048Z Working directory is 'D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk'
+2026-10-11T10:43:45.2382112Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-11T10:43:45.9077479Z git version 2.55.0.windows.5
+2026-10-11T10:43:45.9122903Z ##[endgroup]
+2026-10-11T10:43:45.9137519Z Temporarily overriding HOME='D:\a\_temp\eddb9d47-6d0f-4e4e-9df8-45d5c6c11607' before making global git config changes
+2026-10-11T10:43:45.9139303Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-11T10:43:45.9146874Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk
+2026-10-11T10:43:45.9748331Z Deleting the contents of 'D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk'
+2026-10-11T10:43:45.9752765Z ##[group]Determining repository object format
+2026-10-11T10:43:45.9754269Z ##[endgroup]
+2026-10-11T10:43:45.9755411Z ##[group]Initializing the repository
+2026-10-11T10:43:45.9761941Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk
+2026-10-11T10:43:46.0528192Z Initialized empty Git repository in D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.git/
+2026-10-11T10:43:46.0569065Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/SindarinSDK/sindarin-compiler
+2026-10-11T10:43:46.1142639Z ##[endgroup]
+2026-10-11T10:43:46.1143377Z ##[group]Disabling automatic garbage collection
+2026-10-11T10:43:46.1150556Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-11T10:43:46.1419261Z ##[endgroup]
+2026-10-11T10:43:46.1420634Z ##[group]Setting up auth
+2026-10-11T10:43:46.1422098Z Removing SSH command configuration
+2026-10-11T10:43:46.1428499Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:43:46.1693708Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-11T10:43:47.6045915Z Removing HTTP extra header
+2026-10-11T10:43:47.6055097Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:43:47.6304974Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-11T10:43:48.0763957Z Removing includeIf entries pointing to credentials config files
+2026-10-11T10:43:48.0775714Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:43:48.1036476Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-11T10:43:48.6941858Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-11T10:43:48.7196491Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.git.path D:\a\_temp\git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config
+2026-10-11T10:43:48.7453294Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.git/worktrees/*.path D:\a\_temp\git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config
+2026-10-11T10:43:48.7771053Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config
+2026-10-11T10:43:48.8038041Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config
+2026-10-11T10:43:48.8297330Z ##[endgroup]
+2026-10-11T10:43:48.8297800Z ##[group]Fetching the repository
+2026-10-11T10:43:48.8308473Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin 2c0f1c087cb887bfeead1e756756358881e6ddee
+2026-10-11T10:43:50.8816657Z From https://github.com/SindarinSDK/sindarin-compiler
+2026-10-11T10:43:50.8818066Z  * branch            2c0f1c087cb887bfeead1e756756358881e6ddee -> FETCH_HEAD
+2026-10-11T10:43:50.8868328Z [command]"C:\Program Files\Git\bin\git.exe" rev-parse --verify --quiet 2c0f1c087cb887bfeead1e756756358881e6ddee^{object}
+2026-10-11T10:43:50.9598232Z 2c0f1c087cb887bfeead1e756756358881e6ddee
+2026-10-11T10:43:50.9634504Z ##[endgroup]
+2026-10-11T10:43:50.9634959Z ##[group]Determining the checkout info
+2026-10-11T10:43:50.9635319Z ##[endgroup]
+2026-10-11T10:43:50.9641846Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-11T10:43:51.0024297Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-11T10:43:51.0267683Z ##[group]Checking out the ref
+2026-10-11T10:43:51.0274512Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force 2c0f1c087cb887bfeead1e756756358881e6ddee
+2026-10-11T10:43:52.0719304Z Updating files:  30% (2875/9320)
+2026-10-11T10:43:52.0871940Z Updating files:  31% (2890/9320)
+2026-10-11T10:43:52.1014271Z Updating files:  32% (2983/9320)
+2026-10-11T10:43:52.1161505Z Updating files:  33% (3076/9320)
+2026-10-11T10:43:52.1325711Z Updating files:  34% (3169/9320)
+2026-10-11T10:43:52.1485120Z Updating files:  35% (3262/9320)
+2026-10-11T10:43:52.1641091Z Updating files:  36% (3356/9320)
+2026-10-11T10:43:52.1788278Z Updating files:  37% (3449/9320)
+2026-10-11T10:43:52.1931559Z Updating files:  38% (3542/9320)
+2026-10-11T10:43:52.2074675Z Updating files:  39% (3635/9320)
+2026-10-11T10:43:52.2212185Z Updating files:  40% (3728/9320)
+2026-10-11T10:43:52.2348373Z Updating files:  41% (3822/9320)
+2026-10-11T10:43:52.2493371Z Updating files:  42% (3915/9320)
+2026-10-11T10:43:52.2628377Z Updating files:  43% (4008/9320)
+2026-10-11T10:43:52.2767644Z Updating files:  44% (4101/9320)
+2026-10-11T10:43:52.2910392Z Updating files:  45% (4194/9320)
+2026-10-11T10:43:52.3044883Z Updating files:  46% (4288/9320)
+2026-10-11T10:43:52.3185857Z Updating files:  47% (4381/9320)
+2026-10-11T10:43:52.3329819Z Updating files:  48% (4474/9320)
+2026-10-11T10:43:52.3467834Z Updating files:  49% (4567/9320)
+2026-10-11T10:43:52.3619310Z Updating files:  50% (4660/9320)
+2026-10-11T10:43:52.3766373Z Updating files:  51% (4754/9320)
+2026-10-11T10:43:52.3922910Z Updating files:  52% (4847/9320)
+2026-10-11T10:43:52.4083039Z Updating files:  53% (4940/9320)
+2026-10-11T10:43:52.4230303Z Updating files:  54% (5033/9320)
+2026-10-11T10:43:52.4378808Z Updating files:  55% (5126/9320)
+2026-10-11T10:43:52.4531690Z Updating files:  56% (5220/9320)
+2026-10-11T10:43:52.4692456Z Updating files:  57% (5313/9320)
+2026-10-11T10:43:52.4853642Z Updating files:  58% (5406/9320)
+2026-10-11T10:43:52.5003500Z Updating files:  59% (5499/9320)
+2026-10-11T10:43:52.5155915Z Updating files:  60% (5592/9320)
+2026-10-11T10:43:52.5319778Z Updating files:  61% (5686/9320)
+2026-10-11T10:43:52.5471542Z Updating files:  62% (5779/9320)
+2026-10-11T10:43:52.5616714Z Updating files:  63% (5872/9320)
+2026-10-11T10:43:52.5775983Z Updating files:  64% (5965/9320)
+2026-10-11T10:43:52.5944679Z Updating files:  65% (6058/9320)
+2026-10-11T10:43:52.6104681Z Updating files:  66% (6152/9320)
+2026-10-11T10:43:52.6263584Z Updating files:  67% (6245/9320)
+2026-10-11T10:43:52.6405889Z Updating files:  68% (6338/9320)
+2026-10-11T10:43:52.6556487Z Updating files:  69% (6431/9320)
+2026-10-11T10:43:52.6714589Z Updating files:  70% (6524/9320)
+2026-10-11T10:43:52.6861002Z Updating files:  71% (6618/9320)
+2026-10-11T10:43:52.7006645Z Updating files:  72% (6711/9320)
+2026-10-11T10:43:52.7142895Z Updating files:  73% (6804/9320)
+2026-10-11T10:43:52.7295300Z Updating files:  74% (6897/9320)
+2026-10-11T10:43:52.9990635Z Updating files:  75% (6990/9320)
+2026-10-11T10:43:53.0159026Z Updating files:  76% (7084/9320)
+2026-10-11T10:43:53.2980868Z Updating files:  77% (7177/9320)
+2026-10-11T10:43:53.3261347Z Updating files:  77% (7197/9320)
+2026-10-11T10:43:53.3419152Z Updating files:  78% (7270/9320)
+2026-10-11T10:43:53.3580515Z Updating files:  79% (7363/9320)
+2026-10-11T10:43:53.3749845Z Updating files:  80% (7456/9320)
+2026-10-11T10:43:53.3900222Z Updating files:  81% (7550/9320)
+2026-10-11T10:43:53.4059207Z Updating files:  82% (7643/9320)
+2026-10-11T10:43:53.4218216Z Updating files:  83% (7736/9320)
+2026-10-11T10:43:53.4362836Z Updating files:  84% (7829/9320)
+2026-10-11T10:43:53.4523322Z Updating files:  85% (7922/9320)
+2026-10-11T10:43:53.4693974Z Updating files:  86% (8016/9320)
+2026-10-11T10:43:53.4850817Z Updating files:  87% (8109/9320)
+2026-10-11T10:43:53.5020602Z Updating files:  88% (8202/9320)
+2026-10-11T10:43:53.5163179Z Updating files:  89% (8295/9320)
+2026-10-11T10:43:53.5309904Z Updating files:  90% (8388/9320)
+2026-10-11T10:43:53.5451916Z Updating files:  91% (8482/9320)
+2026-10-11T10:43:53.5594059Z Updating files:  92% (8575/9320)
+2026-10-11T10:43:53.5738985Z Updating files:  93% (8668/9320)
+2026-10-11T10:43:53.5888832Z Updating files:  94% (8761/9320)
+2026-10-11T10:43:53.6034481Z Updating files:  95% (8854/9320)
+2026-10-11T10:43:53.6191840Z Updating files:  96% (8948/9320)
+2026-10-11T10:43:53.6344383Z Updating files:  97% (9041/9320)
+2026-10-11T10:43:53.6525410Z Updating files:  98% (9134/9320)
+2026-10-11T10:43:53.6710288Z Updating files:  99% (9227/9320)
+2026-10-11T10:43:53.6710674Z Updating files: 100% (9320/9320)
+2026-10-11T10:43:53.6710900Z Updating files: 100% (9320/9320), done.
+2026-10-11T10:43:53.6866811Z Note: switching to '2c0f1c087cb887bfeead1e756756358881e6ddee'.
+2026-10-11T10:43:53.6867409Z
+2026-10-11T10:43:53.6867610Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-11T10:43:53.6868113Z changes and commit them, and you can discard any commits you make in this
+2026-10-11T10:43:53.6869095Z state without impacting any branches by switching back to a branch.
+2026-10-11T10:43:53.6869401Z
+2026-10-11T10:43:53.6869613Z If you want to create a new branch to retain commits you create, you may
+2026-10-11T10:43:53.6870117Z do so (now or later) by using -c with the switch command. Example:
+2026-10-11T10:43:53.6870374Z
+2026-10-11T10:43:53.6870517Z   git switch -c <new-branch-name>
+2026-10-11T10:43:53.6870656Z
+2026-10-11T10:43:53.6870734Z Or undo this operation with:
+2026-10-11T10:43:53.6871146Z
+2026-10-11T10:43:53.6871215Z   git switch -
+2026-10-11T10:43:53.6871315Z
+2026-10-11T10:43:53.6871477Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-11T10:43:53.6871707Z
+2026-10-11T10:43:53.6871921Z HEAD is now at 2c0f1c0 Generate typed canonical array providers for native Rust and Go packages
+2026-10-11T10:43:53.7017094Z ##[endgroup]
+2026-10-11T10:43:53.7424670Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-11T10:43:53.7656516Z 2c0f1c087cb887bfeead1e756756358881e6ddee
+2026-10-11T10:43:53.7695043Z ##[group]Removing auth
+2026-10-11T10:43:53.7695278Z Removing SSH command configuration
+2026-10-11T10:43:53.7702964Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:43:53.7960998Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-11T10:43:54.2637761Z Removing HTTP extra header
+2026-10-11T10:43:54.2646596Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:43:54.2891941Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-11T10:43:54.7666465Z Removing includeIf entries pointing to credentials config files
+2026-10-11T10:43:54.7673406Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:43:54.7883655Z includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.git.path
+2026-10-11T10:43:54.7884284Z includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.git/worktrees/*.path
+2026-10-11T10:43:54.7885147Z includeif.gitdir:/github/workspace/.git.path
+2026-10-11T10:43:54.7885538Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-11T10:43:54.7918318Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.git.path
+2026-10-11T10:43:54.8120928Z D:\a\_temp\git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config
+2026-10-11T10:43:54.8159225Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.git.path D\:\\a\\_temp\\git\-credentials\-16d2f235\-5473\-4b2d\-ae2a\-c2cdb973947d\.config
+2026-10-11T10:43:54.8396096Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.git/worktrees/*.path
+2026-10-11T10:43:54.8606212Z D:\a\_temp\git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config
+2026-10-11T10:43:54.8642925Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.git/worktrees/*.path D\:\\a\\_temp\\git\-credentials\-16d2f235\-5473\-4b2d\-ae2a\-c2cdb973947d\.config
+2026-10-11T10:43:54.8885134Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-11T10:43:54.9085633Z /github/runner_temp/git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config
+2026-10-11T10:43:54.9150846Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-16d2f235\-5473\-4b2d\-ae2a\-c2cdb973947d\.config
+2026-10-11T10:43:54.9365998Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-11T10:43:54.9565354Z /github/runner_temp/git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config
+2026-10-11T10:43:54.9598156Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-16d2f235\-5473\-4b2d\-ae2a\-c2cdb973947d\.config
+2026-10-11T10:43:54.9831921Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-11T10:43:55.4003777Z Removing credentials config 'D:\a\_temp\git-credentials-16d2f235-5473-4b2d-ae2a-c2cdb973947d.config'
+2026-10-11T10:43:55.4013685Z ##[endgroup]
+2026-10-11T10:43:55.4362249Z ##[group]Run actions/checkout@v7
+2026-10-11T10:43:55.4362512Z with:
+2026-10-11T10:43:55.4362702Z   repository: SindarinSDK/sindarin-pkg-sdk
+2026-10-11T10:43:55.4362949Z   ref: c3164ef0725933c945e29cc8ef7569a034b2c54d
+2026-10-11T10:43:55.4363167Z   path: sdk
+2026-10-11T10:43:55.4363332Z   persist-credentials: false
+2026-10-11T10:43:55.4365236Z   token: ***
+2026-10-11T10:43:55.4365402Z   ssh-strict: true
+2026-10-11T10:43:55.4365566Z   ssh-user: git
+2026-10-11T10:43:55.4365717Z   clean: true
+2026-10-11T10:43:55.4365898Z   sparse-checkout-cone-mode: true
+2026-10-11T10:43:55.4366100Z   fetch-depth: 1
+2026-10-11T10:43:55.4366459Z   fetch-tags: false
+2026-10-11T10:43:55.4366724Z   show-progress: true
+2026-10-11T10:43:55.4366922Z   lfs: false
+2026-10-11T10:43:55.4367078Z   submodules: false
+2026-10-11T10:43:55.4367239Z   set-safe-directory: true
+2026-10-11T10:43:55.4367432Z   allow-unsafe-pr-checkout: false
+2026-10-11T10:43:55.4367624Z env:
+2026-10-11T10:43:55.4367820Z   SN_CC: clang
+2026-10-11T10:43:55.4368103Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:43:55.4368484Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:43:55.4368741Z ##[endgroup]
+2026-10-11T10:43:55.5301367Z Syncing repository: SindarinSDK/sindarin-pkg-sdk
+2026-10-11T10:43:55.5306827Z ##[group]Getting Git version info
+2026-10-11T10:43:55.5307145Z Working directory is 'D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\sdk'
+2026-10-11T10:43:55.5774673Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-11T10:43:55.6000615Z git version 2.55.0.windows.5
+2026-10-11T10:43:55.6037948Z ##[endgroup]
+2026-10-11T10:43:55.6050135Z Temporarily overriding HOME='D:\a\_temp\3c20c62a-33bd-4436-ad51-67a2e9a0a9da' before making global git config changes
+2026-10-11T10:43:55.6050682Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-11T10:43:55.6058759Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\sdk
+2026-10-11T10:43:55.6343215Z ##[group]Determining repository object format
+2026-10-11T10:43:55.6345699Z ##[endgroup]
+2026-10-11T10:43:55.6346133Z ##[group]Initializing the repository
+2026-10-11T10:43:55.6355516Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\sdk
+2026-10-11T10:43:55.6662886Z Initialized empty Git repository in D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/sdk/.git/
+2026-10-11T10:43:55.6717659Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/SindarinSDK/sindarin-pkg-sdk
+2026-10-11T10:43:55.7002228Z ##[endgroup]
+2026-10-11T10:43:55.7002805Z ##[group]Disabling automatic garbage collection
+2026-10-11T10:43:55.7012685Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-11T10:43:55.7293239Z ##[endgroup]
+2026-10-11T10:43:55.7293565Z ##[group]Setting up auth
+2026-10-11T10:43:55.7294430Z Removing SSH command configuration
+2026-10-11T10:43:55.7303483Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:43:55.7554161Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-11T10:43:56.1748788Z Removing HTTP extra header
+2026-10-11T10:43:56.1756976Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:43:56.1996979Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-11T10:43:56.6360131Z Removing includeIf entries pointing to credentials config files
+2026-10-11T10:43:56.6371719Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:43:56.6608500Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-11T10:43:57.1081069Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-11T10:43:57.1323060Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/sdk/.git.path D:\a\_temp\git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config
+2026-10-11T10:43:57.1558577Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/sdk/.git/worktrees/*.path D:\a\_temp\git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config
+2026-10-11T10:43:57.1789156Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/sdk/.git.path /github/runner_temp/git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config
+2026-10-11T10:43:57.2022274Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/sdk/.git/worktrees/*.path /github/runner_temp/git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config
+2026-10-11T10:43:57.2293598Z ##[endgroup]
+2026-10-11T10:43:57.2294016Z ##[group]Fetching the repository
+2026-10-11T10:43:57.2302357Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin c3164ef0725933c945e29cc8ef7569a034b2c54d
+2026-10-11T10:43:57.6568570Z From https://github.com/SindarinSDK/sindarin-pkg-sdk
+2026-10-11T10:43:57.6569098Z  * branch            c3164ef0725933c945e29cc8ef7569a034b2c54d -> FETCH_HEAD
+2026-10-11T10:43:57.6610986Z [command]"C:\Program Files\Git\bin\git.exe" rev-parse --verify --quiet c3164ef0725933c945e29cc8ef7569a034b2c54d^{object}
+2026-10-11T10:43:57.6816940Z c3164ef0725933c945e29cc8ef7569a034b2c54d
+2026-10-11T10:43:57.6844128Z ##[endgroup]
+2026-10-11T10:43:57.6844560Z ##[group]Determining the checkout info
+2026-10-11T10:43:57.6845235Z ##[endgroup]
+2026-10-11T10:43:57.6852583Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-11T10:43:57.7118213Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-11T10:43:57.7350190Z ##[group]Checking out the ref
+2026-10-11T10:43:57.7357432Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force c3164ef0725933c945e29cc8ef7569a034b2c54d
+2026-10-11T10:43:57.8094288Z Note: switching to 'c3164ef0725933c945e29cc8ef7569a034b2c54d'.
+2026-10-11T10:43:57.8094693Z
+2026-10-11T10:43:57.8094943Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-11T10:43:57.8095606Z changes and commit them, and you can discard any commits you make in this
+2026-10-11T10:43:57.8096207Z state without impacting any branches by switching back to a branch.
+2026-10-11T10:43:57.8096546Z
+2026-10-11T10:43:57.8096770Z If you want to create a new branch to retain commits you create, you may
+2026-10-11T10:43:57.8097285Z do so (now or later) by using -c with the switch command. Example:
+2026-10-11T10:43:57.8097592Z
+2026-10-11T10:43:57.8097713Z   git switch -c <new-branch-name>
+2026-10-11T10:43:57.8097920Z
+2026-10-11T10:43:57.8098037Z Or undo this operation with:
+2026-10-11T10:43:57.8098236Z
+2026-10-11T10:43:57.8098346Z   git switch -
+2026-10-11T10:43:57.8098491Z
+2026-10-11T10:43:57.8098745Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-11T10:43:57.8099092Z
+2026-10-11T10:43:57.8099388Z HEAD is now at c3164ef Repair DTLS listener teardown and retain original failure streams
+2026-10-11T10:43:57.8151418Z ##[endgroup]
+2026-10-11T10:43:57.8427938Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-11T10:43:57.8669298Z c3164ef0725933c945e29cc8ef7569a034b2c54d
+2026-10-11T10:43:57.8706557Z ##[group]Removing auth
+2026-10-11T10:43:57.8706899Z Removing SSH command configuration
+2026-10-11T10:43:57.8714800Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:43:57.8989405Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-11T10:43:58.3305146Z Removing HTTP extra header
+2026-10-11T10:43:58.3314121Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:43:58.3566438Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-11T10:43:58.8222696Z Removing includeIf entries pointing to credentials config files
+2026-10-11T10:43:58.8230743Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:43:58.8462334Z includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/sdk/.git.path
+2026-10-11T10:43:58.8463259Z includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/sdk/.git/worktrees/*.path
+2026-10-11T10:43:58.8463650Z includeif.gitdir:/github/workspace/sdk/.git.path
+2026-10-11T10:43:58.8463952Z includeif.gitdir:/github/workspace/sdk/.git/worktrees/*.path
+2026-10-11T10:43:58.8500420Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/sdk/.git.path
+2026-10-11T10:43:58.8713670Z D:\a\_temp\git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config
+2026-10-11T10:43:58.8752019Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/sdk/.git.path D\:\\a\\_temp\\git\-credentials\-51a4a2ce\-61a5\-48e1\-bd93\-497edc7e419b\.config
+2026-10-11T10:43:58.9002847Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/sdk/.git/worktrees/*.path
+2026-10-11T10:43:58.9225694Z D:\a\_temp\git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config
+2026-10-11T10:43:58.9269881Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/sdk/.git/worktrees/*.path D\:\\a\\_temp\\git\-credentials\-51a4a2ce\-61a5\-48e1\-bd93\-497edc7e419b\.config
+2026-10-11T10:43:58.9545902Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/sdk/.git.path
+2026-10-11T10:43:58.9789538Z /github/runner_temp/git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config
+2026-10-11T10:43:58.9835808Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/sdk/.git.path \/github\/runner_temp\/git\-credentials\-51a4a2ce\-61a5\-48e1\-bd93\-497edc7e419b\.config
+2026-10-11T10:43:59.0106786Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/sdk/.git/worktrees/*.path
+2026-10-11T10:43:59.0320453Z /github/runner_temp/git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config
+2026-10-11T10:43:59.0360412Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/sdk/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-51a4a2ce\-61a5\-48e1\-bd93\-497edc7e419b\.config
+2026-10-11T10:43:59.0623380Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-11T10:43:59.5038786Z Removing credentials config 'D:\a\_temp\git-credentials-51a4a2ce-61a5-48e1-bd93-497edc7e419b.config'
+2026-10-11T10:43:59.5050074Z ##[endgroup]
+2026-10-11T10:43:59.5475941Z Prepare all required actions
+2026-10-11T10:43:59.5476775Z Getting action download info
+2026-10-11T10:43:59.6457105Z Download action repository 'actions/cache@v6' (SHA:55cc8345863c7cc4c66a329aec7e433d2d1c52a9)
+2026-10-11T10:43:59.7644635Z Download action repository 'actions/checkout@v6' (SHA:d23441a48e516b6c34aea4fa41551a30e30af803)
+2026-10-11T10:43:59.8640252Z ##[group]Run ./.github/actions/compiler-toolchain
+2026-10-11T10:43:59.8640503Z with:
+2026-10-11T10:43:59.8640666Z   build_deps: true
+2026-10-11T10:43:59.8640860Z   rust_target: x86_64-pc-windows-gnullvm
+2026-10-11T10:43:59.8641081Z env:
+2026-10-11T10:43:59.8641227Z   SN_CC: clang
+2026-10-11T10:43:59.8641508Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:43:59.8641907Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:43:59.8642173Z ##[endgroup]
+2026-10-11T10:43:59.8694535Z ##[start-action display=Setup prerequisites (Linux);id=__self.__run]
+2026-10-11T10:43:59.8708904Z ##[end-action id=__self.__run;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-11T10:43:59.8710647Z ##[start-action display=Setup prerequisites (macOS);id=__self.__run_2]
+2026-10-11T10:43:59.8713838Z ##[end-action id=__self.__run_2;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-11T10:43:59.8715320Z ##[start-action display=Cache pinned Windows toolchain;id=__self.__actions_cache]
+2026-10-11T10:43:59.8862270Z ##[group]Run actions/cache@v6
+2026-10-11T10:43:59.8862470Z with:
+2026-10-11T10:43:59.8862634Z   path: .sn/toolchains/llvm-mingw
+2026-10-11T10:43:59.8863031Z   key: llvm-mingw-20260616-ucrt-x86_64-b9b68a4d
+2026-10-11T10:43:59.8863272Z   enableCrossOsArchive: false
+2026-10-11T10:43:59.8863467Z   fail-on-cache-miss: false
+2026-10-11T10:43:59.8863644Z   lookup-only: false
+2026-10-11T10:43:59.8863801Z   save-always: false
+2026-10-11T10:43:59.8863947Z env:
+2026-10-11T10:43:59.8864088Z   SN_CC: clang
+2026-10-11T10:43:59.8864678Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:43:59.8865064Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:43:59.8865321Z ##[endgroup]
+2026-10-11T10:44:00.2301005Z Cache hit for: llvm-mingw-20260616-ucrt-x86_64-b9b68a4d
+2026-10-11T10:44:01.5369973Z Received 134217728 of 157071195 (85.5%), 107.5 MBs/sec
+2026-10-11T10:44:01.6875494Z Received 157071195 of 157071195 (100.0%), 111.6 MBs/sec
+2026-10-11T10:44:01.6879720Z Cache Size: ~150 MB (157071195 B)
+2026-10-11T10:44:01.7071592Z [command]"C:\Program Files\Git\usr\bin\tar.exe" -xf D:/a/_temp/89de2829-f8a0-488f-81ae-d9a148a18dde/cache.tzst -P -C D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk --force-local --use-compress-program "zstd -d"
+2026-10-11T10:44:04.9471314Z Cache restored successfully
+2026-10-11T10:44:04.9631677Z Cache restored from key: llvm-mingw-20260616-ucrt-x86_64-b9b68a4d
+2026-10-11T10:44:04.9752623Z ##[end-action id=__self.__actions_cache;outcome=success;conclusion=success;duration_ms=5103]
+2026-10-11T10:44:04.9755360Z ##[start-action display=Install LLVM-MinGW (Windows);id=__self.__run_3]
+2026-10-11T10:44:04.9876146Z ##[group]Run $version = "20260616"
+2026-10-11T10:44:04.9876425Z [36;1m$version = "20260616"[0m
+2026-10-11T10:44:04.9876927Z [36;1m$expectedHash = "b9b68a4d276e16fa25802aaba458e4638f64b3884c290aaccdc2d87083b6ca35"[0m
+2026-10-11T10:44:04.9877397Z [36;1m$extractPath = Join-Path $env:GITHUB_WORKSPACE ".sn\toolchains\llvm-mingw"[0m
+2026-10-11T10:44:04.9877736Z [36;1mif (-not (Test-Path $extractPath)) {[0m
+2026-10-11T10:44:04.9878194Z [36;1m  $url = "https://github.com/mstorsjo/llvm-mingw/releases/download/$version/llvm-mingw-$version-ucrt-x86_64.zip"[0m
+2026-10-11T10:44:04.9878621Z [36;1m  $zipPath = "$env:TEMP\llvm-mingw.zip"[0m
+2026-10-11T10:44:04.9878893Z [36;1m  Invoke-WebRequest -Uri $url -OutFile $zipPath[0m
+2026-10-11T10:44:04.9880818Z [36;1m  if ((Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expectedHash) {[0m
+2026-10-11T10:44:04.9881275Z [36;1m    throw "LLVM-MinGW archive SHA-256 mismatch"[0m
+2026-10-11T10:44:04.9881503Z [36;1m  }[0m
+2026-10-11T10:44:04.9881763Z [36;1m  Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force[0m
+2026-10-11T10:44:04.9882062Z [36;1m}[0m
+2026-10-11T10:44:04.9882330Z [36;1m$llvmDir = Get-ChildItem -Path $extractPath -Directory | Select-Object -First 1[0m
+2026-10-11T10:44:04.9882824Z [36;1mJoin-Path $llvmDir.FullName "bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append[0m
+2026-10-11T10:44:05.0369986Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-11T10:44:05.0370279Z env:
+2026-10-11T10:44:05.0370433Z   SN_CC: clang
+2026-10-11T10:44:05.0370955Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:44:05.0371504Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:44:05.0371766Z ##[endgroup]
+2026-10-11T10:44:05.4659608Z ##[end-action id=__self.__run_3;outcome=success;conclusion=success;duration_ms=490]
+2026-10-11T10:44:05.4661803Z ##[start-action display=Install Make and Ninja (Windows);id=__self.__run_4]
+2026-10-11T10:44:05.4770591Z ##[group]Run choco install make ninja -y
+2026-10-11T10:44:05.4770866Z [36;1mchoco install make ninja -y[0m
+2026-10-11T10:44:05.4829560Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-11T10:44:05.4829847Z env:
+2026-10-11T10:44:05.4830000Z   SN_CC: clang
+2026-10-11T10:44:05.4830291Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:44:05.4831338Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:44:05.4831608Z ##[endgroup]
+2026-10-11T10:44:08.7743674Z Chocolatey v2.7.4
+2026-10-11T10:44:09.1903842Z Installing the following packages:
+2026-10-11T10:44:09.1907762Z make;ninja
+2026-10-11T10:44:09.1910842Z By installing, you accept licenses for the packages.
+2026-10-11T10:44:12.4041942Z Downloading package from source 'https://community.chocolatey.org/api/v2/'
+2026-10-11T10:44:12.4983783Z
+2026-10-11T10:44:12.4984646Z Progress: Downloading make 4.4.1... %
+2026-10-11T10:44:12.4985036Z Progress: Downloading make 4.4.1... 1%
+2026-10-11T10:44:12.4985707Z Progress: Downloading make 4.4.1... 1%
+2026-10-11T10:44:12.4987479Z Progress: Downloading make 4.4.1... 1%
+2026-10-11T10:44:12.4988085Z Progress: Downloading make 4.4.1... 2%
+2026-10-11T10:44:12.4988421Z Progress: Downloading make 4.4.1... 2%
+2026-10-11T10:44:12.4988794Z Progress: Downloading make 4.4.1... 2%
+2026-10-11T10:44:12.4989154Z Progress: Downloading make 4.4.1... 3%
+2026-10-11T10:44:12.4989460Z Progress: Downloading make 4.4.1... 3%
+2026-10-11T10:44:12.4989799Z Progress: Downloading make 4.4.1... 3%
+2026-10-11T10:44:12.4990123Z Progress: Downloading make 4.4.1... 4%
+2026-10-11T10:44:12.4990444Z Progress: Downloading make 4.4.1... 4%
+2026-10-11T10:44:12.4990766Z Progress: Downloading make 4.4.1... 4%
+2026-10-11T10:44:12.4991107Z Progress: Downloading make 4.4.1... 5%
+2026-10-11T10:44:12.4991437Z Progress: Downloading make 4.4.1... 5%
+2026-10-11T10:44:12.4991777Z Progress: Downloading make 4.4.1... 5%
+2026-10-11T10:44:12.4992108Z Progress: Downloading make 4.4.1... 6%
+2026-10-11T10:44:12.4992441Z Progress: Downloading make 4.4.1... 6%
+2026-10-11T10:44:12.4992767Z Progress: Downloading make 4.4.1... 6%
+2026-10-11T10:44:12.4995613Z Progress: Downloading make 4.4.1... 7%
+2026-10-11T10:44:12.4995968Z Progress: Downloading make 4.4.1... 7%
+2026-10-11T10:44:12.4996446Z Progress: Downloading make 4.4.1... 7%
+2026-10-11T10:44:12.4997106Z Progress: Downloading make 4.4.1... 8%
+2026-10-11T10:44:12.4997910Z Progress: Downloading make 4.4.1... 8%
+2026-10-11T10:44:12.4998561Z Progress: Downloading make 4.4.1... 8%
+2026-10-11T10:44:12.4999175Z Progress: Downloading make 4.4.1... 9%
+2026-10-11T10:44:12.4999781Z Progress: Downloading make 4.4.1... 9%
+2026-10-11T10:44:12.5000411Z Progress: Downloading make 4.4.1... 9%
+2026-10-11T10:44:12.5001754Z Progress: Downloading make 4.4.1... 10%
+2026-10-11T10:44:12.5002378Z Progress: Downloading make 4.4.1... 10%
+2026-10-11T10:44:12.5002710Z Progress: Downloading make 4.4.1... 10%
+2026-10-11T10:44:12.5003048Z Progress: Downloading make 4.4.1... 11%
+2026-10-11T10:44:12.5003378Z Progress: Downloading make 4.4.1... 11%
+2026-10-11T10:44:12.5003756Z Progress: Downloading make 4.4.1... 11%
+2026-10-11T10:44:12.5004149Z Progress: Downloading make 4.4.1... 12%
+2026-10-11T10:44:12.5004471Z Progress: Downloading make 4.4.1... 12%
+2026-10-11T10:44:12.5004817Z Progress: Downloading make 4.4.1... 12%
+2026-10-11T10:44:12.5005163Z Progress: Downloading make 4.4.1... 13%
+2026-10-11T10:44:12.5005502Z Progress: Downloading make 4.4.1... 13%
+2026-10-11T10:44:12.5005835Z Progress: Downloading make 4.4.1... 13%
+2026-10-11T10:44:12.5006172Z Progress: Downloading make 4.4.1... 14%
+2026-10-11T10:44:12.5006508Z Progress: Downloading make 4.4.1... 15%
+2026-10-11T10:44:12.5006821Z Progress: Downloading make 4.4.1... 16%
+2026-10-11T10:44:12.5007120Z Progress: Downloading make 4.4.1... 17%
+2026-10-11T10:44:12.5007419Z Progress: Downloading make 4.4.1... 18%
+2026-10-11T10:44:12.5007726Z Progress: Downloading make 4.4.1... 19%
+2026-10-11T10:44:12.5008041Z Progress: Downloading make 4.4.1... 20%
+2026-10-11T10:44:12.5008263Z Progress: Downloading make 4.4.1... 21%
+2026-10-11T10:44:12.5008493Z Progress: Downloading make 4.4.1... 22%
+2026-10-11T10:44:12.5008706Z Progress: Downloading make 4.4.1... 23%
+2026-10-11T10:44:12.5008909Z Progress: Downloading make 4.4.1... 24%
+2026-10-11T10:44:12.5009546Z Progress: Downloading make 4.4.1... 25%
+2026-10-11T10:44:12.5009751Z Progress: Downloading make 4.4.1... 26%
+2026-10-11T10:44:12.5009959Z Progress: Downloading make 4.4.1... 27%
+2026-10-11T10:44:12.5010165Z Progress: Downloading make 4.4.1... 28%
+2026-10-11T10:44:12.5010362Z Progress: Downloading make 4.4.1... 29%
+2026-10-11T10:44:12.5010565Z Progress: Downloading make 4.4.1... 30%
+2026-10-11T10:44:12.5010777Z Progress: Downloading make 4.4.1... 31%
+2026-10-11T10:44:12.5010983Z Progress: Downloading make 4.4.1... 32%
+2026-10-11T10:44:12.5011183Z Progress: Downloading make 4.4.1... 33%
+2026-10-11T10:44:12.5011380Z Progress: Downloading make 4.4.1... 34%
+2026-10-11T10:44:12.5011577Z Progress: Downloading make 4.4.1... 35%
+2026-10-11T10:44:12.5011778Z Progress: Downloading make 4.4.1... 36%
+2026-10-11T10:44:12.5011986Z Progress: Downloading make 4.4.1... 37%
+2026-10-11T10:44:12.5012191Z Progress: Downloading make 4.4.1... 38%
+2026-10-11T10:44:12.5012395Z Progress: Downloading make 4.4.1... 39%
+2026-10-11T10:44:12.5012600Z Progress: Downloading make 4.4.1... 40%
+2026-10-11T10:44:12.5012799Z Progress: Downloading make 4.4.1... 41%
+2026-10-11T10:44:12.5013000Z Progress: Downloading make 4.4.1... 42%
+2026-10-11T10:44:12.5013199Z Progress: Downloading make 4.4.1... 43%
+2026-10-11T10:44:12.5013405Z Progress: Downloading make 4.4.1... 44%
+2026-10-11T10:44:12.5013710Z Progress: Downloading make 4.4.1... 45%
+2026-10-11T10:44:12.5014021Z Progress: Downloading make 4.4.1... 46%
+2026-10-11T10:44:12.5014224Z Progress: Downloading make 4.4.1... 48%
+2026-10-11T10:44:12.5014422Z Progress: Downloading make 4.4.1... 49%
+2026-10-11T10:44:12.5014642Z Progress: Downloading make 4.4.1... 50%
+2026-10-11T10:44:12.5014843Z Progress: Downloading make 4.4.1... 51%
+2026-10-11T10:44:12.5015043Z Progress: Downloading make 4.4.1... 52%
+2026-10-11T10:44:12.5015256Z Progress: Downloading make 4.4.1... 53%
+2026-10-11T10:44:12.5015455Z Progress: Downloading make 4.4.1... 54%
+2026-10-11T10:44:12.5015778Z Progress: Downloading make 4.4.1... 55%
+2026-10-11T10:44:12.5016104Z Progress: Downloading make 4.4.1... 57%
+2026-10-11T10:44:12.5016397Z Progress: Downloading make 4.4.1... 59%
+2026-10-11T10:44:12.5016971Z Progress: Downloading make 4.4.1... 61%
+2026-10-11T10:44:12.5017328Z Progress: Downloading make 4.4.1... 63%
+2026-10-11T10:44:12.5018001Z Progress: Downloading make 4.4.1... 64%
+2026-10-11T10:44:12.5018502Z Progress: Downloading make 4.4.1... 66%
+2026-10-11T10:44:12.5018838Z Progress: Downloading make 4.4.1... 68%
+2026-10-11T10:44:12.5019178Z Progress: Downloading make 4.4.1... 70%
+2026-10-11T10:44:12.5019501Z Progress: Downloading make 4.4.1... 72%
+2026-10-11T10:44:12.5019809Z Progress: Downloading make 4.4.1... 74%
+2026-10-11T10:44:12.5020119Z Progress: Downloading make 4.4.1... 76%
+2026-10-11T10:44:12.5020426Z Progress: Downloading make 4.4.1... 78%
+2026-10-11T10:44:12.5020734Z Progress: Downloading make 4.4.1... 80%
+2026-10-11T10:44:12.5021037Z Progress: Downloading make 4.4.1... 80%
+2026-10-11T10:44:12.5021360Z Progress: Downloading make 4.4.1... 82%
+2026-10-11T10:44:12.5021661Z Progress: Downloading make 4.4.1... 84%
+2026-10-11T10:44:12.5021976Z Progress: Downloading make 4.4.1... 86%
+2026-10-11T10:44:12.5022301Z Progress: Downloading make 4.4.1... 88%
+2026-10-11T10:44:12.5022602Z Progress: Downloading make 4.4.1... 90%
+2026-10-11T10:44:12.5022906Z Progress: Downloading make 4.4.1... 92%
+2026-10-11T10:44:12.5023220Z Progress: Downloading make 4.4.1... 94%
+2026-10-11T10:44:12.5043272Z Progress: Downloading make 4.4.1... 96%
+2026-10-11T10:44:12.5044363Z Progress: Downloading make 4.4.1... 98%
+2026-10-11T10:44:12.5044694Z Progress: Downloading make 4.4.1... 100%
+2026-10-11T10:44:12.8113501Z
+2026-10-11T10:44:12.8113995Z make v4.4.1 [Approved]
+2026-10-11T10:44:12.8305841Z make package files install completed. Performing other installation steps.
+2026-10-11T10:44:13.8153412Z  ShimGen has successfully created a shim for make.exe
+2026-10-11T10:44:13.8607656Z  The install of make was successful.
+2026-10-11T10:44:13.8610065Z   Deployed to 'C:\ProgramData\chocolatey\lib\make'
+2026-10-11T10:44:13.9613266Z ninja v1.13.2 already installed.
+2026-10-11T10:44:13.9613647Z  Use --force to reinstall, specify a version to install, or try upgrade.
+2026-10-11T10:44:13.9681927Z
+2026-10-11T10:44:13.9682093Z Chocolatey installed 1/2 packages.
+2026-10-11T10:44:13.9682511Z  See the log for details (C:\ProgramData\chocolatey\logs\chocolatey.log).
+2026-10-11T10:44:13.9685029Z
+2026-10-11T10:44:13.9687805Z Warnings:
+2026-10-11T10:44:13.9692203Z  - ninja - ninja v1.13.2 already installed.
+2026-10-11T10:44:13.9692615Z  Use --force to reinstall, specify a version to install, or try upgrade.
+2026-10-11T10:44:14.0841258Z ##[end-action id=__self.__run_4;outcome=success;conclusion=success;duration_ms=8617]
+2026-10-11T10:44:14.0843432Z ##[start-action display=Pin Rust toolchain;id=__self.__run_5]
+2026-10-11T10:44:14.0990280Z ##[group]Run rustup toolchain install 1.93.1 --profile minimal
+2026-10-11T10:44:14.0990663Z [36;1mrustup toolchain install 1.93.1 --profile minimal[0m
+2026-10-11T10:44:14.0990927Z [36;1mrustup default 1.93.1[0m
+2026-10-11T10:44:14.0991163Z [36;1mif [ -n "x86_64-pc-windows-gnullvm" ]; then[0m
+2026-10-11T10:44:14.0991482Z [36;1m  rustup target add --toolchain 1.93.1 "x86_64-pc-windows-gnullvm"[0m
+2026-10-11T10:44:14.0991774Z [36;1mfi[0m
+2026-10-11T10:44:14.0991949Z [36;1mrustc --version --verbose[0m
+2026-10-11T10:44:14.0992202Z [36;1mif [ "$RUNNER_OS" = "Windows" ]; then clang --version; fi[0m
+2026-10-11T10:44:14.1006468Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+2026-10-11T10:44:14.1006834Z env:
+2026-10-11T10:44:14.1006987Z   SN_CC: clang
+2026-10-11T10:44:14.1007294Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:44:14.1007692Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:44:14.1007959Z ##[endgroup]
+2026-10-11T10:44:14.9822759Z info: syncing channel updates for 1.93.1-x86_64-pc-windows-msvc
+2026-10-11T10:44:15.5861887Z info: latest update on 2026-02-12 for version 1.93.1 (01f6ddf75 2026-02-11)
+2026-10-11T10:44:15.5952095Z info: downloading 3 components
+2026-10-11T10:44:23.6489919Z
+2026-10-11T10:44:23.6815415Z   1.93.1-x86_64-pc-windows-msvc installed - rustc 1.93.1 (01f6ddf75 2026-02-11)
+2026-10-11T10:44:23.6815834Z
+2026-10-11T10:44:23.7118748Z info: using existing install for 1.93.1-x86_64-pc-windows-msvc
+2026-10-11T10:44:23.7198028Z info: default toolchain set to 1.93.1-x86_64-pc-windows-msvc
+2026-10-11T10:44:23.7242355Z
+2026-10-11T10:44:23.7423256Z   1.93.1-x86_64-pc-windows-msvc unchanged - rustc 1.93.1 (01f6ddf75 2026-02-11)
+2026-10-11T10:44:23.7423545Z
+2026-10-11T10:44:23.8141387Z info: downloading component rust-std
+2026-10-11T10:44:28.1182194Z rustc 1.93.1 (01f6ddf75 2026-02-11)
+2026-10-11T10:44:28.1182512Z binary: rustc
+2026-10-11T10:44:28.1182755Z commit-hash: 01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf
+2026-10-11T10:44:28.1183044Z commit-date: 2026-02-11
+2026-10-11T10:44:28.1183232Z host: x86_64-pc-windows-msvc
+2026-10-11T10:44:28.1183418Z release: 1.93.1
+2026-10-11T10:44:28.1185041Z LLVM version: 21.1.8
+2026-10-11T10:44:28.1780614Z clang version 22.1.8 (https://github.com/llvm/llvm-project.git ca7933e47d3a3451d81e72ac174dcb5aa28b59d1)
+2026-10-11T10:44:28.1781055Z Target: x86_64-w64-windows-gnu
+2026-10-11T10:44:28.1781284Z Thread model: posix
+2026-10-11T10:44:28.1781678Z InstalledDir: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/toolchains/llvm-mingw/llvm-mingw-20260616-ucrt-x86_64/bin
+2026-10-11T10:44:28.1782869Z Configuration file: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/toolchains/llvm-mingw/llvm-mingw-20260616-ucrt-x86_64/bin/x86_64-w64-windows-gnu.cfg
+2026-10-11T10:44:28.1883437Z ##[end-action id=__self.__run_5;outcome=success;conclusion=success;duration_ms=14103]
+2026-10-11T10:44:28.1885626Z ##[start-action display=Checkout pinned build dependencies;id=__self.__actions_checkout]
+2026-10-11T10:44:28.2060071Z ##[group]Run actions/checkout@v6
+2026-10-11T10:44:28.2060385Z with:
+2026-10-11T10:44:28.2060658Z   repository: SindarinSDK/sindarin-pkg-libs
+2026-10-11T10:44:28.2061051Z   ref: 793df6f63d07146d19dffa8f6c172a1f56660b4a
+2026-10-11T10:44:28.2061438Z   path: .sn/sindarin-pkg-libs
+2026-10-11T10:44:28.2061760Z   persist-credentials: false
+2026-10-11T10:44:28.2065026Z   token: ***
+2026-10-11T10:44:28.2065304Z   ssh-strict: true
+2026-10-11T10:44:28.2065561Z   ssh-user: git
+2026-10-11T10:44:28.2065801Z   clean: true
+2026-10-11T10:44:28.2066075Z   sparse-checkout-cone-mode: true
+2026-10-11T10:44:28.2066401Z   fetch-depth: 1
+2026-10-11T10:44:28.2066652Z   fetch-tags: false
+2026-10-11T10:44:28.2066908Z   show-progress: true
+2026-10-11T10:44:28.2067165Z   lfs: false
+2026-10-11T10:44:28.2067477Z   submodules: false
+2026-10-11T10:44:28.2067736Z   set-safe-directory: true
+2026-10-11T10:44:28.2068049Z   allow-unsafe-pr-checkout: false
+2026-10-11T10:44:28.2068361Z env:
+2026-10-11T10:44:28.2068606Z   SN_CC: clang
+2026-10-11T10:44:28.2069044Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:44:28.2069678Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:44:28.2070114Z ##[endgroup]
+2026-10-11T10:44:28.3014250Z Syncing repository: SindarinSDK/sindarin-pkg-libs
+2026-10-11T10:44:28.3021286Z ##[group]Getting Git version info
+2026-10-11T10:44:28.3021849Z Working directory is 'D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\.sn\sindarin-pkg-libs'
+2026-10-11T10:44:28.3489975Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-11T10:44:28.3704928Z git version 2.55.0.windows.5
+2026-10-11T10:44:28.3741588Z ##[endgroup]
+2026-10-11T10:44:28.3755440Z Temporarily overriding HOME='D:\a\_temp\a421328e-dbff-4673-adcb-549e069b11dd' before making global git config changes
+2026-10-11T10:44:28.3756018Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-11T10:44:28.3763696Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\.sn\sindarin-pkg-libs
+2026-10-11T10:44:28.4000314Z ##[group]Determining repository object format
+2026-10-11T10:44:28.4002670Z ##[endgroup]
+2026-10-11T10:44:28.4003070Z ##[group]Initializing the repository
+2026-10-11T10:44:28.4011188Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\.sn\sindarin-pkg-libs
+2026-10-11T10:44:28.4277575Z Initialized empty Git repository in D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git/
+2026-10-11T10:44:28.4312156Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/SindarinSDK/sindarin-pkg-libs
+2026-10-11T10:44:28.4549394Z ##[endgroup]
+2026-10-11T10:44:28.4549715Z ##[group]Disabling automatic garbage collection
+2026-10-11T10:44:28.4557061Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-11T10:44:28.4788805Z ##[endgroup]
+2026-10-11T10:44:28.4789128Z ##[group]Setting up auth
+2026-10-11T10:44:28.4790420Z Removing SSH command configuration
+2026-10-11T10:44:28.4799649Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:44:28.5037614Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-11T10:44:29.0150047Z Removing HTTP extra header
+2026-10-11T10:44:29.0160003Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:44:29.0453383Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-11T10:44:29.9348492Z Removing includeIf entries pointing to credentials config files
+2026-10-11T10:44:29.9358741Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:44:29.9618940Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-11T10:44:30.6208825Z [command]"C:\Program Files\Git\bin\git.exe" config --file D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-11T10:44:30.6482673Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git.path D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:30.6742817Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git/worktrees/*.path D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:30.7001602Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.sn/sindarin-pkg-libs/.git.path /github/runner_temp/git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:30.7261207Z [command]"C:\Program Files\Git\bin\git.exe" config --local includeIf.gitdir:/github/workspace/.sn/sindarin-pkg-libs/.git/worktrees/*.path /github/runner_temp/git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:30.7521394Z ##[endgroup]
+2026-10-11T10:44:30.7521718Z ##[group]Fetching the repository
+2026-10-11T10:44:30.7533955Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin 793df6f63d07146d19dffa8f6c172a1f56660b4a
+2026-10-11T10:44:31.1021085Z From https://github.com/SindarinSDK/sindarin-pkg-libs
+2026-10-11T10:44:31.1021721Z  * branch            793df6f63d07146d19dffa8f6c172a1f56660b4a -> FETCH_HEAD
+2026-10-11T10:44:31.1066710Z [command]"C:\Program Files\Git\bin\git.exe" rev-parse --verify --quiet 793df6f63d07146d19dffa8f6c172a1f56660b4a^{object}
+2026-10-11T10:44:31.1287278Z 793df6f63d07146d19dffa8f6c172a1f56660b4a
+2026-10-11T10:44:31.1319852Z ##[endgroup]
+2026-10-11T10:44:31.1320328Z ##[group]Determining the checkout info
+2026-10-11T10:44:31.1321537Z ##[endgroup]
+2026-10-11T10:44:31.1330236Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-11T10:44:31.1626013Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-11T10:44:31.1877183Z ##[group]Checking out the ref
+2026-10-11T10:44:31.1886299Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force 793df6f63d07146d19dffa8f6c172a1f56660b4a
+2026-10-11T10:44:31.2275776Z Note: switching to '793df6f63d07146d19dffa8f6c172a1f56660b4a'.
+2026-10-11T10:44:31.2276360Z
+2026-10-11T10:44:31.2276866Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-11T10:44:31.2277530Z changes and commit them, and you can discard any commits you make in this
+2026-10-11T10:44:31.2278128Z state without impacting any branches by switching back to a branch.
+2026-10-11T10:44:31.2278492Z
+2026-10-11T10:44:31.2278713Z If you want to create a new branch to retain commits you create, you may
+2026-10-11T10:44:31.2279628Z do so (now or later) by using -c with the switch command. Example:
+2026-10-11T10:44:31.2279955Z
+2026-10-11T10:44:31.2280088Z   git switch -c <new-branch-name>
+2026-10-11T10:44:31.2280291Z
+2026-10-11T10:44:31.2280414Z Or undo this operation with:
+2026-10-11T10:44:31.2280619Z
+2026-10-11T10:44:31.2280708Z   git switch -
+2026-10-11T10:44:31.2280849Z
+2026-10-11T10:44:31.2281116Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-11T10:44:31.2281486Z
+2026-10-11T10:44:31.2281760Z HEAD is now at 793df6f Merge pull request #3 from SindarinSDK/fix/windows-zlib-alias
+2026-10-11T10:44:31.2338809Z ##[endgroup]
+2026-10-11T10:44:31.2649426Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-11T10:44:31.2887829Z 793df6f63d07146d19dffa8f6c172a1f56660b4a
+2026-10-11T10:44:31.2926587Z ##[group]Removing auth
+2026-10-11T10:44:31.2926951Z Removing SSH command configuration
+2026-10-11T10:44:31.2934610Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:44:31.3210026Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-11T10:44:31.8063113Z Removing HTTP extra header
+2026-10-11T10:44:31.8072830Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:44:31.8331706Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-11T10:44:32.3143684Z Removing includeIf entries pointing to credentials config files
+2026-10-11T10:44:32.3152270Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:44:32.3378377Z includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git.path
+2026-10-11T10:44:32.3379478Z includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git/worktrees/*.path
+2026-10-11T10:44:32.3380168Z includeif.gitdir:/github/workspace/.sn/sindarin-pkg-libs/.git.path
+2026-10-11T10:44:32.3380764Z includeif.gitdir:/github/workspace/.sn/sindarin-pkg-libs/.git/worktrees/*.path
+2026-10-11T10:44:32.3419163Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git.path
+2026-10-11T10:44:32.3717321Z D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:32.3758364Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git.path D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:32.4020562Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git/worktrees/*.path
+2026-10-11T10:44:32.4293098Z D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:32.4338243Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git/worktrees/*.path D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:32.4605158Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.sn/sindarin-pkg-libs/.git.path
+2026-10-11T10:44:32.4820352Z /github/runner_temp/git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:32.4855416Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.sn/sindarin-pkg-libs/.git.path /github/runner_temp/git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:32.5106813Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:/github/workspace/.sn/sindarin-pkg-libs/.git/worktrees/*.path
+2026-10-11T10:44:32.5318446Z /github/runner_temp/git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:32.5354653Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:/github/workspace/.sn/sindarin-pkg-libs/.git/worktrees/*.path /github/runner_temp/git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:44:32.5604698Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-11T10:44:33.0425590Z Removing credentials config 'D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config'
+2026-10-11T10:44:33.0435324Z ##[endgroup]
+2026-10-11T10:44:33.0557229Z ##[end-action id=__self.__actions_checkout;outcome=success;conclusion=success;duration_ms=4866]
+2026-10-11T10:44:33.0559867Z ##[start-action display=Install Windows build dependencies;id=__self.__run_6]
+2026-10-11T10:44:33.0677486Z ##[group]Run & ./scripts/install.ps1
+2026-10-11T10:44:33.0677777Z [36;1m& ./scripts/install.ps1[0m
+2026-10-11T10:44:33.0678030Z [36;1mif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }[0m
+2026-10-11T10:44:33.0678426Z [36;1mif (-not (Test-Path 'libs/windows/lib') -or -not (Test-Path 'libs/windows/include')) {[0m
+2026-10-11T10:44:33.0678876Z [36;1m  throw 'Windows dependency archive did not provide libraries and headers'[0m
+2026-10-11T10:44:33.0679180Z [36;1m}[0m
+2026-10-11T10:44:33.0736356Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-11T10:44:33.0736644Z env:
+2026-10-11T10:44:33.0736805Z   SN_CC: clang
+2026-10-11T10:44:33.0737101Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:44:33.0737536Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:44:33.0737810Z ##[endgroup]
+2026-10-11T10:44:33.4515797Z sindarin-pkg-libs - native library installer
+2026-10-11T10:44:33.4520751Z ========================================
+2026-10-11T10:44:33.4773414Z Detected: windows (x64)
+2026-10-11T10:44:33.4778624Z Package version: v0.0.18
+2026-10-11T10:44:33.5046802Z Downloading sindarin-pkg-libs v0.0.18 for windows-x64...
+2026-10-11T10:44:35.2087098Z Extracting to D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\.sn\sindarin-pkg-libs\libs\windows...
+2026-10-11T10:44:48.3482433Z Successfully installed sindarin-pkg-libs v0.0.18 to D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\.sn\sindarin-pkg-libs\libs\windows
+2026-10-11T10:44:48.3565016Z
+2026-10-11T10:44:48.3569670Z Installation complete!
+2026-10-11T10:44:48.3872177Z ##[end-action id=__self.__run_6;outcome=success;conclusion=success;duration_ms=15330]
+2026-10-11T10:44:48.3874956Z ##[start-action display=Install Unix build dependencies;id=__self.__run_7]
+2026-10-11T10:44:48.3882998Z ##[end-action id=__self.__run_7;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-11T10:44:48.3884736Z ##[start-action display=Verify pinned Windows compiler after setup;id=__self.__run_8]
+2026-10-11T10:44:48.3994629Z ##[group]Run $toolchainRoot = Join-Path $env:GITHUB_WORKSPACE ".sn\toolchains\llvm-mingw"
+2026-10-11T10:44:48.3995218Z [36;1m$toolchainRoot = Join-Path $env:GITHUB_WORKSPACE ".sn\toolchains\llvm-mingw"[0m
+2026-10-11T10:44:48.3995721Z [36;1m$toolchain = Get-ChildItem $toolchainRoot -Directory | Select-Object -First 1[0m
+2026-10-11T10:44:48.4062516Z [36;1m$expected = Join-Path $toolchain.FullName "bin\clang.exe"[0m
+2026-10-11T10:44:48.4062926Z [36;1m$selected = (Get-Command clang.exe).Source[0m
+2026-10-11T10:44:48.4063317Z [36;1mif ($selected -ne $expected) { throw "Expected pinned clang $expected, selected $selected" }[0m
+2026-10-11T10:44:48.4063674Z [36;1mclang --version[0m
+2026-10-11T10:44:48.4120713Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-11T10:44:48.4120994Z env:
+2026-10-11T10:44:48.4121162Z   SN_CC: clang
+2026-10-11T10:44:48.4121452Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:44:48.4121846Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:44:48.4122110Z ##[endgroup]
+2026-10-11T10:44:48.7647121Z clang version 22.1.8 (https://github.com/llvm/llvm-project.git ca7933e47d3a3451d81e72ac174dcb5aa28b59d1)
+2026-10-11T10:44:48.7647575Z Target: x86_64-w64-windows-gnu
+2026-10-11T10:44:48.7647777Z Thread model: posix
+2026-10-11T10:44:48.7648159Z InstalledDir: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/toolchains/llvm-mingw/llvm-mingw-20260616-ucrt-x86_64/bin
+2026-10-11T10:44:48.7649516Z Configuration file: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/toolchains/llvm-mingw/llvm-mingw-20260616-ucrt-x86_64/bin/x86_64-w64-windows-gnu.cfg
+2026-10-11T10:44:48.8135472Z ##[end-action id=__self.__run_8;outcome=success;conclusion=success;duration_ms=424]
+2026-10-11T10:44:48.8263438Z ##[group]Run make build
+2026-10-11T10:44:48.8263717Z [36;1mmake build[0m
+2026-10-11T10:44:48.8275282Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+2026-10-11T10:44:48.8275605Z env:
+2026-10-11T10:44:48.8275771Z   SN_CC: clang
+2026-10-11T10:44:48.8276059Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:44:48.8276493Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:44:48.8276765Z ##[endgroup]
+2026-10-11T10:44:49.1050337Z Building Sindarin compiler...
+2026-10-11T10:44:49.1226922Z Platform: windows
+2026-10-11T10:44:49.1419219Z Generator: Ninja
+2026-10-11T10:44:49.1437724Z cmake -S . -B build -G "Ninja" \
+2026-10-11T10:44:49.1438516Z 	-DCMAKE_BUILD_TYPE=Release \
+2026-10-11T10:44:49.1438836Z 	-DCMAKE_C_COMPILER=clang
+2026-10-11T10:44:56.3628759Z -- The C compiler identification is Clang 22.1.8
+2026-10-11T10:44:56.7215011Z -- Detecting C compiler ABI info
+2026-10-11T10:44:57.2514159Z -- Detecting C compiler ABI info - done
+2026-10-11T10:44:57.2794169Z -- Check for working C compiler: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/toolchains/llvm-mingw/llvm-mingw-20260616-ucrt-x86_64/bin/clang.exe - skipped
+2026-10-11T10:44:57.3012628Z -- Detecting C compile features
+2026-10-11T10:44:57.3022730Z -- Detecting C compile features - done
+2026-10-11T10:44:57.4043303Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/sn.linux.cfg
+2026-10-11T10:44:57.4047107Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/sn.darwin.cfg
+2026-10-11T10:44:57.4051591Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/sn.windows.cfg
+2026-10-11T10:44:57.4060656Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_abi.h
+2026-10-11T10:44:57.4065053Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_arith.h
+2026-10-11T10:44:57.4069074Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_array.h
+2026-10-11T10:44:57.4074137Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_byte.h
+2026-10-11T10:44:57.4078140Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_conv.h
+2026-10-11T10:44:57.4082724Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_core.h
+2026-10-11T10:44:57.4087097Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_minimal.h
+2026-10-11T10:44:57.4092479Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_reflect.h
+2026-10-11T10:44:57.4096906Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_serial.h
+2026-10-11T10:44:57.4101659Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_string.h
+2026-10-11T10:44:57.4105744Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/runtime/sn_thread.h
+2026-10-11T10:44:57.4110770Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_abi.h
+2026-10-11T10:44:57.4115108Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_arith.h
+2026-10-11T10:44:57.4119055Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_array.h
+2026-10-11T10:44:57.4123486Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_byte.h
+2026-10-11T10:44:57.4127457Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_conv.h
+2026-10-11T10:44:57.4132012Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_core.h
+2026-10-11T10:44:57.4136147Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_minimal.h
+2026-10-11T10:44:57.4141487Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_reflect.h
+2026-10-11T10:44:57.4145449Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_serial.h
+2026-10-11T10:44:57.4151394Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_string.h
+2026-10-11T10:44:57.4154310Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/minimal/sn_thread.h
+2026-10-11T10:44:57.4160062Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/platform/compat_dirent.h
+2026-10-11T10:44:57.4164423Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/platform/compat_io.h
+2026-10-11T10:44:57.4168792Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/platform/compat_net.h
+2026-10-11T10:44:57.4173418Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/platform/compat_pthread.h
+2026-10-11T10:44:57.4177730Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/platform/compat_time.h
+2026-10-11T10:44:57.4182006Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/platform/compat_windows.h
+2026-10-11T10:44:57.4187249Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/include/platform/platform.h
+2026-10-11T10:44:57.4374227Z -- Found libs submodule: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows
+2026-10-11T10:44:57.4374614Z --   Copying zlib headers...
+2026-10-11T10:44:57.4375472Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/zlib.h
+2026-10-11T10:44:57.4382018Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/zconf.h
+2026-10-11T10:44:57.4386410Z --   Copying yyjson headers...
+2026-10-11T10:44:57.4387528Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/yyjson.h
+2026-10-11T10:44:57.4396338Z --   Copying json-c headers...
+2026-10-11T10:44:57.4397438Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c
+2026-10-11T10:44:57.4401344Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/arraylist.h
+2026-10-11T10:44:57.4405646Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/debug.h
+2026-10-11T10:44:57.4409850Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json.h
+2026-10-11T10:44:57.4414313Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_config.h
+2026-10-11T10:44:57.4418547Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_c_version.h
+2026-10-11T10:44:57.4422550Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_inttypes.h
+2026-10-11T10:44:57.4426814Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_object.h
+2026-10-11T10:44:57.4433304Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_object_iterator.h
+2026-10-11T10:44:57.4437831Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_patch.h
+2026-10-11T10:44:57.4442206Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_pointer.h
+2026-10-11T10:44:57.4446440Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_tokener.h
+2026-10-11T10:44:57.4451531Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_types.h
+2026-10-11T10:44:57.4455531Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_util.h
+2026-10-11T10:44:57.4459542Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/json_visit.h
+2026-10-11T10:44:57.4463508Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/linkhash.h
+2026-10-11T10:44:57.4468350Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/json-c/printbuf.h
+2026-10-11T10:44:57.4472491Z --   Copying libxml2 headers...
+2026-10-11T10:44:57.4473594Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml
+2026-10-11T10:44:57.4478302Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/c14n.h
+2026-10-11T10:44:57.4482483Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/catalog.h
+2026-10-11T10:44:57.4487520Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/chvalid.h
+2026-10-11T10:44:57.4491617Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/debugXML.h
+2026-10-11T10:44:57.4495501Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/dict.h
+2026-10-11T10:44:57.4499495Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/encoding.h
+2026-10-11T10:44:57.4504244Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/entities.h
+2026-10-11T10:44:57.4510198Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/globals.h
+2026-10-11T10:44:57.4517547Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/hash.h
+2026-10-11T10:44:57.4521869Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/HTMLparser.h
+2026-10-11T10:44:57.4526307Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/HTMLtree.h
+2026-10-11T10:44:57.4530588Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/list.h
+2026-10-11T10:44:57.4534650Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/nanoftp.h
+2026-10-11T10:44:57.4538568Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/nanohttp.h
+2026-10-11T10:44:57.4542587Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/parser.h
+2026-10-11T10:44:57.4547826Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/parserInternals.h
+2026-10-11T10:44:57.4553149Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/pattern.h
+2026-10-11T10:44:57.4557551Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/relaxng.h
+2026-10-11T10:44:57.4561693Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/SAX.h
+2026-10-11T10:44:57.4565541Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/SAX2.h
+2026-10-11T10:44:57.4570383Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/schemasInternals.h
+2026-10-11T10:44:57.4575047Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/schematron.h
+2026-10-11T10:44:57.4579325Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/threads.h
+2026-10-11T10:44:57.4583715Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/tree.h
+2026-10-11T10:44:57.4590751Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/uri.h
+2026-10-11T10:44:57.4594732Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/valid.h
+2026-10-11T10:44:57.4599233Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xinclude.h
+2026-10-11T10:44:57.4603213Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xlink.h
+2026-10-11T10:44:57.4607620Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlautomata.h
+2026-10-11T10:44:57.4611925Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlerror.h
+2026-10-11T10:44:57.4617552Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlexports.h
+2026-10-11T10:44:57.4621577Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlIO.h
+2026-10-11T10:44:57.4625980Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlmemory.h
+2026-10-11T10:44:57.4630295Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlmodule.h
+2026-10-11T10:44:57.4634823Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlreader.h
+2026-10-11T10:44:57.4639093Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlregexp.h
+2026-10-11T10:44:57.4643358Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlsave.h
+2026-10-11T10:44:57.4647510Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlschemas.h
+2026-10-11T10:44:57.4651849Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlschemastypes.h
+2026-10-11T10:44:57.4657485Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlstring.h
+2026-10-11T10:44:57.4661945Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlunicode.h
+2026-10-11T10:44:57.4665900Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlversion.h
+2026-10-11T10:44:57.4670173Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xmlwriter.h
+2026-10-11T10:44:57.4675182Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xpath.h
+2026-10-11T10:44:57.4679639Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xpathInternals.h
+2026-10-11T10:44:57.4684256Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libxml/xpointer.h
+2026-10-11T10:44:57.4688584Z --   Copying libyaml headers...
+2026-10-11T10:44:57.4689618Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/yaml.h
+2026-10-11T10:44:57.4695206Z --   Copying openssl headers...
+2026-10-11T10:44:57.4696230Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl
+2026-10-11T10:44:57.4701417Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/aes.h
+2026-10-11T10:44:57.4705596Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/asn1.h
+2026-10-11T10:44:57.4710686Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/asn1err.h
+2026-10-11T10:44:57.4715303Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/asn1t.h
+2026-10-11T10:44:57.4720193Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/async.h
+2026-10-11T10:44:57.4724380Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/asyncerr.h
+2026-10-11T10:44:57.4728244Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/bio.h
+2026-10-11T10:44:57.4734761Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/bioerr.h
+2026-10-11T10:44:57.4739195Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/blowfish.h
+2026-10-11T10:44:57.4744358Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/bn.h
+2026-10-11T10:44:57.4749151Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/bnerr.h
+2026-10-11T10:44:57.4753236Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/buffer.h
+2026-10-11T10:44:57.4757330Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/buffererr.h
+2026-10-11T10:44:57.4761300Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/byteorder.h
+2026-10-11T10:44:57.4766094Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/camellia.h
+2026-10-11T10:44:57.4770135Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cast.h
+2026-10-11T10:44:57.4774226Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cmac.h
+2026-10-11T10:44:57.4778253Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cmp.h
+2026-10-11T10:44:57.4783597Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cmperr.h
+2026-10-11T10:44:57.4787934Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cmp_util.h
+2026-10-11T10:44:57.4792079Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cms.h
+2026-10-11T10:44:57.4796689Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cmserr.h
+2026-10-11T10:44:57.4801076Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/comp.h
+2026-10-11T10:44:57.4806236Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/comperr.h
+2026-10-11T10:44:57.4811561Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/conf.h
+2026-10-11T10:44:57.4817756Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/conferr.h
+2026-10-11T10:44:57.4822087Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/configuration.h
+2026-10-11T10:44:57.4826760Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/conftypes.h
+2026-10-11T10:44:57.4830902Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/conf_api.h
+2026-10-11T10:44:57.4835010Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/core.h
+2026-10-11T10:44:57.4839868Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/core_dispatch.h
+2026-10-11T10:44:57.4845704Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/core_names.h
+2026-10-11T10:44:57.4850579Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/core_object.h
+2026-10-11T10:44:57.4854580Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/crmf.h
+2026-10-11T10:44:57.4859144Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/crmferr.h
+2026-10-11T10:44:57.4863272Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/crypto.h
+2026-10-11T10:44:57.4868248Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cryptoerr.h
+2026-10-11T10:44:57.4872374Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cryptoerr_legacy.h
+2026-10-11T10:44:57.4877473Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ct.h
+2026-10-11T10:44:57.4882389Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/cterr.h
+2026-10-11T10:44:57.4887769Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/decoder.h
+2026-10-11T10:44:57.4892197Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/decodererr.h
+2026-10-11T10:44:57.4896209Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/des.h
+2026-10-11T10:44:57.4900651Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/dh.h
+2026-10-11T10:44:57.4905523Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/dherr.h
+2026-10-11T10:44:57.4909661Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/dsa.h
+2026-10-11T10:44:57.4914088Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/dsaerr.h
+2026-10-11T10:44:57.4918174Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/dtls1.h
+2026-10-11T10:44:57.4922563Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ebcdic.h
+2026-10-11T10:44:57.4926574Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ec.h
+2026-10-11T10:44:57.4931812Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ecdh.h
+2026-10-11T10:44:57.4935727Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ecdsa.h
+2026-10-11T10:44:57.4939663Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ecerr.h
+2026-10-11T10:44:57.4944274Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/encoder.h
+2026-10-11T10:44:57.4948613Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/encodererr.h
+2026-10-11T10:44:57.4952702Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/engine.h
+2026-10-11T10:44:57.4958353Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/engineerr.h
+2026-10-11T10:44:57.4961993Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/err.h
+2026-10-11T10:44:57.4966774Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ess.h
+2026-10-11T10:44:57.4971186Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/esserr.h
+2026-10-11T10:44:57.4976282Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/evp.h
+2026-10-11T10:44:57.4982882Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/evperr.h
+2026-10-11T10:44:57.4987454Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/e_os2.h
+2026-10-11T10:44:57.4991814Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/e_ostime.h
+2026-10-11T10:44:57.4995882Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/fipskey.h
+2026-10-11T10:44:57.5000261Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/fips_names.h
+2026-10-11T10:44:57.5004556Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/hmac.h
+2026-10-11T10:44:57.5008568Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/hpke.h
+2026-10-11T10:44:57.5012935Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/http.h
+2026-10-11T10:44:57.5017233Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/httperr.h
+2026-10-11T10:44:57.5021456Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/idea.h
+2026-10-11T10:44:57.5025844Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/indicator.h
+2026-10-11T10:44:57.5029914Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/kdf.h
+2026-10-11T10:44:57.5034391Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/kdferr.h
+2026-10-11T10:44:57.5038320Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/lhash.h
+2026-10-11T10:44:57.5043563Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/macros.h
+2026-10-11T10:44:57.5047972Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/md2.h
+2026-10-11T10:44:57.5052082Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/md4.h
+2026-10-11T10:44:57.5056266Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/md5.h
+2026-10-11T10:44:57.5060594Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/mdc2.h
+2026-10-11T10:44:57.5065009Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ml_kem.h
+2026-10-11T10:44:57.5070202Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/modes.h
+2026-10-11T10:44:57.5074484Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/objects.h
+2026-10-11T10:44:57.5078879Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/objectserr.h
+2026-10-11T10:44:57.5083139Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/obj_mac.h
+2026-10-11T10:44:57.5092827Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ocsp.h
+2026-10-11T10:44:57.5097196Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ocsperr.h
+2026-10-11T10:44:57.5101255Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/opensslconf.h
+2026-10-11T10:44:57.5105463Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/opensslv.h
+2026-10-11T10:44:57.5109977Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ossl_typ.h
+2026-10-11T10:44:57.5113820Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/params.h
+2026-10-11T10:44:57.5118458Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/param_build.h
+2026-10-11T10:44:57.5122353Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/pem.h
+2026-10-11T10:44:57.5127363Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/pem2.h
+2026-10-11T10:44:57.5131493Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/pemerr.h
+2026-10-11T10:44:57.5135588Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/pkcs12.h
+2026-10-11T10:44:57.5140237Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/pkcs12err.h
+2026-10-11T10:44:57.5144406Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/pkcs7.h
+2026-10-11T10:44:57.5149656Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/pkcs7err.h
+2026-10-11T10:44:57.5153753Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/proverr.h
+2026-10-11T10:44:57.5159176Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/provider.h
+2026-10-11T10:44:57.5163237Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/prov_ssl.h
+2026-10-11T10:44:57.5167775Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/quic.h
+2026-10-11T10:44:57.5171842Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/rand.h
+2026-10-11T10:44:57.5176013Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/randerr.h
+2026-10-11T10:44:57.5180438Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/rc2.h
+2026-10-11T10:44:57.5184592Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/rc4.h
+2026-10-11T10:44:57.5189056Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/rc5.h
+2026-10-11T10:44:57.5193325Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ripemd.h
+2026-10-11T10:44:57.5198097Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/rsa.h
+2026-10-11T10:44:57.5202659Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/rsaerr.h
+2026-10-11T10:44:57.5206667Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/safestack.h
+2026-10-11T10:44:57.5211671Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/seed.h
+2026-10-11T10:44:57.5215820Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/self_test.h
+2026-10-11T10:44:57.5220866Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/sha.h
+2026-10-11T10:44:57.5225273Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/srp.h
+2026-10-11T10:44:57.5229658Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/srtp.h
+2026-10-11T10:44:57.5233775Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ssl.h
+2026-10-11T10:44:57.5240362Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ssl2.h
+2026-10-11T10:44:57.5244373Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ssl3.h
+2026-10-11T10:44:57.5249388Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/sslerr.h
+2026-10-11T10:44:57.5255703Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/sslerr_legacy.h
+2026-10-11T10:44:57.5260594Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/stack.h
+2026-10-11T10:44:57.5264907Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/store.h
+2026-10-11T10:44:57.5269241Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/storeerr.h
+2026-10-11T10:44:57.5273333Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/symhacks.h
+2026-10-11T10:44:57.5277663Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/thread.h
+2026-10-11T10:44:57.5282029Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/tls1.h
+2026-10-11T10:44:57.5287146Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/trace.h
+2026-10-11T10:44:57.5291532Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ts.h
+2026-10-11T10:44:57.5296071Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/tserr.h
+2026-10-11T10:44:57.5300588Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/txt_db.h
+2026-10-11T10:44:57.5304619Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/types.h
+2026-10-11T10:44:57.5308979Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/ui.h
+2026-10-11T10:44:57.5313680Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/uierr.h
+2026-10-11T10:44:57.5317865Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/whrlpool.h
+2026-10-11T10:44:57.5322332Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/x509.h
+2026-10-11T10:44:57.5327877Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/x509err.h
+2026-10-11T10:44:57.5332017Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/x509v3.h
+2026-10-11T10:44:57.5339064Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/x509v3err.h
+2026-10-11T10:44:57.5343190Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/x509_acert.h
+2026-10-11T10:44:57.5348013Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/openssl/x509_vfy.h
+2026-10-11T10:44:57.5354719Z --   Copying libssh headers...
+2026-10-11T10:44:57.5355951Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh
+2026-10-11T10:44:57.5361824Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh/callbacks.h
+2026-10-11T10:44:57.5366893Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh/legacy.h
+2026-10-11T10:44:57.5371255Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh/libssh.h
+2026-10-11T10:44:57.5376363Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh/libsshpp.hpp
+2026-10-11T10:44:57.5381505Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh/libssh_version.h
+2026-10-11T10:44:57.5385489Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh/server.h
+2026-10-11T10:44:57.5389892Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh/sftp.h
+2026-10-11T10:44:57.5395911Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh/sftpserver.h
+2026-10-11T10:44:57.5400312Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/libssh/ssh2.h
+2026-10-11T10:44:57.5404178Z --   Copying libgit2 headers...
+2026-10-11T10:44:57.5405372Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2.h
+2026-10-11T10:44:57.5409990Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2
+2026-10-11T10:44:57.5414100Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/annotated_commit.h
+2026-10-11T10:44:57.5419181Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/apply.h
+2026-10-11T10:44:57.5423911Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/attr.h
+2026-10-11T10:44:57.5428377Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/blame.h
+2026-10-11T10:44:57.5432746Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/blob.h
+2026-10-11T10:44:57.5437393Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/branch.h
+2026-10-11T10:44:57.5441942Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/buffer.h
+2026-10-11T10:44:57.5447437Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/cert.h
+2026-10-11T10:44:57.5451788Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/checkout.h
+2026-10-11T10:44:57.5456331Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/cherrypick.h
+2026-10-11T10:44:57.5460735Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/clone.h
+2026-10-11T10:44:57.5464960Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/commit.h
+2026-10-11T10:44:57.5469599Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/common.h
+2026-10-11T10:44:57.5474138Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/config.h
+2026-10-11T10:44:57.5479286Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/credential.h
+2026-10-11T10:44:57.5483732Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/credential_helpers.h
+2026-10-11T10:44:57.5487889Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/cred_helpers.h
+2026-10-11T10:44:57.5491909Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/deprecated.h
+2026-10-11T10:44:57.5496850Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/describe.h
+2026-10-11T10:44:57.5501527Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/diff.h
+2026-10-11T10:44:57.5506620Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/email.h
+2026-10-11T10:44:57.5510616Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/errors.h
+2026-10-11T10:44:57.5515266Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/experimental.h
+2026-10-11T10:44:57.5519498Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/filter.h
+2026-10-11T10:44:57.5523864Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/global.h
+2026-10-11T10:44:57.5528564Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/graph.h
+2026-10-11T10:44:57.5532988Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/ignore.h
+2026-10-11T10:44:57.5538246Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/index.h
+2026-10-11T10:44:57.5542919Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/indexer.h
+2026-10-11T10:44:57.5547276Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/mailmap.h
+2026-10-11T10:44:57.5551375Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/merge.h
+2026-10-11T10:44:57.5556603Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/message.h
+2026-10-11T10:44:57.5560670Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/net.h
+2026-10-11T10:44:57.5565017Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/notes.h
+2026-10-11T10:44:57.5569431Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/object.h
+2026-10-11T10:44:57.5574093Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/odb.h
+2026-10-11T10:44:57.5579179Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/odb_backend.h
+2026-10-11T10:44:57.5583853Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/oid.h
+2026-10-11T10:44:57.5588322Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/oidarray.h
+2026-10-11T10:44:57.5593754Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/pack.h
+2026-10-11T10:44:57.5598617Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/patch.h
+2026-10-11T10:44:57.5603741Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/pathspec.h
+2026-10-11T10:44:57.5607547Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/proxy.h
+2026-10-11T10:44:57.5611448Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/rebase.h
+2026-10-11T10:44:57.5616137Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/refdb.h
+2026-10-11T10:44:57.5620217Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/reflog.h
+2026-10-11T10:44:57.5624491Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/refs.h
+2026-10-11T10:44:57.5629165Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/refspec.h
+2026-10-11T10:44:57.5633220Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/remote.h
+2026-10-11T10:44:57.5638339Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/repository.h
+2026-10-11T10:44:57.5643667Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/reset.h
+2026-10-11T10:44:57.5648133Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/revert.h
+2026-10-11T10:44:57.5652268Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/revparse.h
+2026-10-11T10:44:57.5656507Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/revwalk.h
+2026-10-11T10:44:57.5661311Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/signature.h
+2026-10-11T10:44:57.5665742Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/stash.h
+2026-10-11T10:44:57.5670111Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/status.h
+2026-10-11T10:44:57.5674508Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/stdint.h
+2026-10-11T10:44:57.5678904Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/strarray.h
+2026-10-11T10:44:57.5684364Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/submodule.h
+2026-10-11T10:44:57.5688993Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys
+2026-10-11T10:44:57.5694115Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/alloc.h
+2026-10-11T10:44:57.5701145Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/commit.h
+2026-10-11T10:44:57.5704995Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/commit_graph.h
+2026-10-11T10:44:57.5709143Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/config.h
+2026-10-11T10:44:57.5713612Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/cred.h
+2026-10-11T10:44:57.5717451Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/credential.h
+2026-10-11T10:44:57.5721158Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/diff.h
+2026-10-11T10:44:57.5726076Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/email.h
+2026-10-11T10:44:57.5729809Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/errors.h
+2026-10-11T10:44:57.5733974Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/filter.h
+2026-10-11T10:44:57.5738090Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/hashsig.h
+2026-10-11T10:44:57.5741853Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/index.h
+2026-10-11T10:44:57.5745807Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/mempack.h
+2026-10-11T10:44:57.5750131Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/merge.h
+2026-10-11T10:44:57.5754565Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/midx.h
+2026-10-11T10:44:57.5758478Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/odb_backend.h
+2026-10-11T10:44:57.5762307Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/openssl.h
+2026-10-11T10:44:57.5766052Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/path.h
+2026-10-11T10:44:57.5769812Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/refdb_backend.h
+2026-10-11T10:44:57.5774282Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/refs.h
+2026-10-11T10:44:57.5777990Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/remote.h
+2026-10-11T10:44:57.5781913Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/repository.h
+2026-10-11T10:44:57.5785909Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/stream.h
+2026-10-11T10:44:57.5789980Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/sys/transport.h
+2026-10-11T10:44:57.5794457Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/tag.h
+2026-10-11T10:44:57.5798607Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/trace.h
+2026-10-11T10:44:57.5802370Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/transaction.h
+2026-10-11T10:44:57.5806275Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/transport.h
+2026-10-11T10:44:57.5810093Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/tree.h
+2026-10-11T10:44:57.5814802Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/types.h
+2026-10-11T10:44:57.5818880Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/version.h
+2026-10-11T10:44:57.5822783Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/git2/worktree.h
+2026-10-11T10:44:57.5826790Z --   Copying curl headers...
+2026-10-11T10:44:57.5827834Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl
+2026-10-11T10:44:57.5831561Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/curl.h
+2026-10-11T10:44:57.5838069Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/curlver.h
+2026-10-11T10:44:57.5841807Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/easy.h
+2026-10-11T10:44:57.5845584Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/header.h
+2026-10-11T10:44:57.5849611Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/mprintf.h
+2026-10-11T10:44:57.5854025Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/multi.h
+2026-10-11T10:44:57.5858282Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/options.h
+2026-10-11T10:44:57.5863151Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/stdcheaders.h
+2026-10-11T10:44:57.5867019Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/system.h
+2026-10-11T10:44:57.5871717Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/typecheck-gcc.h
+2026-10-11T10:44:57.5876619Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/urlapi.h
+2026-10-11T10:44:57.5880647Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/include/curl/websockets.h
+2026-10-11T10:44:57.5891891Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libzlib.a
+2026-10-11T10:44:57.5892828Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libzlib.a
+2026-10-11T10:44:57.5898554Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libzs.a
+2026-10-11T10:44:57.5899397Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libzs.a
+2026-10-11T10:44:57.5905087Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libyyjson.a
+2026-10-11T10:44:57.5905719Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libyyjson.a
+2026-10-11T10:44:57.5914907Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libxml2.a
+2026-10-11T10:44:57.5915766Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libxml2.a
+2026-10-11T10:44:57.5942959Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libyaml.a
+2026-10-11T10:44:57.5943811Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libyaml.a
+2026-10-11T10:44:57.5950004Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libcrypto.a
+2026-10-11T10:44:57.5950892Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libcrypto.a
+2026-10-11T10:44:57.6085531Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libssl.a
+2026-10-11T10:44:57.6086247Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libssl.a
+2026-10-11T10:44:57.6113872Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libssh.a
+2026-10-11T10:44:57.6114756Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libssh.a
+2026-10-11T10:44:57.6128280Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libssh2.a
+2026-10-11T10:44:57.6129216Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libssh2.a
+2026-10-11T10:44:57.6138816Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libgit2.a
+2026-10-11T10:44:57.6139708Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libgit2.a
+2026-10-11T10:44:57.6171245Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libhttp_parser.a
+2026-10-11T10:44:57.6172152Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libhttp_parser.a
+2026-10-11T10:44:57.6177017Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libpcre2-8.a
+2026-10-11T10:44:57.6177927Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libpcre2-8.a
+2026-10-11T10:44:57.6196812Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libssh2.a
+2026-10-11T10:44:57.6197747Z -- Up-to-date: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libssh2.a
+2026-10-11T10:44:57.6198314Z --   Copying library: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libcurl.a
+2026-10-11T10:44:57.6199356Z -- Installing: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps/lib/libcurl.a
+2026-10-11T10:44:57.6219335Z --   Dependencies copied to: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/deps
+2026-10-11T10:44:57.6219930Z -- Using zlib archive: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/libs/windows/lib/libzlib.a
+2026-10-11T10:44:57.6220333Z -- Found sindarin-template (handlebars)
+2026-10-11T10:44:57.6233283Z -- Found libcurl - enabling auto-update feature
+2026-10-11T10:44:57.6234245Z -- Found libgit2 and libyaml - enabling package manager
+2026-10-11T10:44:57.6487088Z --
+2026-10-11T10:44:57.6487660Z -- Sindarin Compiler Build Configuration:
+2026-10-11T10:44:57.6488071Z --   Version:      1.0.0
+2026-10-11T10:44:57.6488365Z --   Platform:     Windows
+2026-10-11T10:44:57.6488673Z --   Compiler:     Clang 22.1.8
+2026-10-11T10:44:57.6488970Z --   Build Type:   Release
+2026-10-11T10:44:57.6489241Z --   Debug:        OFF
+2026-10-11T10:44:57.6489767Z --   ASAN:         OFF
+2026-10-11T10:44:57.6490128Z --   Output:       D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin
+2026-10-11T10:44:57.6490537Z --
+2026-10-11T10:44:57.6490812Z -- Configuring done (2.3s)
+2026-10-11T10:44:57.7566519Z -- Generating done (0.1s)
+2026-10-11T10:44:57.7577680Z -- Build files have been written to: D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/build
+2026-10-11T10:44:57.7757902Z cmake --build build
+2026-10-11T10:44:57.8285103Z [0/2] Re-checking globbed directories...
+2026-10-11T10:44:57.9671250Z [1/249] Building C object CMakeFiles/sn_fake_rustc.dir/tests/fixtures/fake_rustc.c.obj
+2026-10-11T10:44:57.9892988Z [2/249] Building C object CMakeFiles/sn_runtime_min.dir/src/runtime/sn_package.c.obj
+2026-10-11T10:44:58.0246509Z [3/249] Synchronizing runtime headers
+2026-10-11T10:44:58.0293728Z [4/249] Building C object CMakeFiles/sn_runtime_min.dir/src/runtime/sn_array.c.obj
+2026-10-11T10:44:58.1293733Z [5/249] Building C object CMakeFiles/sn_runtime_min.dir/src/runtime/sn_byte.c.obj
+2026-10-11T10:44:58.1365310Z [6/249] Building C object CMakeFiles/tests.dir/src/arena.c.obj
+2026-10-11T10:44:58.1523986Z [7/249] Building C object CMakeFiles/sn_runtime_min.dir/src/runtime/sn_string.c.obj
+2026-10-11T10:44:58.1632015Z [8/249] Building C object CMakeFiles/sn_runtime_min.dir/src/runtime/sn_abi.c.obj
+2026-10-11T10:44:58.2278302Z [9/249] Building C object CMakeFiles/tests.dir/src/file.c.obj
+2026-10-11T10:44:58.2318697Z [10/249] Building C object CMakeFiles/tests.dir/src/token.c.obj
+2026-10-11T10:44:58.2335369Z [11/249] Building C object CMakeFiles/tests.dir/src/debug.c.obj
+2026-10-11T10:44:58.3539978Z [12/249] Building C object CMakeFiles/tests.dir/src/diagnostic.c.obj
+2026-10-11T10:44:58.3956126Z [13/249] Building C object CMakeFiles/tests.dir/src/lexer.c.obj
+2026-10-11T10:44:58.4050289Z [14/249] Building C object CMakeFiles/tests.dir/src/compiler.c.obj
+2026-10-11T10:44:58.5239561Z [15/249] Building C object CMakeFiles/tests.dir/src/lexer/lexer_util.c.obj
+2026-10-11T10:44:58.5408277Z [16/249] Building C object CMakeFiles/tests.dir/src/ast.c.obj
+2026-10-11T10:44:58.5569548Z [17/249] Building C object CMakeFiles/tests.dir/src/lexer/lexer_scan.c.obj
+2026-10-11T10:44:58.5700248Z [18/249] C:\Windows\system32\cmd.exe /C "cd /D D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\build && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/build_native_package.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/tools/build_native_package.py && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/build_native_package.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/build/bin/tools/build_native_package.py && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/prepare_native_imports.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/tools/prepare_native_imports.py && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/prepare_native_imports.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/build/bin/tools/prepare_native_imports.py && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/native_provider.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/tools/native_provider.py && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/native_provider.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/build/bin/tools/native_provider.py && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/native_contract.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/tools/native_contract.py && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/native_contract.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/build/bin/tools/native_contract.py && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/sindarin_library.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/tools/sindarin_library.py && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/scripts/sindarin_library.py D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/build/bin/tools/sindarin_library.py"
+2026-10-11T10:44:58.7514831Z [19/249] Building C object CMakeFiles/tests.dir/src/ast/ast_type.c.obj
+2026-10-11T10:44:58.7823840Z [20/249] Building C object CMakeFiles/tests.dir/src/ast/ast_stmt.c.obj
+2026-10-11T10:44:58.7906653Z [21/249] Building C object CMakeFiles/tests.dir/src/ast/ast_expr.c.obj
+2026-10-11T10:44:58.8437370Z [22/249] Building C object CMakeFiles/tests.dir/src/ast/ast_print.c.obj
+2026-10-11T10:44:59.0012003Z [23/249] Building C object CMakeFiles/tests.dir/src/parser/expr/parser_expr_interpol.c.obj
+2026-10-11T10:44:59.0067046Z [24/249] Building C object CMakeFiles/tests.dir/src/parser/expr/parser_expr.c.obj
+2026-10-11T10:44:59.0155828Z [25/249] Building C object CMakeFiles/tests.dir/src/parser/util/parser_util.c.obj
+2026-10-11T10:44:59.0939555Z [26/249] Building C object CMakeFiles/tests.dir/src/parser.c.obj
+2026-10-11T10:44:59.0992180Z [27/249] Building C object CMakeFiles/tests.dir/src/parser/expr/parser_expr_match.c.obj
+2026-10-11T10:44:59.1178825Z [28/249] Building C object CMakeFiles/tests.dir/src/parser/expr/parser_expr_struct.c.obj
+2026-10-11T10:44:59.1399561Z [29/249] Building C object CMakeFiles/tests.dir/src/parser/expr/parser_expr_lambda.c.obj
+2026-10-11T10:44:59.2659330Z [30/249] Building C object CMakeFiles/tests.dir/src/parser/stmt/parser_stmt_control.c.obj
+2026-10-11T10:44:59.2818182Z [31/249] Building C object CMakeFiles/tests.dir/src/parser/stmt/parser_stmt.c.obj
+2026-10-11T10:44:59.3150757Z [32/249] Building C object CMakeFiles/tests.dir/src/parser/stmt/parser_stmt_decl.c.obj
+2026-10-11T10:44:59.3198177Z [33/249] Building C object CMakeFiles/tests.dir/src/symbol_table.c.obj
+2026-10-11T10:44:59.3320729Z [34/249] Building C object CMakeFiles/tests.dir/src/formatter.c.obj
+2026-10-11T10:44:59.4537840Z [35/249] Building C object CMakeFiles/tests.dir/src/type_checker.c.obj
+2026-10-11T10:44:59.4640684Z [36/249] Building C object CMakeFiles/tests.dir/src/symbol_table/symbol_table_thread.c.obj
+2026-10-11T10:44:59.4741268Z [37/249] Building C object CMakeFiles/tests.dir/src/symbol_table/symbol_table_namespace.c.obj
+2026-10-11T10:44:59.5051555Z [38/249] Building C object CMakeFiles/tests.dir/src/symbol_table/symbol_table_core.c.obj
+2026-10-11T10:44:59.5750474Z [39/249] Building C object CMakeFiles/tests.dir/src/type_checker/type_checker_generics.c.obj
+2026-10-11T10:44:59.5805680Z [40/249] Building C object CMakeFiles/tests.dir/src/type_checker/util/type_checker_util_escape.c.obj
+2026-10-11T10:44:59.5877942Z [41/249] Building C object CMakeFiles/tests.dir/src/type_checker/util/type_checker_util.c.obj
+2026-10-11T10:44:59.6747355Z [42/249] Building C object CMakeFiles/tests.dir/src/type_checker/util/type_checker_util_suggest.c.obj
+2026-10-11T10:44:59.6901012Z [43/249] Building C object CMakeFiles/tests.dir/src/type_checker/util/type_checker_util_layout.c.obj
+2026-10-11T10:44:59.6977479Z [44/249] Building C object CMakeFiles/tests.dir/src/type_checker/util/type_checker_util_struct.c.obj
+2026-10-11T10:44:59.7346171Z [45/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr.c.obj
+2026-10-11T10:44:59.7578363Z [46/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_ops.c.obj
+2026-10-11T10:44:59.8265412Z [47/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_assign.c.obj
+2026-10-11T10:44:59.8341334Z [48/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_thread.c.obj
+2026-10-11T10:44:59.8458869Z [49/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_member.c.obj
+2026-10-11T10:44:59.8516787Z [50/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_basic.c.obj
+2026-10-11T10:44:59.9154058Z [51/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_cast.c.obj
+2026-10-11T10:44:59.9600981Z [52/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_struct.c.obj
+2026-10-11T10:44:59.9673445Z [53/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_misc.c.obj
+2026-10-11T10:44:59.9718486Z [54/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_access.c.obj
+2026-10-11T10:45:00.0014353Z [55/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_array.c.obj
+2026-10-11T10:45:00.0563354Z [56/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call.c.obj
+2026-10-11T10:45:00.0913281Z [57/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_array.c.obj
+2026-10-11T10:45:00.1109016Z [58/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/type_checker_expr_lambda.c.obj
+2026-10-11T10:45:00.1281617Z [59/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_char.c.obj
+2026-10-11T10:45:00.1829201Z [60/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_int.c.obj
+2026-10-11T10:45:00.1870193Z [61/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_core.c.obj
+2026-10-11T10:45:00.1967939Z [62/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_long.c.obj
+2026-10-11T10:45:00.2139623Z [63/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_double.c.obj
+2026-10-11T10:45:00.2672683Z [64/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_uint.c.obj
+2026-10-11T10:45:00.2889286Z [65/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_byte.c.obj
+2026-10-11T10:45:00.2936669Z [66/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_bool.c.obj
+2026-10-11T10:45:00.3128573Z [67/249] Building C object CMakeFiles/tests.dir/src/type_checker/expr/call/type_checker_expr_call_string.c.obj
+2026-10-11T10:45:00.3319443Z [68/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt.c.obj
+2026-10-11T10:45:00.4197292Z [69/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt_var.c.obj
+2026-10-11T10:45:00.4238122Z [70/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt_var_util.c.obj
+2026-10-11T10:45:00.4268680Z [71/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt_func.c.obj
+2026-10-11T10:45:00.4305721Z [72/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt_control.c.obj
+2026-10-11T10:45:00.5388636Z [73/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt_import.c.obj
+2026-10-11T10:45:00.5415815Z [74/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt_struct.c.obj
+2026-10-11T10:45:00.5442751Z [75/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt_interface.c.obj
+2026-10-11T10:45:00.5468454Z [76/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt_import_ns.c.obj
+2026-10-11T10:45:00.5559756Z [77/249] Building C object CMakeFiles/tests.dir/src/type_checker/stmt/type_checker_stmt_import_ns_util.c.obj
+2026-10-11T10:45:00.6503800Z [78/249] Building C object CMakeFiles/tests.dir/src/optimizer/optimizer_tail_call.c.obj
+2026-10-11T10:45:00.6530131Z [79/249] Building C object CMakeFiles/tests.dir/src/optimizer.c.obj
+2026-10-11T10:45:00.6558160Z [80/249] Building C object CMakeFiles/tests.dir/src/optimizer/optimizer_string.c.obj
+2026-10-11T10:45:00.7136030Z [81/249] Building C object CMakeFiles/tests.dir/src/optimizer/optimizer_util.c.obj
+2026-10-11T10:45:00.8192076Z [82/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model_type.c.obj
+2026-10-11T10:45:00.8300672Z [83/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model.c.obj
+2026-10-11T10:45:00.8417803Z [84/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model_stmt.c.obj
+2026-10-11T10:45:00.9687359Z [85/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model_chain_flatten.c.obj
+2026-10-11T10:45:01.0101130Z [86/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model_struct.c.obj
+2026-10-11T10:45:01.0161477Z [87/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model_func.c.obj
+2026-10-11T10:45:01.0255656Z [88/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model_render_common.c.obj
+2026-10-11T10:45:01.1424314Z [89/249] Building C object CMakeFiles/tests.dir/src/cgen/ownership.c.obj
+2026-10-11T10:45:01.1459809Z [90/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model_expr.c.obj
+2026-10-11T10:45:01.1460670Z D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/src/cgen/gen_model_expr.c:205:80: warning: unused parameter 'call_expr' [-Wunused-parameter]
+2026-10-11T10:45:01.1496893Z   205 | static void hoist_borrow_temps(json_object *call_obj, json_object *args, Expr *call_expr)
+2026-10-11T10:45:01.1530902Z       |                                                                                ^
+2026-10-11T10:45:01.1555585Z 1 warning generated.
+2026-10-11T10:45:01.1571599Z [91/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model_render_modular.c.obj
+2026-10-11T10:45:01.1608182Z [92/249] Building C object CMakeFiles/tests.dir/src/cgen/gen_model_split.c.obj
+2026-10-11T10:45:01.1695248Z [93/249] Building C object CMakeFiles/tests.dir/src/cgen/c/gen_model_render_min_c.c.obj
+2026-10-11T10:45:01.3943494Z [94/249] Building C object CMakeFiles/tests.dir/src/target/target.c.obj
+2026-10-11T10:45:01.7902260Z [95/249] Building C object CMakeFiles/tests.dir/src/target/rust/rust_render.c.obj
+2026-10-11T10:45:01.8893076Z [96/249] Building C object CMakeFiles/tests.dir/src/gcc_backend_config.c.obj
+2026-10-11T10:45:01.8953825Z [97/249] Building C object CMakeFiles/tests.dir/src/gcc_backend.c.obj
+2026-10-11T10:45:01.9507909Z [98/249] Building C object CMakeFiles/tests.dir/src/gcc_backend_pkgconfig.c.obj
+2026-10-11T10:45:02.0897342Z [99/249] Building C object CMakeFiles/tests.dir/src/target/rust/rust_native_render.c.obj
+2026-10-11T10:45:02.2447532Z [100/249] Building C object CMakeFiles/tests.dir/src/target/rust/rust_native_build.c.obj
+2026-10-11T10:45:02.2976990Z [101/249] Building C object CMakeFiles/tests.dir/src/target/rust/rust_native_response.c.obj
+2026-10-11T10:45:02.5646842Z [102/249] Building C object CMakeFiles/tests.dir/src/target/rust/projection/rust_model.c.obj
+2026-10-11T10:45:02.6691470Z [103/249] Building C object CMakeFiles/tests.dir/src/target/rust/cc_sidecar.c.obj
+2026-10-11T10:45:02.7055740Z [104/249] Building C object CMakeFiles/tests.dir/src/target/rust/rust_native_plan.c.obj
+2026-10-11T10:45:02.8420498Z [105/249] Building C object CMakeFiles/tests.dir/src/target/rust/projection/rust_model_stmt.c.obj
+2026-10-11T10:45:02.8541144Z [106/249] Building C object CMakeFiles/tests.dir/src/target/rust/projection/rust_model_expr.c.obj
+2026-10-11T10:45:02.8642438Z D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/src/target/rust/projection/rust_model_expr.c:156:80: warning: unused parameter 'call_expr' [-Wunused-parameter]
+2026-10-11T10:45:02.8760765Z   156 | static void hoist_borrow_temps(json_object *call_obj, json_object *args, Expr *call_expr)
+2026-10-11T10:45:02.8919595Z       |                                                                                ^
+2026-10-11T10:45:02.8942651Z 1 warning generated.
+2026-10-11T10:45:02.9649237Z [107/249] Building C object CMakeFiles/tests.dir/src/target/rust/projection/rust_model_struct.c.obj
+2026-10-11T10:45:02.9698144Z [108/249] Building C object CMakeFiles/tests.dir/src/target/rust/projection/rust_model_func.c.obj
+2026-10-11T10:45:02.9804145Z [109/249] Building C object CMakeFiles/tests.dir/src/target/rust/projection/rust_ownership.c.obj
+2026-10-11T10:45:02.9894279Z [110/249] Building C object CMakeFiles/tests.dir/src/target/rust/projection/rust_model_type.c.obj
+2026-10-11T10:45:03.1240620Z [111/249] Building C object CMakeFiles/tests.dir/src/runtime/sn_byte.c.obj
+2026-10-11T10:45:03.1324330Z [112/249] Building C object CMakeFiles/tests.dir/src/runtime/sn_string.c.obj
+2026-10-11T10:45:03.1399720Z [113/249] Building C object CMakeFiles/tests.dir/src/runtime/sn_array.c.obj
+2026-10-11T10:45:03.2826608Z [114/249] Building C object CMakeFiles/tests.dir/src/package.c.obj
+2026-10-11T10:45:03.2965948Z [115/249] Building C object CMakeFiles/tests.dir/src/package/package_runtime.c.obj
+2026-10-11T10:45:03.3723548Z [116/249] Building C object CMakeFiles/tests.dir/src/package/package_import.c.obj
+2026-10-11T10:45:03.4161605Z [117/249] Building C object CMakeFiles/tests.dir/src/package/package_yaml.c.obj
+2026-10-11T10:45:03.4552082Z [118/249] Building C object CMakeFiles/tests.dir/src/package/package_native_types.c.obj
+2026-10-11T10:45:03.5071381Z [119/249] Building C object CMakeFiles/tests.dir/src/package/package_callable.c.obj
+2026-10-11T10:45:03.5177197Z [120/249] Building C object CMakeFiles/tests.dir/src/package/package_link.c.obj
+2026-10-11T10:45:04.1193189Z [121/249] Building C object CMakeFiles/sn.dir/src/main.c.obj
+2026-10-11T10:45:04.1355177Z [122/249] Building C object CMakeFiles/tests.dir/src/package/package_git.c.obj
+2026-10-11T10:45:04.2055781Z [123/249] Building C object CMakeFiles/tests.dir/src/target/rust/rust_target.c.obj
+2026-10-11T10:45:04.2113096Z In file included from D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/src/target/rust/rust_target.c:149:
+2026-10-11T10:45:04.2130627Z D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/src/target/rust/rust_thread_arrays.c:131:23: warning: comparison of integers of different signs: 'size_t' (aka 'unsigned long long') and 'int' [-Wsign-compare]
+2026-10-11T10:45:04.2155939Z   131 |     } while (previous != json_object_object_length(names));
+2026-10-11T10:45:04.2195376Z       |              ~~~~~~~~ ^  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2026-10-11T10:45:04.2209176Z 1 warning generated.
+2026-10-11T10:45:04.2393496Z [124/249] Building C object CMakeFiles/tests.dir/src/package/package_native_command.c.obj
+2026-10-11T10:45:04.2689117Z [125/249] Building C object CMakeFiles/sn.dir/src/file.c.obj
+2026-10-11T10:45:04.2845124Z [126/249] Building C object CMakeFiles/sn.dir/src/arena.c.obj
+2026-10-11T10:45:04.3332839Z [127/249] Building C object CMakeFiles/sn.dir/src/debug.c.obj
+2026-10-11T10:45:04.3393356Z [128/249] Building C object CMakeFiles/sn.dir/src/token.c.obj
+2026-10-11T10:45:04.3722319Z [129/249] Building C object CMakeFiles/sn.dir/src/diagnostic.c.obj
+2026-10-11T10:45:04.3978579Z [130/249] Building C object CMakeFiles/tests.dir/src/package/lfs/package_lfs.c.obj
+2026-10-11T10:45:04.4457220Z [131/249] Building C object CMakeFiles/sn.dir/src/compiler.c.obj
+2026-10-11T10:45:04.4876789Z [132/249] Building C object CMakeFiles/sn.dir/src/lexer.c.obj
+2026-10-11T10:45:04.5236345Z [133/249] Building C object CMakeFiles/sn.dir/src/lexer/lexer_util.c.obj
+2026-10-11T10:45:04.5750864Z [134/249] Building C object CMakeFiles/sn.dir/src/ast.c.obj
+2026-10-11T10:45:04.6212079Z [135/249] Building C object CMakeFiles/sn.dir/src/lexer/lexer_scan.c.obj
+2026-10-11T10:45:04.6943434Z [136/249] Building C object CMakeFiles/sn.dir/src/ast/ast_type.c.obj
+2026-10-11T10:45:04.7242311Z [137/249] Building C object CMakeFiles/sn.dir/src/ast/ast_expr.c.obj
+2026-10-11T10:45:04.7769329Z [138/249] Building C object CMakeFiles/sn.dir/src/ast/ast_stmt.c.obj
+2026-10-11T10:45:04.9176602Z [139/249] Building C object CMakeFiles/sn.dir/src/parser/util/parser_util.c.obj
+2026-10-11T10:45:04.9374723Z [140/249] Building C object CMakeFiles/sn.dir/src/ast/ast_print.c.obj
+2026-10-11T10:45:04.9916321Z [141/249] Building C object CMakeFiles/sn.dir/src/parser.c.obj
+2026-10-11T10:45:05.0665834Z [142/249] Building C object CMakeFiles/sn.dir/src/parser/expr/parser_expr_match.c.obj
+2026-10-11T10:45:05.0715475Z [143/249] Building C object CMakeFiles/sn.dir/src/parser/expr/parser_expr_interpol.c.obj
+2026-10-11T10:45:05.0849432Z [144/249] Building C object CMakeFiles/sn.dir/src/parser/expr/parser_expr.c.obj
+2026-10-11T10:45:05.1583999Z [145/249] Building C object CMakeFiles/sn.dir/src/parser/expr/parser_expr_struct.c.obj
+2026-10-11T10:45:05.1764654Z [146/249] Building C object CMakeFiles/sn.dir/src/parser/expr/parser_expr_lambda.c.obj
+2026-10-11T10:45:05.1902630Z [147/249] Building C object CMakeFiles/tests.dir/tests/unit/_all_.c.obj
+2026-10-11T10:45:05.2523859Z [148/249] Building C object CMakeFiles/sn.dir/src/parser/stmt/parser_stmt.c.obj
+2026-10-11T10:45:05.2880175Z [149/249] Building C object CMakeFiles/sn.dir/src/symbol_table.c.obj
+2026-10-11T10:45:05.2961383Z [150/249] Building C object CMakeFiles/sn.dir/src/parser/stmt/parser_stmt_control.c.obj
+2026-10-11T10:45:05.3784001Z [151/249] Building C object CMakeFiles/sn.dir/src/formatter.c.obj
+2026-10-11T10:45:05.3938186Z [152/249] Building C object CMakeFiles/sn.dir/src/symbol_table/symbol_table_core.c.obj
+2026-10-11T10:45:05.3968308Z [153/249] Building C object CMakeFiles/sn.dir/src/parser/stmt/parser_stmt_decl.c.obj
+2026-10-11T10:45:05.4010302Z [154/249] Building C object CMakeFiles/sn.dir/src/symbol_table/symbol_table_thread.c.obj
+2026-10-11T10:45:05.4057867Z [155/249] Building C object CMakeFiles/sn.dir/src/type_checker.c.obj
+2026-10-11T10:45:05.4917765Z [156/249] Building C object CMakeFiles/sn.dir/src/symbol_table/symbol_table_namespace.c.obj
+2026-10-11T10:45:05.5106618Z [157/249] Building C object CMakeFiles/sn.dir/src/type_checker/util/type_checker_util_escape.c.obj
+2026-10-11T10:45:05.5321052Z [158/249] Building C object CMakeFiles/sn.dir/src/type_checker/util/type_checker_util.c.obj
+2026-10-11T10:45:05.5429882Z [159/249] Building C object CMakeFiles/sn.dir/src/type_checker/util/type_checker_util_suggest.c.obj
+2026-10-11T10:45:05.5499143Z [160/249] Building C object CMakeFiles/sn.dir/src/type_checker/util/type_checker_util_struct.c.obj
+2026-10-11T10:45:05.6090093Z [161/249] Building C object CMakeFiles/sn.dir/src/type_checker/util/type_checker_util_layout.c.obj
+2026-10-11T10:45:05.6285292Z [162/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr.c.obj
+2026-10-11T10:45:05.6368581Z [163/249] Building C object CMakeFiles/sn.dir/src/type_checker/type_checker_generics.c.obj
+2026-10-11T10:45:05.6787984Z [164/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_assign.c.obj
+2026-10-11T10:45:05.7034554Z [165/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_ops.c.obj
+2026-10-11T10:45:05.7146292Z [166/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_member.c.obj
+2026-10-11T10:45:05.7272727Z [167/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_thread.c.obj
+2026-10-11T10:45:05.7463515Z [168/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_basic.c.obj
+2026-10-11T10:45:05.7521073Z [169/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_cast.c.obj
+2026-10-11T10:45:05.8247590Z [170/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_access.c.obj
+2026-10-11T10:45:05.8264591Z [171/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_struct.c.obj
+2026-10-11T10:45:05.8294992Z [172/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_misc.c.obj
+2026-10-11T10:45:05.8433744Z [173/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_array.c.obj
+2026-10-11T10:45:05.8482751Z [174/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call.c.obj
+2026-10-11T10:45:05.9459283Z [175/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_array.c.obj
+2026-10-11T10:45:05.9489044Z [176/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/type_checker_expr_lambda.c.obj
+2026-10-11T10:45:05.9514414Z [177/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_long.c.obj
+2026-10-11T10:45:05.9552333Z [178/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_int.c.obj
+2026-10-11T10:45:05.9584488Z [179/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_char.c.obj
+2026-10-11T10:45:06.0349445Z [180/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_core.c.obj
+2026-10-11T10:45:06.0420425Z [181/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_uint.c.obj
+2026-10-11T10:45:06.0436908Z [182/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_double.c.obj
+2026-10-11T10:45:06.0483576Z [183/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_bool.c.obj
+2026-10-11T10:45:06.0935913Z [184/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_byte.c.obj
+2026-10-11T10:45:06.1183985Z [185/249] Building C object CMakeFiles/sn.dir/src/type_checker/expr/call/type_checker_expr_call_string.c.obj
+2026-10-11T10:45:06.1296192Z [186/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt_var_util.c.obj
+2026-10-11T10:45:06.1329313Z [187/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt.c.obj
+2026-10-11T10:45:06.1635364Z [188/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt_var.c.obj
+2026-10-11T10:45:06.2204401Z [189/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt_func.c.obj
+2026-10-11T10:45:06.2403463Z [190/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt_struct.c.obj
+2026-10-11T10:45:06.2422744Z [191/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt_control.c.obj
+2026-10-11T10:45:06.2450620Z [192/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt_interface.c.obj
+2026-10-11T10:45:06.2483939Z [193/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt_import.c.obj
+2026-10-11T10:45:06.3399558Z [194/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt_import_ns.c.obj
+2026-10-11T10:45:06.3443064Z [195/249] Building C object CMakeFiles/sn.dir/src/optimizer.c.obj
+2026-10-11T10:45:06.3469289Z [196/249] Building C object CMakeFiles/sn.dir/src/optimizer/optimizer_tail_call.c.obj
+2026-10-11T10:45:06.3520540Z [197/249] Building C object CMakeFiles/sn.dir/src/type_checker/stmt/type_checker_stmt_import_ns_util.c.obj
+2026-10-11T10:45:06.4056252Z [198/249] Building C object CMakeFiles/sn.dir/src/optimizer/optimizer_string.c.obj
+2026-10-11T10:45:06.4896868Z [199/249] Building C object CMakeFiles/sn.dir/src/optimizer/optimizer_util.c.obj
+2026-10-11T10:45:06.5161758Z [200/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model_type.c.obj
+2026-10-11T10:45:06.5350754Z [201/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model_stmt.c.obj
+2026-10-11T10:45:06.5666976Z [202/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model.c.obj
+2026-10-11T10:45:06.5945198Z [203/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model_chain_flatten.c.obj
+2026-10-11T10:45:06.6827155Z [204/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model_struct.c.obj
+2026-10-11T10:45:06.6858476Z [205/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model_render_common.c.obj
+2026-10-11T10:45:06.6887407Z [206/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model_func.c.obj
+2026-10-11T10:45:06.7528974Z [207/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model_split.c.obj
+2026-10-11T10:45:06.7610054Z [208/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model_render_modular.c.obj
+2026-10-11T10:45:06.7628321Z [209/249] Building C object CMakeFiles/sn.dir/src/cgen/ownership.c.obj
+2026-10-11T10:45:06.8099837Z [210/249] Building C object CMakeFiles/sn.dir/src/cgen/c/gen_model_render_min_c.c.obj
+2026-10-11T10:45:06.8580057Z [211/249] Building C object CMakeFiles/sn.dir/src/cgen/gen_model_expr.c.obj
+2026-10-11T10:45:06.8761139Z D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/src/cgen/gen_model_expr.c:205:80: warning: unused parameter 'call_expr' [-Wunused-parameter]
+2026-10-11T10:45:06.8785673Z   205 | static void hoist_borrow_temps(json_object *call_obj, json_object *args, Expr *call_expr)
+2026-10-11T10:45:06.9081112Z       |                                                                                ^
+2026-10-11T10:45:06.9160455Z 1 warning generated.
+2026-10-11T10:45:06.9736865Z [212/249] Building C object CMakeFiles/sn.dir/src/target/target.c.obj
+2026-10-11T10:45:07.1390995Z [213/249] Building C object CMakeFiles/sn.dir/src/target/rust/rust_render.c.obj
+2026-10-11T10:45:07.5103979Z [214/249] Building C object CMakeFiles/sn.dir/src/gcc_backend_config.c.obj
+2026-10-11T10:45:07.5598363Z [215/249] Building C object CMakeFiles/sn.dir/src/gcc_backend.c.obj
+2026-10-11T10:45:07.5881832Z [216/249] Building C object CMakeFiles/sn.dir/src/gcc_backend_pkgconfig.c.obj
+2026-10-11T10:45:07.7327612Z [217/249] Building C object CMakeFiles/sn.dir/src/target/rust/rust_native_render.c.obj
+2026-10-11T10:45:07.7443190Z [218/249] Building C object CMakeFiles/sn.dir/src/target/rust/rust_native_response.c.obj
+2026-10-11T10:45:07.7542129Z [219/249] Building C object CMakeFiles/sn.dir/src/target/rust/rust_native_build.c.obj
+2026-10-11T10:45:07.8994685Z [220/249] Building C object CMakeFiles/sn.dir/src/target/rust/cc_sidecar.c.obj
+2026-10-11T10:45:07.9636532Z [221/249] Building C object CMakeFiles/sn.dir/src/target/rust/projection/rust_model.c.obj
+2026-10-11T10:45:07.9806038Z [222/249] Building C object CMakeFiles/sn.dir/src/target/rust/projection/rust_model_stmt.c.obj
+2026-10-11T10:45:07.9988377Z [223/249] Building C object CMakeFiles/sn.dir/src/target/rust/rust_native_plan.c.obj
+2026-10-11T10:45:08.1569607Z [224/249] Building C object CMakeFiles/sn.dir/src/target/rust/projection/rust_ownership.c.obj
+2026-10-11T10:45:08.1627823Z [225/249] Building C object CMakeFiles/sn.dir/src/target/rust/projection/rust_model_struct.c.obj
+2026-10-11T10:45:08.1725496Z [226/249] Building C object CMakeFiles/sn.dir/src/target/rust/projection/rust_model_type.c.obj
+2026-10-11T10:45:08.2415262Z [227/249] Building C object CMakeFiles/sn.dir/src/target/rust/projection/rust_model_func.c.obj
+2026-10-11T10:45:08.2874662Z [228/249] Building C object CMakeFiles/sn.dir/src/target/rust/projection/rust_model_expr.c.obj
+2026-10-11T10:45:08.2881012Z D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/src/target/rust/projection/rust_model_expr.c:156:80: warning: unused parameter 'call_expr' [-Wunused-parameter]
+2026-10-11T10:45:08.2944131Z   156 | static void hoist_borrow_temps(json_object *call_obj, json_object *args, Expr *call_expr)
+2026-10-11T10:45:08.2958953Z       |                                                                                ^
+2026-10-11T10:45:08.2995981Z 1 warning generated.
+2026-10-11T10:45:08.3033216Z [229/249] Building C object CMakeFiles/sn.dir/src/runtime/sn_byte.c.obj
+2026-10-11T10:45:08.3047810Z [230/249] Building C object CMakeFiles/sn.dir/src/runtime/sn_string.c.obj
+2026-10-11T10:45:08.3103419Z [231/249] Building C object CMakeFiles/sn.dir/src/runtime/sn_array.c.obj
+2026-10-11T10:45:08.4497946Z [232/249] Building C object CMakeFiles/sn.dir/src/package/package_runtime.c.obj
+2026-10-11T10:45:08.4730586Z [233/249] Building C object CMakeFiles/sn.dir/src/package.c.obj
+2026-10-11T10:45:08.5026469Z [234/249] Building C object CMakeFiles/sn.dir/src/package/package_import.c.obj
+2026-10-11T10:45:08.5292939Z [235/249] Building C object CMakeFiles/sn.dir/src/package/package_native_types.c.obj
+2026-10-11T10:45:08.5861847Z [236/249] Building C object CMakeFiles/sn.dir/src/package/package_link.c.obj
+2026-10-11T10:45:08.5960068Z [237/249] Building C object CMakeFiles/sn.dir/src/package/package_yaml.c.obj
+2026-10-11T10:45:08.6138185Z [238/249] Building C object CMakeFiles/sn.dir/src/package/package_callable.c.obj
+2026-10-11T10:45:09.1426850Z [239/249] Linking C executable bin\sn_fake_rustc.exe
+2026-10-11T10:45:09.1714692Z [240/249] Building C object CMakeFiles/sn.dir/src/package/package_git.c.obj
+2026-10-11T10:45:09.2142948Z [241/249] Building C object CMakeFiles/sn.dir/src/package/package_native_command.c.obj
+2026-10-11T10:45:09.3427523Z [242/249] Building C object CMakeFiles/sn.dir/src/package/lfs/package_lfs.c.obj
+2026-10-11T10:45:09.3451118Z [243/249] Linking C static library bin\lib\clang\libsn_runtime_min.a
+2026-10-11T10:45:09.4235467Z [244/249] Copying templates to bin/templates
+2026-10-11T10:45:09.5121970Z [245/249] Building C object CMakeFiles/sn.dir/src/target/rust/rust_target.c.obj
+2026-10-11T10:45:09.5122672Z In file included from D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/src/target/rust/rust_target.c:149:
+2026-10-11T10:45:09.5123765Z D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/src/target/rust/rust_thread_arrays.c:131:23: warning: comparison of integers of different signs: 'size_t' (aka 'unsigned long long') and 'int' [-Wsign-compare]
+2026-10-11T10:45:09.5124741Z   131 |     } while (previous != json_object_object_length(names));
+2026-10-11T10:45:09.5125123Z       |              ~~~~~~~~ ^  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2026-10-11T10:45:09.5125427Z 1 warning generated.
+2026-10-11T10:45:16.5167429Z [246/249] Linking C executable bin\sn.exe
+2026-10-11T10:45:17.4184421Z [247/249] Linking C executable bin\tests.exe
+2026-10-11T10:45:17.6238852Z [248/249] Staging compiler artifacts in bin
+2026-10-11T10:45:17.6493174Z
+2026-10-11T10:45:17.6676929Z Build complete!
+2026-10-11T10:45:17.6859691Z Compiler: bin/sn.exe
+2026-10-11T10:45:17.7047363Z ##[group]Run python3 sdk/scripts/check_time_date_native.py --compiler "bin/sn.exe"
+2026-10-11T10:45:17.7047900Z [36;1mpython3 sdk/scripts/check_time_date_native.py --compiler "bin/sn.exe"[0m
+2026-10-11T10:45:17.7058747Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+2026-10-11T10:45:17.7059251Z env:
+2026-10-11T10:45:17.7059427Z   SN_CC: clang
+2026-10-11T10:45:17.7059708Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:45:17.7060089Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:45:17.7060349Z ##[endgroup]
+2026-10-11T10:45:58.8066605Z PASS: 38 Time/Date native and legacy caller cases
+2026-10-11T10:45:58.8355743Z ##[group]Run python3 sdk/scripts/check_dtls_lifecycle.py --compiler "bin/sn.exe" --targets c
+2026-10-11T10:45:58.8356332Z [36;1mpython3 sdk/scripts/check_dtls_lifecycle.py --compiler "bin/sn.exe" --targets c[0m
+2026-10-11T10:45:58.8367424Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+2026-10-11T10:45:58.8367919Z env:
+2026-10-11T10:45:58.8368075Z   SN_CC: clang
+2026-10-11T10:45:58.8368361Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:45:58.8368752Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:45:58.8369045Z ##[endgroup]
+2026-10-11T10:46:00.2648672Z Traceback (most recent call last):
+2026-10-11T10:46:00.2649428Z   File "D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\sdk\scripts\check_dtls_lifecycle.py", line 94, in <module>
+2026-10-11T10:46:00.2650113Z     verify(args.compiler, args.sanitize, tuple(args.targets))
+2026-10-11T10:46:00.2694145Z   File "D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\sdk\scripts\check_dtls_lifecycle.py", line 76, in verify
+2026-10-11T10:46:00.2695403Z     checked(command, work)
+2026-10-11T10:46:00.2695951Z   File "D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\sdk\scripts\check_dtls_lifecycle.py", line 20, in checked
+2026-10-11T10:46:00.2697166Z     raise ValueError(f'{command!r}\nstdout: {result.stdout!r}\nstderr: {result.stderr!r}')
+2026-10-11T10:46:00.2698400Z ValueError: [WindowsPath('D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/bin/sn.exe'), 'main.sn', '--no-install', '--target', 'c', '-O0', '-o', WindowsPath('C:/Users/RUNNER~1/AppData/Local/Temp/sn-dtls-lifecycle-_wvyqq6u/dtls.exe')]
+2026-10-11T10:46:00.2699286Z stdout: b''
+2026-10-11T10:46:00.2703571Z stderr: b"\x1b[1mCompiling\x1b[0m main.sn...\r\n  Parsing... \x1b[1;36mdone\x1b[0m\r\n  Type checking... \x1b[1;36mdone\x1b[0m\r\n  Code generation... \x1b[1;36mdone\x1b[0m\r\n  Linking...\r\nclang-22: warning: argument unused during compilation: '-rtlib=compiler-rt' [-Wunused-command-line-argument]\r\nclang-22: warning: argument unused during compilation: '-unwindlib=none' [-Wunused-command-line-argument]\r\n.sn/sindarin-pkg-sdk/src/net/dtls.sn.c:476:19: error: incompatible pointer types assigning to 'unsigned char *' from 'DtlsSslWrapper *' [-Wincompatible-pointer-types]\r\n  476 |     conn->ssl_ptr = dtls_ssl_wrapper_new(ssl, ctx, true);\r\n      |                   ^ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n.sn/sindarin-pkg-sdk/src/net/dtls.sn.c:477:23: warning: assigning to 'unsigned char *' from 'char *' converts between pointers to integer types where one is of the unique plain 'char' type and the other is not [-Wpointer-sign]\r\n  477 |     conn->remote_addr = strdup(address);\r\n      |                       ^ ~~~~~~~~~~~~~~~\r\n.sn/sindarin-pkg-sdk/src/net/dtls.sn.c:766:23: error: incompatible pointer types assigning to 'unsigned char *' from 'DtlsSslWrapper *' [-Wincompatible-pointer-types]\r\n  766 |         conn->ssl_ptr = dtls_ssl_wrapper_new(ssl, NULL, false); /* Server conn doesn't own ctx */\r\n      |                       ^ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n.sn/sindarin-pkg-sdk/src/net/dtls.sn.c:767:27: warning: assigning to 'unsigned char *' from 'char *' converts between pointers to integer types where one is of the unique plain 'char' type and the other is not [-Wpointer-sign]\r\n  767 |         conn->remote_addr = strdup(addr_str);\r\n      |                           ^ ~~~~~~~~~~~~~~~~\r\n2 warnings and 2 errors generated.\r\nError: failed to compile pragma source .sn/sindarin-pkg-sdk/src/net/dtls.sn.c\r\n \x1b[1;31mfailed\x1b[0m\r\n\r\n\x1b[1;31mCompilation failed\x1b[0m\r\n"
+2026-10-11T10:46:00.2821811Z ##[error]Process completed with exit code 1.
+2026-10-11T10:46:00.2994874Z ##[group]Run actions/upload-artifact@v7
+2026-10-11T10:46:00.2995167Z with:
+2026-10-11T10:46:00.2995354Z   name: time-date-native-windows-latest
+2026-10-11T10:46:00.2995884Z   path: sdk/.sn/time-date-native.json
+sdk/.sn/time-date-sanitizers.json
+sdk/.sn/dtls-lifecycle.json
+sdk/.sn/dtls-lifecycle-sanitizers.json
+
+2026-10-11T10:46:00.2996378Z   if-no-files-found: warn
+2026-10-11T10:46:00.2996574Z   compression-level: 6
+2026-10-11T10:46:00.2996756Z   overwrite: false
+2026-10-11T10:46:00.2996929Z   include-hidden-files: false
+2026-10-11T10:46:00.2997119Z   archive: true
+2026-10-11T10:46:00.2997277Z env:
+2026-10-11T10:46:00.2997416Z   SN_CC: clang
+2026-10-11T10:46:00.2997696Z   SN_CFLAGS: --target=x86_64-w64-mingw32 -fuse-ld=lld -rtlib=compiler-rt -unwindlib=none
+2026-10-11T10:46:00.2998085Z   SN_RUSTFLAGS: --target=x86_64-pc-windows-gnullvm -C linker=clang
+2026-10-11T10:46:00.2998356Z ##[endgroup]
+2026-10-11T10:46:00.4455548Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-10-11T10:46:00.4458524Z The least common ancestor is D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\sdk\.sn. This will be the root directory of the artifact
+2026-10-11T10:46:00.4459018Z With the provided path, there will be 2 files uploaded
+2026-10-11T10:46:00.4462283Z Artifact name is valid!
+2026-10-11T10:46:00.4463264Z Root directory input is valid!
+2026-10-11T10:46:00.7121574Z Uploading artifact: time-date-native-windows-latest.zip
+2026-10-11T10:46:00.7156519Z Beginning upload of artifact content to blob storage
+2026-10-11T10:46:00.8383572Z Uploaded bytes 1653
+2026-10-11T10:46:00.8695150Z Finished uploading artifact content to blob storage!
+2026-10-11T10:46:00.8695782Z SHA256 digest of uploaded artifact is 533ecc3beb260076e01357c896ac18824661e4edbb50c5e1678f53b0827c094c
+2026-10-11T10:46:00.8696321Z Finalizing artifact upload
+2026-10-11T10:46:01.0930885Z Artifact time-date-native-windows-latest successfully finalized. Artifact ID 11699388934
+2026-10-11T10:46:01.0931975Z Artifact time-date-native-windows-latest has been successfully uploaded! Final size is 1653 bytes. Artifact ID is 11699388934
+2026-10-11T10:46:01.0938327Z Artifact download URL: https://github.com/SindarinSDK/sindarin-pkg-sdk/actions/runs/38132980678/artifacts/11699388934
+2026-10-11T10:46:01.1241529Z Post job cleanup.
+2026-10-11T10:46:01.1245143Z ##[start-action display=Checkout pinned build dependencies;id=__c7d558af-4998-4082-9f82-77edd9c36571.__actions_checkout]
+2026-10-11T10:46:01.1373825Z Post job cleanup.
+2026-10-11T10:46:01.2722922Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-11T10:46:01.2939088Z git version 2.55.0.windows.5
+2026-10-11T10:46:01.2991764Z Temporarily overriding HOME='D:\a\_temp\0644bac2-8840-4586-a56c-6036bbc01d1f' before making global git config changes
+2026-10-11T10:46:01.2992672Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-11T10:46:01.3000518Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\.sn\sindarin-pkg-libs
+2026-10-11T10:46:01.3281031Z Removing SSH command configuration
+2026-10-11T10:46:01.3290686Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:46:01.3599151Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-11T10:46:01.8131945Z Removing HTTP extra header
+2026-10-11T10:46:01.8141066Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:46:01.8394598Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-11T10:46:02.2907887Z Removing includeIf entries pointing to credentials config files
+2026-10-11T10:46:02.2918482Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:46:02.3135231Z includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git.path
+2026-10-11T10:46:02.3136042Z includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git/worktrees/*.path
+2026-10-11T10:46:02.3173703Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git.path
+2026-10-11T10:46:02.3395869Z D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:46:02.3435422Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git.path D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:46:02.3691269Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git/worktrees/*.path
+2026-10-11T10:46:02.3901920Z D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:46:02.3938048Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/sindarin-pkg-sdk/sindarin-pkg-sdk/.sn/sindarin-pkg-libs/.git/worktrees/*.path D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config
+2026-10-11T10:46:02.4194051Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-11T10:46:02.8615597Z Removing credentials config 'D:\a\_temp\git-credentials-c30683bf-125c-44dc-ab93-d49847f7608e.config'
+2026-10-11T10:46:02.8737876Z ##[end-action id=__c7d558af-4998-4082-9f82-77edd9c36571.__actions_checkout;outcome=success;conclusion=success;duration_ms=1749]
+2026-10-11T10:46:02.8740549Z ##[start-action display=Cache pinned Windows toolchain;id=__c7d558af-4998-4082-9f82-77edd9c36571.__actions_cache]
+2026-10-11T10:46:02.8745122Z ##[end-action id=__c7d558af-4998-4082-9f82-77edd9c36571.__actions_cache;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-11T10:46:02.8894164Z Post job cleanup.
+2026-10-11T10:46:03.0386912Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-11T10:46:03.0606759Z git version 2.55.0.windows.5
+2026-10-11T10:46:03.0655241Z Temporarily overriding HOME='D:\a\_temp\42f316ab-9522-4b52-81c7-0564217f33a0' before making global git config changes
+2026-10-11T10:46:03.0655812Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-11T10:46:03.0664064Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk\sdk
+2026-10-11T10:46:03.0908162Z Removing SSH command configuration
+2026-10-11T10:46:03.0918456Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:46:03.1236059Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-11T10:46:03.5605227Z Removing HTTP extra header
+2026-10-11T10:46:03.5617558Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:46:03.5873150Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-11T10:46:04.0178967Z Removing includeIf entries pointing to credentials config files
+2026-10-11T10:46:04.0189391Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:46:04.0431980Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-11T10:46:04.6485476Z Post job cleanup.
+2026-10-11T10:46:04.7854869Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-11T10:46:04.8073855Z git version 2.55.0.windows.5
+2026-10-11T10:46:04.8122106Z Temporarily overriding HOME='D:\a\_temp\11ee362d-4c2f-4051-8128-4dcab4079712' before making global git config changes
+2026-10-11T10:46:04.8123087Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-11T10:46:04.8131081Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\sindarin-pkg-sdk\sindarin-pkg-sdk
+2026-10-11T10:46:04.8370250Z Removing SSH command configuration
+2026-10-11T10:46:04.8379802Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-11T10:46:04.8627157Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-11T10:46:05.3179254Z Removing HTTP extra header
+2026-10-11T10:46:05.3188175Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-11T10:46:05.3455510Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-11T10:46:05.7621879Z Removing includeIf entries pointing to credentials config files
+2026-10-11T10:46:05.7632409Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-11T10:46:05.7877142Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-11T10:46:06.2359451Z Cleaning up orphan processes

@@ -1,0 +1,17 @@
+{
+  "status": "local correction validated; ready for hosted publication",
+  "failed_revision": "c3164ef0725933c945e29cc8ef7569a034b2c54d",
+  "failed_sdk_ci": 38132980678,
+  "failed_job": 114450969869,
+  "cause": "actual public byte-pointer carriers rejected typed SSL wrapper and signed-char assignments; previous native stand-in used void pointers",
+  "fix": "explicit unsigned-char pointer storage conversions; native fixture now matches public byte-pointer fields and enforces strict pointer diagnostics",
+  "local": {
+    "dtls_c_modes": 9,
+    "listener_cycles": 40,
+    "sanitizer_runtime_cases": 1,
+    "oracle_tests": 7,
+    "original_sdk_cases": 28
+  },
+  "public_sources_and_original_oracles_unchanged": true,
+  "remaining": "Rust native byte-array string initializer gap is separate and not claimed as accepted"
+}

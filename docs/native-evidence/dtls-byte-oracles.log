@@ -1,0 +1,13 @@
+test_successful_diagnostic_cannot_hide_primary_failure (test_diagnostic_status.DiagnosticStatusTests.test_successful_diagnostic_cannot_hide_primary_failure) ... DTLS diagnostic exit: 0
+ok
+test_successful_primary_runner_has_no_diagnostic_rerun (test_diagnostic_status.DiagnosticStatusTests.test_successful_primary_runner_has_no_diagnostic_rerun) ... ok
+test_explicit_sdk_override_and_incomplete_installation (test_runtime_paths.RuntimePathsTests.test_explicit_sdk_override_and_incomplete_installation) ... ok
+test_portable_build_layout_keeps_colocated_runtime (test_runtime_paths.RuntimePathsTests.test_portable_build_layout_keeps_colocated_runtime) ... ok
+test_windows_installed_binary_copy_uses_resource_root (test_runtime_paths.RuntimePathsTests.test_windows_installed_binary_copy_uses_resource_root) ... ok
+test_other_bytes_and_posix_oracle_are_preserved (test_textfile_oracle.PlatformOracleTests.test_other_bytes_and_posix_oracle_are_preserved) ... ok
+test_windows_checkout_and_crt_conversion_are_idempotent (test_textfile_oracle.PlatformOracleTests.test_windows_checkout_and_crt_conversion_are_idempotent) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.006s
+
+OK

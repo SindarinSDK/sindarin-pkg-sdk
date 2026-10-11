@@ -3,7 +3,7 @@
 #include "sn_minimal.h"
 
 /* The public native layout/constructors normally come from the compiler. */
-typedef struct { int __rc__; long long socket_fd; void *ssl_ptr; char *remote_addr; } __sn__DtlsConnection;
+typedef struct { int __rc__; long long socket_fd; unsigned char *ssl_ptr; unsigned char *remote_addr; } __sn__DtlsConnection;
 typedef struct { int __rc__; long long socket_fd; long long bound_port; } __sn__DtlsListener;
 static __sn__DtlsConnection *__sn__DtlsConnection__new(void) {
     __sn__DtlsConnection *value = calloc(1, sizeof(*value)); assert(value); value->__rc__ = 1; return value;

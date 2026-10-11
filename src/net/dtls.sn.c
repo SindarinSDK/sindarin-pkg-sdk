@@ -473,8 +473,8 @@ __sn__DtlsConnection *sn_dtls_connection_connect(char *address) {
     }
 
     conn->socket_fd = (long long)sock;
-    conn->ssl_ptr = dtls_ssl_wrapper_new(ssl, ctx, true);
-    conn->remote_addr = strdup(address);
+    conn->ssl_ptr = (unsigned char *)dtls_ssl_wrapper_new(ssl, ctx, true);
+    conn->remote_addr = (unsigned char *)strdup(address);
 
     return conn;
 }
@@ -763,8 +763,8 @@ static void dtls_listener_thread_func(DtlsListenerData *ld) {
         }
 
         conn->socket_fd = (long long)INVALID_SOCKET_VAL; /* Don't own the socket */
-        conn->ssl_ptr = dtls_ssl_wrapper_new(ssl, NULL, false); /* Server conn doesn't own ctx */
-        conn->remote_addr = strdup(addr_str);
+        conn->ssl_ptr = (unsigned char *)dtls_ssl_wrapper_new(ssl, NULL, false); /* Server conn doesn't own ctx */
+        conn->remote_addr = (unsigned char *)strdup(addr_str);
 
         /* Push to accept queue */
         DTLS_MUTEX_LOCK(&ld->accept_mutex);

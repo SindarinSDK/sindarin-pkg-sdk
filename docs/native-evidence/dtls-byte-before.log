@@ -1,0 +1,16 @@
+In file included from tests/native/dtls_listener_registry.c:14:
+tests/native/../../src/net/dtls.sn.c: In function ‘sn_dtls_connection_connect’:
+tests/native/../../src/net/dtls.sn.c:476:19: error: assignment to ‘unsigned char *’ from incompatible pointer type ‘DtlsSslWrapper *’ [-Werror=incompatible-pointer-types]
+  476 |     conn->ssl_ptr = dtls_ssl_wrapper_new(ssl, ctx, true);
+      |                   ^
+tests/native/../../src/net/dtls.sn.c:477:23: error: pointer targets in assignment from ‘char *’ to ‘unsigned char *’ differ in signedness [-Werror=pointer-sign]
+  477 |     conn->remote_addr = strdup(address);
+      |                       ^
+tests/native/../../src/net/dtls.sn.c: In function ‘dtls_listener_thread_func’:
+tests/native/../../src/net/dtls.sn.c:766:23: error: assignment to ‘unsigned char *’ from incompatible pointer type ‘DtlsSslWrapper *’ [-Werror=incompatible-pointer-types]
+  766 |         conn->ssl_ptr = dtls_ssl_wrapper_new(ssl, NULL, false); /* Server conn doesn't own ctx */
+      |                       ^
+tests/native/../../src/net/dtls.sn.c:767:27: error: pointer targets in assignment from ‘char *’ to ‘unsigned char *’ differ in signedness [-Werror=pointer-sign]
+  767 |         conn->remote_addr = strdup(addr_str);
+      |                           ^
+cc1: some warnings being treated as errors
