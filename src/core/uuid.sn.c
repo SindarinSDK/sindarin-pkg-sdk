@@ -54,6 +54,22 @@
  * UUID Type Definition
  * ============================================================================ */
 
+#include "uuid.native.h"
+#ifdef SN_SDK_UUID_STANDALONE
+typedef SnSdkUuidRecord __sn__UUID;
+static __sn__UUID *sn_sdk_uuid_new(void)
+{
+    __sn__UUID *value = calloc(1, sizeof(*value));
+    if (value) value->__rc__ = 1;
+    return value;
+}
+#define __sn__UUID__new sn_sdk_uuid_new
+#else
+typedef char SnSdkUuidSizeCompatible[(sizeof(__sn__UUID) == sizeof(SnSdkUuidRecord)) ? 1 : -1];
+typedef char SnSdkUuidRcCompatible[(offsetof(__sn__UUID, __rc__) == offsetof(SnSdkUuidRecord, __rc__)) ? 1 : -1];
+typedef char SnSdkUuidHighCompatible[(offsetof(__sn__UUID, high) == offsetof(SnSdkUuidRecord, high)) ? 1 : -1];
+typedef char SnSdkUuidLowCompatible[(offsetof(__sn__UUID, low) == offsetof(SnSdkUuidRecord, low)) ? 1 : -1];
+#endif
 typedef __sn__UUID RtUuid;
 
 /* ============================================================================

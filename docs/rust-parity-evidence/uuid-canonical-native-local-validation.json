@@ -1,0 +1,39 @@
+{
+  "status": "Local canonical UUID migration validated; unpublished; required compiler correction remains pending",
+  "SDK_base": "d829ebeae36ef0a0b684191d2150f2fb964ea509",
+  "accepted_compiler": "4211bf0f37b2941faa4534e349aabf46697ba907",
+  "original_native_operations": 24,
+  "storage_bytes": 24,
+  "normal_native_and_original_caller_cases": 20,
+  "actual_runtime_sanitizer_cases": 1,
+  "existing_namespace_credit_cases": 36,
+  "existing_namespace_credit_sanitizer_cases": 36,
+  "legacy_SDK_cases": 28,
+  "native_unit_tests": 7,
+  "controls": [
+    "C and Rust independent native archives",
+    "typed wire owner destruction exactly once",
+    "owned string results survive UUID owner cleanup",
+    "namespace credit remains one",
+    "namespace v5 output checked with independent Python UUID oracle",
+    "high/low bit field layout",
+    "canonical copy preserves bits and owns an independent credit",
+    "40 cycles of all four namespace constructors",
+    "unchanged original UUID caller and oracle across nine modes"
+  ],
+  "public_source_unchanged": true,
+  "logs": {
+    "sindarin-sdk-uuid-native-final.log": "0b6282b705c764ef679c4ab30e754ca94530c9a6b284b70924970901710c5ebb",
+    "sindarin-sdk-uuid-native-final-san.log": "c4cd6267e3874da441a475ffad270160c4fa62a6f4607554adc70755d5328304",
+    "sindarin-sdk-uuid-native-legacy.log": "c713c3ebd3367cb1b66ee395e8acd14a07521945396a27832c86e85643471201",
+    "sindarin-sdk-uuid-native-unit.log": "f177c8bf332e5e9bb771e80d9c1d407c40786bb8da1752ffe60bdb3a97048b36",
+    "sindarin-sdk-uuid-native-credits.log": "1c71ef571817741189030c3f97d4400f31bfe39841f22cc7a4b3ef10ab22dc3d",
+    "sindarin-sdk-uuid-native-credits-san.log": "1c71ef571817741189030c3f97d4400f31bfe39841f22cc7a4b3ef10ab22dc3d"
+  },
+  "remaining": [
+    "SDK hosted platform acceptance",
+    "compiler UUID artifact hosted registration and acceptance",
+    "language as-val canonical copy adapter integration",
+    "whole SDK and final corpus/platform proof"
+  ]
+}

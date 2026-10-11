@@ -97,6 +97,13 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: python3 sdk/scripts/check_random_native.py --compiler bin/sn --sanitize
+      - name: Validate canonical UUID storage and unchanged C/Rust callers
+        shell: bash
+        run: python3 sdk/scripts/check_uuid_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument UUID canonical storage and actual shared runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_uuid_native.py --compiler bin/sn --sanitize
       - name: Instrument canonical modules and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
@@ -119,3 +126,5 @@ jobs:
             sdk/.sn/uuid-credit-validation-sanitized.json
             sdk/.sn/random-native.json
             sdk/.sn/random-sanitizers.json
+            sdk/.sn/uuid-native.json
+            sdk/.sn/uuid-sanitizers.json
