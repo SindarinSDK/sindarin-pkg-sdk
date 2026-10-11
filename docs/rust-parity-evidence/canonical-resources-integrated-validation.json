@@ -1,5 +1,5 @@
 {
-  "status": "Complete combined local SDK resource validation passed; unpublished; compiler correction hosted acceptance pending",
+  "status": "Combined SDK resources and legacy Json nil-copy behavior validated locally; unpublished; compiler correction hosted acceptance pending",
   "SDK_base": "840f5ba6aac34018659542458c3f5894cc9b9e57",
   "integration_checkpoint": "9b7218b",
   "accepted_compiler": "4211bf0f37b2941faa4534e349aabf46697ba907",
@@ -20,7 +20,8 @@
     "Repeated disposal and exact typed wire destruction",
     "POSIX concurrent stdout/stderr drain fixes retained reproduction",
     "JSON children survive parent and element removal",
-    "Existing SDK import paths and legacy generated layouts preserved"
+    "Existing SDK import paths and legacy generated layouts preserved",
+    "Canonical Json copy delegates legacy nil input to an owned Json null wrapper"
   ],
   "logs": {
     "sindarin-sdk-resources-stringbuilder.log": "d94ba06cedd0db4250399aead73af6bc9eb468afb5dc809554e0d71925aafc3a",
@@ -37,5 +38,10 @@
     "SDK Linux/macOS/Windows hosted acceptance",
     "Dependent compiler artifact and language copy integration hosted acceptance",
     "Whole SDK and final corpus/platform proof"
-  ]
+  ],
+  "Json_nil_copy_legacy_oracle": {
+    "modes": 9,
+    "source_sha256": "fd84a70f6e9a7e7e979611d4617db50500aea8fb5c2769f5a7ec418608d39611",
+    "report_sha256": "a5fb0daa0c6f466834d563f48dcab2d327cfecd2af7de58227f97c3a6e0ec4db"
+  }
 }

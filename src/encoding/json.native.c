@@ -20,5 +20,5 @@ void sn_sdk_json_release(SnSdkJsonRecord *value)
 }
 SnSdkJsonRecord *sn_sdk_json_copy(const SnSdkJsonRecord *value)
 {
-    return value ? sn_json_copy((SnSdkJsonRecord *)value) : NULL;
+    return sn_json_copy((SnSdkJsonRecord *)value);
 }

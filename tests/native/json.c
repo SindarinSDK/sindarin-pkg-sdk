@@ -25,7 +25,10 @@ int main(void)
 {
     _Static_assert(sizeof(SnSdkJsonRecord) == 32, "Json canonical layout");
     assert(sn_sdk_json_refs(NULL) == 0 && sn_sdk_json_retain(NULL) == NULL);
-    assert(sn_sdk_json_copy(NULL) == NULL);
+    /* Legacy Json.copy(nil) produces a non-nil Json null wrapper. */
+    SnSdkJsonRecord *nil_copy = sn_sdk_json_copy(NULL);
+    assert(nil_copy && sn_json_is_null(nil_copy) && sn_sdk_json_refs(nil_copy) == 1);
+    sn_sdk_json_release(nil_copy);
     sn_sdk_json_release(NULL);
     SnSdkJsonRecord *empty = sn_sdk_json_create();
     assert(empty && empty->obj == 0 && empty->handle == 0 && empty->is_root == 0);
