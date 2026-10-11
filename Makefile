@@ -13,6 +13,7 @@ endif
 
 BIN_DIR      := bin
 SN           ?= sn
+PYTHON       ?= python3
 SRC_SOURCES  := $(wildcard src/*/*.sn)
 RUN_TESTS_SN := .sn/sindarin-pkg-test/src/execute.sn
 RUN_TESTS    := $(BIN_DIR)/run_tests$(EXE_EXT)
@@ -22,6 +23,7 @@ setup:
 
 test: setup $(RUN_TESTS)
 	@$(RUN_TESTS) --verbose
+	@$(PYTHON) scripts/check_bytes_native.py --compiler "$(SN)"
 
 $(BIN_DIR):
 	@mkdir -p $(BIN_DIR)

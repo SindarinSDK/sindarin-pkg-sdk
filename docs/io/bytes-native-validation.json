@@ -1,0 +1,189 @@
+{
+  "base_revision": "53a82f0a19f45796f8c83f86c0e16309e2080208",
+  "scope": "Standalone canonical C SDK Bytes module and compatibility adapter backing names; original decoder/public module preserved.",
+  "normal_module_checks": [
+    {
+      "kind": "independent C client/resource/array/field layout",
+      "passed": true
+    },
+    {
+      "kind": "original native nil-path error and exit",
+      "passed": true
+    },
+    {
+      "kind": "independent Rust client/shared runtime path/lifetimes",
+      "passed": true
+    },
+    {
+      "kind": "independent Go client/shared runtime/GC-safe ownership",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "c",
+      "opt": "-O0",
+      "mode": "default",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "c",
+      "opt": "-O0",
+      "mode": "checked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "c",
+      "opt": "-O0",
+      "mode": "unchecked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "c",
+      "opt": "-O1",
+      "mode": "default",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "c",
+      "opt": "-O1",
+      "mode": "checked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "c",
+      "opt": "-O1",
+      "mode": "unchecked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "c",
+      "opt": "-O2",
+      "mode": "default",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "c",
+      "opt": "-O2",
+      "mode": "checked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "c",
+      "opt": "-O2",
+      "mode": "unchecked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "rust",
+      "opt": "-O0",
+      "mode": "default",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "rust",
+      "opt": "-O0",
+      "mode": "checked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "rust",
+      "opt": "-O0",
+      "mode": "unchecked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "rust",
+      "opt": "-O1",
+      "mode": "default",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "rust",
+      "opt": "-O1",
+      "mode": "checked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "rust",
+      "opt": "-O1",
+      "mode": "unchecked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "rust",
+      "opt": "-O2",
+      "mode": "default",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "rust",
+      "opt": "-O2",
+      "mode": "checked",
+      "passed": true
+    },
+    {
+      "kind": "unchanged SDK Sindarin fixture",
+      "target": "rust",
+      "opt": "-O2",
+      "mode": "unchecked",
+      "passed": true
+    },
+    {
+      "kind": "public fields, alias mutation and sizeof",
+      "target": "c",
+      "passed": true
+    },
+    {
+      "kind": "public fields, alias mutation and sizeof",
+      "target": "rust",
+      "passed": true
+    },
+    {
+      "kind": "independent C Bytes module",
+      "passed": true
+    }
+  ],
+  "sanitized_module_checks": [
+    {
+      "kind": "sanitized C module/resources",
+      "passed": true
+    },
+    {
+      "kind": "sanitized C Bytes module",
+      "passed": true
+    }
+  ],
+  "anonymous_array_runtime_compatibility": true,
+  "cpp_header_syntax": true,
+  "text_oracle_tests": 2,
+  "source_sha256": {
+    "src/io/bytes.sn": "013490106aad9617bdfc30d7981be573ed1ead4320af4c89298f8d094aab48b6",
+    "src/io/bytes.sn.c": "560be28fc1edcbd21df4b38ede02a9514b0ab116e0722af578007c8d6daab809",
+    "tests/io/test_bytes.sn": "22b80bcdcfe7caff2d95f3de26c75dc9aa6584f1c5de2c7553d667e15f20297d",
+    "tests/io/test_bytes.expected": "b2f19f23ccc60f35c2dce2b24a60d59ea946bd0f16f6c8c4a9dbe70aa2ab2993",
+    "src/io/bytes.native.c": "0290aa20e617a9c402cb70f8985a8eac4452d6cc6c033825687affd0120e6211",
+    "src/io/bytes.native.h": "ccdf067880122e9904c14560fc3be6b5aa23e31b02ee3fe4e50eeb695d1f342b",
+    "tests/native/bytes_module.c": "0cb4572269e7eb0cffb220430cc9512eb1f083c22d1ced551e6d1eec712e8632",
+    "scripts/check_bytes_native.py": "a7ae5d01297b34f5413a1237583aa213dd2e6594aa027c4167e789ea42d6775e",
+    "scripts/check_textfile_native.py": "e8626c7906fdb344d7da09f70514e22c68c03ad4a5b30a62edf12bc79bbc64f6",
+    "Makefile": "da5a47e82e9ccf60d423aecc532d5f82c67a0f3dc4244ae30a9e809530ce98ed"
+  },
+  "complete_sdk_package": false,
+  "hosted_acceptance": "pending publication"
+}

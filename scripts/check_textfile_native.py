@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build one canonical SDK C module and verify independent and legacy consumers."""
+"""Build canonical SDK C modules and verify independent and legacy consumers."""
 import argparse
 import hashlib
 import json
@@ -137,11 +137,16 @@ def main():
                 run=checked([executable],project)
                 assert run.stdout==field_expected,(target,run.stdout)
                 report['cases'].append({'kind':'public fields, alias mutation and sizeof','target':target,'passed':True})
+        from check_bytes_native import verify as verify_bytes
+        report['cases'].append(verify_bytes(compiler,args.sanitize,args.runtime_source))
+        for name in ('bytes.sn','bytes.sn.c','bytes.native.c','bytes.native.h'):
+            path=ROOT/'src/io'/name
+            report['sources'][path.relative_to(ROOT).as_posix()]=hashlib.sha256(path.read_bytes()).hexdigest()
         report['passed']=all(c['passed'] for c in report['cases'])
         destination=ROOT/'.sn'/('textfile-native-sanitizers.json' if args.sanitize else 'textfile-native-validation.json')
         destination.parent.mkdir(exist_ok=True)
         destination.write_text(json.dumps(report,indent=2)+'\n')
-    print(f'PASS: {len(report["cases"])} canonical SDK TextFile checks')
+    print(f'PASS: {len(report["cases"])} canonical SDK TextFile/Bytes checks')
 
 
 if __name__=='__main__':

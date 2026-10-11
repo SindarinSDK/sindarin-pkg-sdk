@@ -6,6 +6,24 @@ permalink: /sdk/io/bytes/
 
 The `byte` primitive type and `Bytes` utility class for binary data encoding and decoding.
 
+## Independent C module
+
+`src/io/bytes.native.c` builds the existing decoder in `bytes.sn.c` against the
+canonical C runtime, without an application's generated records or constructors.
+`bytes.native.h` exposes owned C byte-array results. Release them with
+`sn_array_free`; borrowed input strings are never retained. The original
+`bytes.sn` methods and decoder source remain unchanged. Separate
+`sn_sdk_bytes_from_hex` and `sn_sdk_bytes_from_base64` backing names support
+generated package adapters while keeping the original C decoder symbols available
+to the Sindarin facade.
+
+`make test` also checks the standalone module on the installed compiler runtime.
+For direct validation, run
+`python3 scripts/check_bytes_native.py --compiler /path/to/bin/sn`.
+Add `--sanitize --runtime-source /path/to/compiler/src/runtime` to instrument the
+actual C runtime and module. This is one SDK module; complete SDK artifact
+packaging and cross-runtime adapters still require integration.
+
 ## Import
 
 ```sindarin
