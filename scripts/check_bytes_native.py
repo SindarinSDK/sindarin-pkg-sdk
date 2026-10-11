@@ -12,11 +12,26 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def runtime_paths(compiler, windows=None):
+    """Use the compiler's portable/install lookup; Windows bin/sn is a copy."""
+    windows = os.name == 'nt' if windows is None else windows
+    folder = Path(compiler).resolve().parent
+    override = os.environ.get('SN_SDK')
+    if override and Path(override).is_dir():
+        folder = Path(override).resolve()
+    elif not (folder/'sn.cfg').is_file() and (folder.parent/'lib/sindarin/sn.cfg').is_file():
+        folder = folder.parent/'lib/sindarin'
+    runtime = folder/'lib'/('clang' if windows else 'gcc')/'libsn_runtime_min.a'
+    includes = folder/'include/runtime'
+    if not runtime.is_file() or not (includes/'sn_array.h').is_file():
+        raise ValueError(f'compiler runtime/header installation is incomplete: {runtime}, {includes}')
+    return runtime, includes
+
+
 def verify(compiler, sanitize=False, runtime_source=None):
     candidate = Path(compiler)
     compiler = (candidate if candidate.is_file() else Path(shutil.which(str(compiler)) or compiler)).resolve()
-    runtime = compiler.parent/'lib'/('clang' if os.name == 'nt' else 'gcc')/'libsn_runtime_min.a'
-    includes = compiler.parent/'include/runtime'
+    runtime, includes = runtime_paths(compiler)
     cc = shlex.split(os.environ.get('SN_CC') or ('clang' if os.name == 'nt' or platform.system() == 'Darwin' else 'gcc'))
     with tempfile.TemporaryDirectory(prefix='sn-sdk-bytes-') as folder:
         work = Path(folder); executable = work/'bytes-client.exe'

@@ -180,10 +180,22 @@
     "src/io/bytes.native.c": "0290aa20e617a9c402cb70f8985a8eac4452d6cc6c033825687affd0120e6211",
     "src/io/bytes.native.h": "ccdf067880122e9904c14560fc3be6b5aa23e31b02ee3fe4e50eeb695d1f342b",
     "tests/native/bytes_module.c": "0cb4572269e7eb0cffb220430cc9512eb1f083c22d1ced551e6d1eec712e8632",
-    "scripts/check_bytes_native.py": "a7ae5d01297b34f5413a1237583aa213dd2e6594aa027c4167e789ea42d6775e",
-    "scripts/check_textfile_native.py": "e8626c7906fdb344d7da09f70514e22c68c03ad4a5b30a62edf12bc79bbc64f6",
-    "Makefile": "da5a47e82e9ccf60d423aecc532d5f82c67a0f3dc4244ae30a9e809530ce98ed"
+    "scripts/check_bytes_native.py": "aeb0b1335b1748e3bc87e167422bed0e167bc25a8a0cb806b17cabd95b9512d8",
+    "scripts/check_textfile_native.py": "0e82c61c6e4d9ff4def941d319ffc3de54e85fdac0f86cfbcc1c62584901d458",
+    "Makefile": "da5a47e82e9ccf60d423aecc532d5f82c67a0f3dc4244ae30a9e809530ce98ed",
+    "tests/native/test_runtime_paths.py": "b79573fe30ad3676ff865fc396ddcb207d121351f5eb538c02d8cd96e50a6a5f"
   },
   "complete_sdk_package": false,
-  "hosted_acceptance": "pending publication"
+  "hosted_acceptance": "pending publication",
+  "installation_lookup_correction": {
+    "failed_revision": "775fb67b503dedafa01b7a0acf759854296da7ee",
+    "failed_ci": "https://github.com/SindarinSDK/sindarin-pkg-sdk/actions/runs/38106032379",
+    "cause": "Windows installed bin/sn.exe is a copy; runtime resources live under lib/sindarin, not beside the binary. All 28 Windows SDK language tests passed; native checker looked in the wrong location.",
+    "fix": "Follow portable/installed resource roots and SN_SDK override, matching compiler lookup. Require actual runtime archive and headers.",
+    "local_module_checks": 25,
+    "sanitized_module_checks": 2,
+    "oracle_and_layout_tests": 5,
+    "actual_separate_install_layout_client": true,
+    "hosted_acceptance": "pending correction run"
+  }
 }

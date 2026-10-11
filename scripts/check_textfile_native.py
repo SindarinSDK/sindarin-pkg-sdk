@@ -37,8 +37,8 @@ def main():
     compiler = args.compiler.resolve()
     if os.name == 'nt' and not compiler.is_file() and compiler.with_suffix('.exe').is_file():
         compiler = compiler.with_suffix('.exe')
-    runtime = compiler.parent / 'lib' / ('clang' if os.name == 'nt' else 'gcc') / 'libsn_runtime_min.a'
-    includes = compiler.parent / 'include/runtime'
+    from check_bytes_native import runtime_paths
+    runtime, includes = runtime_paths(compiler)
     cc = shlex.split(os.environ.get('SN_CC') or ('clang' if os.name == 'nt' or platform.system() == 'Darwin' else 'gcc'))
     rustc = shlex.split(os.environ.get('SN_RUSTC', 'rustc'))
     rustflags = shlex.split(os.environ.get('SN_RUSTFLAGS', ''))
