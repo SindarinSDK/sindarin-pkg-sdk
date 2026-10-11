@@ -1,0 +1,27 @@
+{
+  "failed_revision": "5e1c3195c0460cf2a49896c638dae13efbeab8b9",
+  "failed_CI": 38160258824,
+  "failed_jobs": {
+    "Darwin": 114531490438,
+    "Windows": 114531490542
+  },
+  "root_cause": "Json checker assumes Linux-only bin/deps/lib archive staging; accepted compiler keeps json-c under installed project libs on macOS/Windows",
+  "correction": "Prefer staged archive and otherwise resolve the accepted compiler installed platform dependency archive, including legacy project layout",
+  "production_module_changes": false,
+  "local_native_and_legacy_cases": 20,
+  "actual_runtime_sanitizer_cases": 1,
+  "native_helper_tests": 10,
+  "regressions": [
+    "Staged archive still preferred",
+    "macOS installed archive without staged library",
+    "Windows installed archive and useful missing dependency diagnostic"
+  ],
+  "logs": {
+    "sindarin-sdk-resources-ci-macos-failure.log": "61908fb516c1eae46e0a4dd070e31b4ab4a45478968e6bfac16df413d881a610",
+    "sindarin-sdk-resources-ci-windows-failure.log": "88cabf4def1912ae1621e6db557a17cd0f28112a0a6d7d033fa3b7553de02f6a",
+    "sindarin-sdk-json-library-correction-normal.log": "19cd6357b9a1c7c11ff788a94a063d93fc17bbde2b7ad933640d40431def8e96",
+    "sindarin-sdk-json-library-correction-san.log": "20ba9114539c1408d25697501bf7cab1b7823dbe42b35bfd6a8c45c2e1b2ff9c",
+    "sindarin-sdk-json-library-correction-helpers.log": "2b8e51d4654591f3b572e0ca4f5da44d4d9f8f89b3bf7044da0aa2ef0ac0a2f0"
+  },
+  "status": "Correction locally validated; publication and complete hosted SDK acceptance required"
+}

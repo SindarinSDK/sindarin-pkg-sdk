@@ -20,6 +20,19 @@ def checked(command,cwd,env=None):
     return run
 
 
+def json_library_path(compiler, system=None):
+    system = system or platform.system()
+    platform_dir = {'Linux': 'linux', 'Darwin': 'darwin', 'Windows': 'windows'}[system]
+    root = compiler.parent.parent
+    candidates = [compiler.parent/'deps/lib/libjson-c.a',
+                  root/'.sn/sindarin-pkg-libs/libs'/platform_dir/'lib/libjson-c.a',
+                  root/'libs/libs'/platform_dir/'lib/libjson-c.a']
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    raise ValueError('json-c archive missing from compiler dependency locations: ' + ', '.join(str(p) for p in candidates))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler',type=Path,required=True)
@@ -35,7 +48,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='sn-sdk-json-') as folder:
         work=Path(folder);flags=['-std=c11','-D_GNU_SOURCE','-UNDEBUG','-Werror=implicit-function-declaration','-I',ROOT/'src/encoding','-I',include]
         flags+=shlex.split(os.environ.get('SN_CFLAGS',''))
-        deps=compiler.parent/'deps';flags+=['-I',deps/'include'];json_library=deps/'lib/libjson-c.a';assert json_library.is_file()
+        deps=compiler.parent/'deps';flags+=['-I',deps/'include'];json_library=json_library_path(compiler)
         modules=[ROOT/'src/encoding'/name for name in ('json.native.c',)]
         executable=work/'c-client.exe'
         if args.sanitize:
