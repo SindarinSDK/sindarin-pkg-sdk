@@ -1,0 +1,58 @@
+{
+  "status": "Canonical Xml and document graph repairs validated locally; independent SDK batch ready for hosted verification",
+  "SDK_base": "2152da20d283dae9a4b31d2551f001b6b2c43904",
+  "accepted_compiler": "4211bf0f37b2941faa4534e349aabf46697ba907",
+  "canonical_record_size": 40,
+  "original_public_operations": 35,
+  "unchanged_public_operation_bodies": 29,
+  "ownership_repaired_operations": [
+    "children",
+    "findAll",
+    "addChild",
+    "setText",
+    "remove",
+    "dispose"
+  ],
+  "public_module_and_original_caller_oracle_unchanged": true,
+  "normal_native_and_original_mode_cases": 20,
+  "actual_runtime_sanitizer_cases": 1,
+  "legacy_SDK_cases": 28,
+  "native_helper_tests": 10,
+  "original_parent_dispose_failure": {
+    "status": 1,
+    "use_after_free": true,
+    "stdout": ""
+  },
+  "failure_log_sha256": "95bfb27196a2e931230c22e723dc9208c3b06db8ade26521bf364bc266c51e13",
+  "failure_probe_sha256": "c35a60ab7027286bb5964be74f9ea7aacea15291afddebb943b8f4e7cdaf5f8a",
+  "text_merge_before_failure_log_sha256": "163667da0c8eeb33af8c8bbc44faf27064e42648ad54bbc4a559b7b25705c76d",
+  "controls": [
+    "Canonical layout and original visible fields, including handle=0",
+    "Children keep document alive after root disposal/destruction",
+    "Document destruction exactly once after final wrapper/array credit",
+    "Forty copied reference-array cleanup cycles with shared header values",
+    "Typed wire resource destructor exactly once",
+    "Independent deep document copies",
+    "Removed/replaced subtree wrappers invalidated before free",
+    "Moved/merged text aliases retargeted to live node",
+    "Owned strings survive wrapper cleanup",
+    "Reentrant document destruction can create and release another document",
+    "Original XML caller and all legacy SDK tests retain outputs"
+  ],
+  "Rust_application_sanitizer_probe": {
+    "stdout": "child\n",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "logs": {
+    "sindarin-sdk-xml-native-final.log": "3e0d9151913d7b54934974b3bbc3be219c3156c2cf734500d9f56f602e14df94",
+    "sindarin-sdk-xml-native-final-san.log": "20b2cc69a6c7473c81b014d140d8033c39422e772d1ee81b08bb4c257be6a634",
+    "sindarin-sdk-xml-legacy-final.log": "664bc4f72c07e95d81235550858c893053b98b1c4f5176789c7257293c6bb841",
+    "sindarin-sdk-xml-helpers.log": "1b78de3ac92683dbef91ce7df12072030cd80a9a884d972dede53b16a0d4a680"
+  },
+  "remaining": [
+    "SDK complete Linux/macOS/Windows hosted acceptance",
+    "Canonical package record-array ABI and generated C/RS/GO adapters",
+    "Compiler XML source/sealed artifact acceptance",
+    "Whole SDK and final original corpus/platform proof"
+  ]
+}

@@ -19,6 +19,25 @@
  * Xml Type Definition
  * ============================================================================ */
 
+#include "xml.native.h"
+#include <pthread.h>
+#ifdef SN_SDK_XML_STANDALONE
+typedef SnSdkXmlRecord __sn__Xml;
+static __sn__Xml *sn_sdk_xml_new(void)
+{
+    __sn__Xml *value = calloc(1, sizeof(*value));
+    if (value) value->__rc__ = 1;
+    return value;
+}
+#define __sn__Xml__new sn_sdk_xml_new
+#else
+typedef char SnSdkXmlSizeCompatible[(sizeof(__sn__Xml) == sizeof(SnSdkXmlRecord)) ? 1 : -1];
+typedef char SnSdkXml___rc___Compatible[(offsetof(__sn__Xml, __rc__) == offsetof(SnSdkXmlRecord, __rc__)) ? 1 : -1];
+typedef char SnSdkXml_doc_Compatible[(offsetof(__sn__Xml, doc) == offsetof(SnSdkXmlRecord, doc)) ? 1 : -1];
+typedef char SnSdkXml_node_Compatible[(offsetof(__sn__Xml, node) == offsetof(SnSdkXmlRecord, node)) ? 1 : -1];
+typedef char SnSdkXml_is_root_Compatible[(offsetof(__sn__Xml, is_root) == offsetof(SnSdkXmlRecord, is_root)) ? 1 : -1];
+typedef char SnSdkXml_handle_Compatible[(offsetof(__sn__Xml, handle) == offsetof(SnSdkXmlRecord, handle)) ? 1 : -1];
+#endif
 typedef __sn__Xml SnXml;
 
 /* ============================================================================
@@ -52,6 +71,8 @@ static void sn_xml_init(void)
 #define XML_SET_DOC(x, v)  ((x)->doc = (long long)(uintptr_t)(v))
 #define XML_SET_NODE(x, v) ((x)->node = (long long)(uintptr_t)(v))
 
+#include "xml.owners.h"
+
 /* Create a new SnXml wrapper for a node within an existing document.
  * Returns a heap-allocated __sn__Xml pointer. */
 static __sn__Xml *sn_xml_wrap(xmlDocPtr doc, xmlNodePtr node, int is_root)
@@ -65,6 +86,7 @@ static __sn__Xml *sn_xml_wrap(xmlDocPtr doc, xmlNodePtr node, int is_root)
     XML_SET_NODE(x, node);
     x->is_root = is_root;
     x->handle = 0;
+    sn_xml_owner_attach(x, doc);
     return x;
 }
 
@@ -366,6 +388,8 @@ SnArray *sn_xml_children(__sn__Xml *x)
 {
     SnArray *children = sn_array_new(sizeof(__sn__Xml *), 16);
     children->elem_tag = SN_TAG_STRUCT;
+    children->elem_release = sn_xml_array_release;
+    children->elem_copy = sn_xml_array_copy;
 
     if (x == NULL) return children;
     if (XML_NODE(x) == NULL) return children;
@@ -505,6 +529,8 @@ SnArray *sn_xml_find_all(__sn__Xml *x, char *xpath)
 {
     SnArray *nodes = sn_array_new(sizeof(__sn__Xml *), 16);
     nodes->elem_tag = SN_TAG_STRUCT;
+    nodes->elem_release = sn_xml_array_release;
+    nodes->elem_copy = sn_xml_array_copy;
 
     if (x == NULL) return nodes;
     if (XML_DOC(x) == NULL || xpath == NULL) return nodes;
@@ -567,8 +593,12 @@ void sn_xml_add_child(__sn__Xml *x, __sn__Xml *child)
         xmlAddChild(XML_NODE(x), copy);
     } else {
         /* Unlink from current parent if needed */
-        xmlUnlinkNode(XML_NODE(child));
-        xmlAddChild(XML_NODE(x), XML_NODE(child));
+        xmlNodePtr original = XML_NODE(child);
+        xmlUnlinkNode(original);
+        xmlNodePtr attached = xmlAddChild(XML_NODE(x), original);
+        /* libxml may merge adjacent text and replace the incoming node. */
+        if (attached && attached != original)
+            sn_xml_retarget_node(XML_DOC(x), original, attached);
     }
 }
 
@@ -583,6 +613,8 @@ void sn_xml_set_text(__sn__Xml *x, char *content)
         return;
     }
 
+    for (xmlNodePtr child = XML_NODE(x)->children; child; child = child->next)
+        sn_xml_invalidate_subtree(XML_DOC(x), child);
     xmlNodeSetContent(XML_NODE(x), BAD_CAST content);
 }
 
@@ -609,8 +641,10 @@ void sn_xml_remove(__sn__Xml *x)
     if (x == NULL) return;
     if (XML_NODE(x) == NULL) return;
 
-    xmlUnlinkNode(XML_NODE(x));
-    xmlFreeNode(XML_NODE(x));
+    xmlNodePtr removed = XML_NODE(x);
+    sn_xml_invalidate_subtree(XML_DOC(x), removed);
+    xmlUnlinkNode(removed);
+    xmlFreeNode(removed);
     XML_SET_NODE(x, NULL);
 }
 
@@ -732,9 +766,5 @@ __sn__Xml *sn_xml_copy(__sn__Xml *x)
 void sn_xml_dispose(__sn__Xml *x)
 {
     if (x == NULL) return;
-    if (XML_DOC(x) != NULL && x->is_root) {
-        xmlFreeDoc(XML_DOC(x));
-    }
-    XML_SET_DOC(x, NULL);
-    XML_SET_NODE(x, NULL);
+    sn_xml_owner_detach(x);
 }

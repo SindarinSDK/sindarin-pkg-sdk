@@ -125,6 +125,13 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: python3 sdk/scripts/check_json_native.py --compiler bin/sn --sanitize
+      - name: Validate canonical Xml document and array lifetimes
+        shell: bash
+        run: python3 sdk/scripts/check_xml_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument Xml ownership and actual shared runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_xml_native.py --compiler bin/sn --sanitize
       - name: Instrument canonical modules and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
@@ -155,3 +162,5 @@ jobs:
             sdk/.sn/process-sanitizers.json
             sdk/.sn/json-native.json
             sdk/.sn/json-sanitizers.json
+            sdk/.sn/xml-native.json
+            sdk/.sn/xml-sanitizers.json
