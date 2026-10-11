@@ -1,0 +1,41 @@
+{
+  "status": "Complete combined local SDK resource validation passed; unpublished; compiler correction hosted acceptance pending",
+  "SDK_base": "840f5ba6aac34018659542458c3f5894cc9b9e57",
+  "integration_checkpoint": "9b7218b",
+  "accepted_compiler": "4211bf0f37b2941faa4534e349aabf46697ba907",
+  "modules": [
+    "encoding/text",
+    "os/process",
+    "encoding/json"
+  ],
+  "normal_native_and_legacy_cases": 60,
+  "actual_runtime_sanitizer_cases": 3,
+  "legacy_SDK_cases": 28,
+  "native_helper_tests": 7,
+  "original_public_SN_and_test_oracles_unchanged": 87,
+  "controls": [
+    "Canonical C storage and atomic native credits",
+    "Independent deep copies for buffers, captured strings and JSON trees",
+    "Aliases and owned results surviving final cleanup",
+    "Repeated disposal and exact typed wire destruction",
+    "POSIX concurrent stdout/stderr drain fixes retained reproduction",
+    "JSON children survive parent and element removal",
+    "Existing SDK import paths and legacy generated layouts preserved"
+  ],
+  "logs": {
+    "sindarin-sdk-resources-stringbuilder.log": "d94ba06cedd0db4250399aead73af6bc9eb468afb5dc809554e0d71925aafc3a",
+    "sindarin-sdk-resources-stringbuilder-san.log": "dd9c8a99975cc5f064c4b7eb756d2df54409db2943556edc1a32f8fd519e4bc6",
+    "sindarin-sdk-resources-process.log": "d5fee532b1a57708b87e7d1d3164db1a6ba42874ee71eb743195526703b8f3a8",
+    "sindarin-sdk-resources-process-san.log": "e7962bcc4e5af0c65b84bfb8bf9a11ca8231a9b07e6648081dd14e5e83a63026",
+    "sindarin-sdk-resources-json.log": "19cd6357b9a1c7c11ff788a94a063d93fc17bbde2b7ad933640d40431def8e96",
+    "sindarin-sdk-resources-json-san.log": "20ba9114539c1408d25697501bf7cab1b7823dbe42b35bfd6a8c45c2e1b2ff9c",
+    "sindarin-sdk-resources-legacy.log": "b7412710996e968e1725f3b16cd7949d2f5f2aee63a1371400f013f9e6265792",
+    "sindarin-sdk-resources-helpers.log": "f3b2f7ffdfb7b8b615019d5c3fb5bd4bca0d92e1c07b563034b07c68f69c3d69"
+  },
+  "remaining": [
+    "Complete required corrected compiler CI acceptance before feature publication",
+    "SDK Linux/macOS/Windows hosted acceptance",
+    "Dependent compiler artifact and language copy integration hosted acceptance",
+    "Whole SDK and final corpus/platform proof"
+  ]
+}
