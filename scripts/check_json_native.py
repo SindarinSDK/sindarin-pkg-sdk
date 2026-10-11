@@ -49,6 +49,10 @@ def main():
         work=Path(folder);flags=['-std=c11','-D_GNU_SOURCE','-UNDEBUG','-Werror=implicit-function-declaration','-I',ROOT/'src/encoding','-I',include]
         flags+=shlex.split(os.environ.get('SN_CFLAGS',''))
         deps=compiler.parent/'deps';flags+=['-I',deps/'include'];json_library=json_library_path(compiler)
+        caller_env=dict(os.environ)
+        # Original callers retain @link json-c; add the resolved archive's
+        # directory to both C and Rust sidecar linker search paths.
+        caller_env['SN_LDFLAGS']=(caller_env.get('SN_LDFLAGS','')+' -L"'+json_library.parent.as_posix()+'"').strip()
         modules=[ROOT/'src/encoding'/name for name in ('json.native.c',)]
         executable=work/'c-client.exe'
         if args.sanitize:
@@ -84,7 +88,7 @@ def main():
                     for target in ('c','rust'):
                         command=[compiler,'main.sn','--no-install','--target',target,opt,'-o',executable]
                         if mode!='default':command.append('--'+mode)
-                        checked(command,work);run=checked([executable],work)
+                        checked(command,work,caller_env);run=checked([executable],work)
                         if run.stdout!=expected or run.stderr:raise ValueError(f'{stem}/{target}/{opt}/{mode}: {run.stdout!r} {run.stderr!r}')
                         cases.append({'module':stem,'target':target,'opt':opt,'mode':mode,'passed':True})
     paths=[p for p in (ROOT/'src/encoding').glob('*') if p.is_file()]

@@ -14,14 +14,40 @@
   "regressions": [
     "Staged archive still preferred",
     "macOS installed archive without staged library",
-    "Windows installed archive and useful missing dependency diagnostic"
+    "Windows installed archive and useful missing dependency diagnostic",
+    "Actual compiler with no staged json-c archive and paths with spaces: original checker fails, corrected C/Rust/native callers pass four quick cases"
   ],
   "logs": {
     "sindarin-sdk-resources-ci-macos-failure.log": "61908fb516c1eae46e0a4dd070e31b4ab4a45478968e6bfac16df413d881a610",
     "sindarin-sdk-resources-ci-windows-failure.log": "88cabf4def1912ae1621e6db557a17cd0f28112a0a6d7d033fa3b7553de02f6a",
     "sindarin-sdk-json-library-correction-normal.log": "19cd6357b9a1c7c11ff788a94a063d93fc17bbde2b7ad933640d40431def8e96",
     "sindarin-sdk-json-library-correction-san.log": "20ba9114539c1408d25697501bf7cab1b7823dbe42b35bfd6a8c45c2e1b2ff9c",
-    "sindarin-sdk-json-library-correction-helpers.log": "2b8e51d4654591f3b572e0ca4f5da44d4d9f8f89b3bf7044da0aa2ef0ac0a2f0"
+    "sindarin-sdk-json-library-correction-helpers.log": "2b8e51d4654591f3b572e0ca4f5da44d4d9f8f89b3bf7044da0aa2ef0ac0a2f0",
+    "sindarin-sdk-json-library-correction-ci-macos-failure.log": "0ee7c3463a0f361eecd3c8c6e4882783384b4dd0f501e8cf22e97a277cb50887",
+    "sindarin-sdk-json-library-correction-ci-windows-failure.log": "172032c162839705e0d9bff07f2e8a4bcb4a3c357dffec25886474eda21f5074",
+    "sindarin-sdk-json-caller-library-regression.log": "01c3973236f2188787eb02d541ace03f1e82941caafe8d99d40f578db3538438",
+    "sindarin-sdk-json-caller-link-normal.log": "19cd6357b9a1c7c11ff788a94a063d93fc17bbde2b7ad933640d40431def8e96",
+    "sindarin-sdk-json-caller-link-san.log": "20ba9114539c1408d25697501bf7cab1b7823dbe42b35bfd6a8c45c2e1b2ff9c",
+    "sindarin-sdk-json-caller-link-helpers.log": "8ffd663de18eb14f4852037751cd5c68ae4714e92809f9ca69360456f9dda005"
   },
-  "status": "Correction locally validated; publication and complete hosted SDK acceptance required"
+  "status": "Complete archive/caller link correction locally validated; complete hosted SDK acceptance required",
+  "previous_correction_revision": "ae160d3e3ec1701ee4c669ffbc64da8bac060168",
+  "previous_correction_CI": 38160904647,
+  "previous_correction_failed_jobs": {
+    "Darwin": 114533416911,
+    "Windows": 114533416819
+  },
+  "remaining_root_cause": "Independent native archive clients found json-c, but unchanged legacy Sindarin callers in temporary apps still linked only through the missing staged directory",
+  "complete_correction": "Resolve the accepted compiler platform archive, then preserve original @link json-c while adding its parent directory through existing SN_LDFLAGS for both C/Rust caller compilation",
+  "local_missing_staged_archive_regression": {
+    "before": {
+      "status": 1,
+      "stderr": "Traceback (most recent call last):\n  File \"/tmp/sn unstaged json archive 1um5v39y/sdk/scripts/check_json_before.py\", line 101, in <module>\n    if __name__=='__main__':main()\n                            ^^^^^^\n  File \"/tmp/sn unstaged json archive 1um5v39y/sdk/scripts/check_json_before.py\", line 87, in main\n    checked(command,work);run=checked([executable],work)\n    ^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/sn unstaged json archive 1um5v39y/sdk/scripts/check_json_before.py\", line 19, in checked\n    if run.returncode:raise ValueError(f'{command!r}\\nstdout: {run.stdout!r}\\nstderr: {run.stderr!r}')\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nValueError: [PosixPath('/tmp/sn unstaged json archive 1um5v39y/compiler/bin/sn'), 'main.sn', '--no-install', '--target', 'c', '-O0', '-o', PosixPath('/tmp/sn-sdk-json-3efpguc5/c-client.exe')]\nstdout: b''\nstderr: b'\\x1b[1mCompiling\\x1b[0m main.sn...\\n  Parsing... \\x1b[1;36mdone\\x1b[0m\\n  Type checking... \\x1b[1;36mdone\\x1b[0m\\n  Code generation... \\x1b[1;36mdone\\x1b[0m\\n  Linking...\\n/usr/bin/ld: cannot find -ljson-c: No such file or directory\\ncollect2: error: ld returned 1 exit status\\nError: linking failed\\n \\x1b[1;31mfailed\\x1b[0m\\n\\n\\x1b[1;31mCompilation failed\\x1b[0m\\n'\n"
+    },
+    "after": {
+      "status": 0,
+      "stdout": "PASS: 4 Json native and legacy caller cases\n",
+      "stderr": ""
+    }
+  }
 }
