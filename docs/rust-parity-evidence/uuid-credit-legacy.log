@@ -1,0 +1,43 @@
+Compiler: /home/gavin/code/sindarin/sindarin-sdk-uuid-credits/bin/sn-no-install
+Platform: Linux
+Parallel: 20 workers
+
+Tests
+============================================================
+
+  Running tests... [0/28]
+  Running tests... [1/28]
+  Running tests... [2/28]
+  Running tests... [3/28]
+  Running tests... [4/28]
+  Running tests... [5/28]
+  Running tests... [6/28]
+  Running tests... [7/28]
+  Running tests... [8/28]
+  Running tests... [9/28]
+  Running tests... [10/28]
+  Running tests... [11/28]
+  Running tests... [12/28]
+  Running tests... [13/28]
+  Running tests... [14/28]
+  Running tests... [15/28]
+  Running tests... [16/28]
+  Running tests... [17/28]
+  Running tests... [18/28]
+  Running tests... [19/28]
+  Running tests... [20/28]
+  Running tests... [21/28]
+  Running tests... [22/28]
+  Running tests... [23/28]
+  Running tests... [24/28]
+  Running tests... [25/28]
+  Running tests... [26/28]
+  Running tests... [27/28]
+  Running tests... [28/28]
+
+  PASS
+
+------------------------------------------------------------
+Results: 28 passed, 0 failed, 0 skipped  (1691ms)
+
+All tests passed!

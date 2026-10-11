@@ -726,7 +726,8 @@ RtUuid *sn_uuid_namespace_dns(void) {
         return NULL;
     }
 
-    *uuid = SN_UUID_NAMESPACE_DNS;
+    uuid->high = SN_UUID_NAMESPACE_DNS.high;
+    uuid->low = SN_UUID_NAMESPACE_DNS.low;
     return uuid;
 }
 
@@ -736,7 +737,8 @@ RtUuid *sn_uuid_namespace_url(void) {
         return NULL;
     }
 
-    *uuid = SN_UUID_NAMESPACE_URL;
+    uuid->high = SN_UUID_NAMESPACE_URL.high;
+    uuid->low = SN_UUID_NAMESPACE_URL.low;
     return uuid;
 }
 
@@ -746,7 +748,8 @@ RtUuid *sn_uuid_namespace_oid(void) {
         return NULL;
     }
 
-    *uuid = SN_UUID_NAMESPACE_OID;
+    uuid->high = SN_UUID_NAMESPACE_OID.high;
+    uuid->low = SN_UUID_NAMESPACE_OID.low;
     return uuid;
 }
 
@@ -756,7 +759,8 @@ RtUuid *sn_uuid_namespace_x500(void) {
         return NULL;
     }
 
-    *uuid = SN_UUID_NAMESPACE_X500;
+    uuid->high = SN_UUID_NAMESPACE_X500.high;
+    uuid->low = SN_UUID_NAMESPACE_X500.low;
     return uuid;
 }
 

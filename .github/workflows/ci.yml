@@ -78,6 +78,18 @@ jobs:
       - name: Validate DTLS teardown and retain original C caller streams
         shell: bash
         run: python3 sdk/scripts/check_dtls_lifecycle.py --compiler "bin/sn${{ matrix.exe_ext }}" --targets c
+      - name: Validate UUID namespace credits and unchanged C/Rust callers
+        shell: bash
+        run: python3 sdk/scripts/check_uuid_credits.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument UUID ownership and legacy callers
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          SN_CC: gcc
+          SN_CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1
+        run: python3 sdk/scripts/check_uuid_credits.py --compiler bin/sn
       - name: Instrument canonical modules and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
@@ -96,3 +108,5 @@ jobs:
             sdk/.sn/time-date-sanitizers.json
             sdk/.sn/dtls-lifecycle.json
             sdk/.sn/dtls-lifecycle-sanitizers.json
+            sdk/.sn/uuid-credit-validation.json
+            sdk/.sn/uuid-credit-validation-sanitized.json
