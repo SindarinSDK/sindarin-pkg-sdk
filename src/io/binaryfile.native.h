@@ -46,6 +46,20 @@ void sn_binary_file_dispose(SnSdkBinaryFileRecord *file);
 char *sn_binary_file_get_path(SnSdkBinaryFileRecord *file);
 char *sn_binary_file_get_name(SnSdkBinaryFileRecord *file);
 long long sn_binary_file_get_size(SnSdkBinaryFileRecord *file);
+/* Backing entry points for generated package providers; original symbols above
+ * remain available to the unchanged public Sindarin facade. */
+SnSdkBinaryFileRecord *sn_sdk_binary_file_open(char *path);
+long long sn_sdk_binary_file_exists(char *path);
+SnArray *sn_sdk_binary_file_read_all_static(char *path);
+void sn_sdk_binary_file_write_all_static(char *path, SnArray *data);
+void sn_sdk_binary_file_copy(char *source, char *destination);
+void sn_sdk_binary_file_move(char *source, char *destination);
+void sn_sdk_binary_file_delete(char *path);
+SnArray *sn_sdk_binary_file_read_bytes(SnSdkBinaryFileRecord *file, long long count);
+SnArray *sn_sdk_binary_file_read_remaining(SnSdkBinaryFileRecord *file);
+void sn_sdk_binary_file_dispose(SnSdkBinaryFileRecord *file);
+char *sn_sdk_binary_file_get_path(SnSdkBinaryFileRecord *file);
+char *sn_sdk_binary_file_get_name(SnSdkBinaryFileRecord *file);
 #endif
 #ifdef __cplusplus
 }

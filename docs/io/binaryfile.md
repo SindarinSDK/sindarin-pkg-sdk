@@ -22,6 +22,9 @@ by the caller and released with `sn_array_free`; returned paths/names are owned
 C strings released with `free`. Input byte arrays are borrowed. `readInto`
 mutates their existing storage, so aliases observe the bytes immediately.
 The public `binaryfile.sn` API and its existing fixtures remain unchanged.
+Separate `sn_sdk_binary_file_*` backing names forward its root helpers to the
+original C functions. Generated providers can namespace these backing names
+without changing the C symbols called by the public Sindarin facade.
 
 `make test` validates this module on the installed compiler runtime. To run it
 directly, use `python3 scripts/check_bytes_native.py --compiler /path/to/bin/sn
