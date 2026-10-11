@@ -50,7 +50,8 @@ def verify(compiler, sanitize=False, runtime_source=None, module='bytes'):
             raise ValueError(f'{label} module mismatch: {run.returncode} {run.stdout!r} {run.stderr!r}')
         if module == 'binaryfile' and not sanitize:
             run = subprocess.run([str(executable),'nil-path'],cwd=work,capture_output=True,timeout=15)
-            if run.returncode != 1 or run.stdout or run.stderr != b'SnBinaryFile.open: path is NULL\n':
+            expected_error = b'SnBinaryFile.open: path is NULL'+(b'\r\n' if os.name == 'nt' else b'\n')
+            if run.returncode != 1 or run.stdout or run.stderr != expected_error:
                 raise ValueError(f'BinaryFile error mismatch: {run.returncode} {run.stdout!r} {run.stderr!r}')
     return {'kind':('sanitized' if sanitize else 'independent')+f' C {label} module','passed':True}
 
