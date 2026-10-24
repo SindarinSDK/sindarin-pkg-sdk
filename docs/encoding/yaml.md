@@ -248,3 +248,18 @@ source hashes, and ten native helper tests. See
 Complete hosted SDK acceptance and generated compiler SDK artifact staging are
 still required. This module checkpoint does not complete SDK migration or the
 Rust/C parity goal.
+
+
+### Required CI failure and diagnostic correction, 2026-10-24
+
+SDK `f8fefe1` fails overall CI 40122131569: the unchanged macOS TLS read/write
+program exits 1, while the canonical Yaml checks pass on all three platforms.
+This failed run receives no overall acceptance credit. Feature publication is
+frozen and the original TLS failure remains unresolved.
+
+The Python diagnostic wrapper now selects the actual failed source, retains
+its stderr, disables dependency installation and matches the original O0/debug
+compile mode. A regression reproduces output pruning and verifies that a
+successful diagnostic cannot hide primary failure. No existing Sindarin source
+or oracle changes. Eleven native helper checks pass; correction CI is required.
+See [diagnostic correction evidence](../native-evidence/yaml-required-ci-diagnostics-correction.json).

@@ -1,0 +1,36 @@
+{
+  "status": "Required SDK CI failed; publication frozen; diagnostic retention correction validated locally; TLS root cause remains unresolved",
+  "failed_revision": "f8fefe1b83690cc92b07f519b2ba0f25fdc0d844",
+  "CI": 40122131569,
+  "job": 120955791250,
+  "failed_case": "tests/net/test_tls.sn::test_tls_read_write",
+  "primary_suite": {
+    "passed": 27,
+    "failed": 1,
+    "skipped": 0
+  },
+  "yaml_native_hosted_jobs": "all three platform jobs passed; failed overall CI receives no acceptance credit",
+  "retained_failure_log_sha256": "7fa5713540ea441967cd3784bc06e5c5724816b6c548bc9608cef87ec18ea709",
+  "diagnostic_defects": [
+    "Wrong fixture selected: DTLS instead of the actual failed TLS source",
+    "Automatic installation pruned .sn diagnostic output before streams/results could be saved",
+    "Diagnostic compile mode did not match the original O0 debug harness"
+  ],
+  "correction": [
+    "Select actual failed source from the retained primary failure listing",
+    "Disable dependency installation for the diagnostic compile",
+    "Use the original O0/debug compile mode",
+    "Retain primary and diagnostic streams after output pruning",
+    "Preserve the primary nonzero status even when the diagnostic succeeds"
+  ],
+  "native_helper_tests": 11,
+  "existing_Sindarin_sources_changed": false,
+  "TLS_root_cause_resolved": false,
+  "hosted_correction_acceptance": "pending publication",
+  "logs": {
+    "helpers": {
+      "path": "bin/yaml-goal-logs/diagnostics-helpers.log",
+      "sha256": "a054348557c8b97c948d757d7804f19cfc55c407fb52a0ee32baf1e2662b3a4b"
+    }
+  }
+}
