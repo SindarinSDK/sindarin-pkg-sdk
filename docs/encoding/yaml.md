@@ -222,3 +222,29 @@ fn main(): void =>
 - [XML](xml.md) - XML parsing and manipulation
 - [SDK Overview](../readme.md) - All SDK modules
 - SDK source: `sdk/encoding/yaml.sn`
+
+
+## Canonical C storage: local implementation, 2026-10-24
+
+`src/encoding/yaml.native.h` exposes a reusable 40-byte record with the existing
+root, node, is_root and handle fields. `yaml.native.c` compiles the same parser,
+accessors, mutation and serializer operations from `yaml.sn.c`. Public Sindarin
+declarations and original caller/oracle files remain unchanged. Legacy source
+imports keep their existing operation and manual-disposal behavior.
+
+Canonical wrapper and node credits preserve children after parent disposal,
+removed/replaced nodes and repeated sequence aliases. Final wrapper release
+cleans up its node credit; root dispose clears the original visible fields and
+child dispose keeps its existing no-op behavior. Native deep copies retain
+independent trees. Direct native copy of nil keeps the original empty-scalar
+wrapper result. The handle field remains zero.
+
+Local validation passes independent C/Rust archives, eighteen unchanged original
+caller mode cases, an actual-runtime address/undefined/leak client, 40,000
+threaded wrapper credit operations, 28 legacy SDK tests with the exact staged
+source hashes, and ten native helper tests. See
+[local validation](../native-evidence/yaml-local-validation.json).
+
+Complete hosted SDK acceptance and generated compiler SDK artifact staging are
+still required. This module checkpoint does not complete SDK migration or the
+Rust/C parity goal.

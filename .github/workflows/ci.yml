@@ -132,6 +132,13 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: python3 sdk/scripts/check_xml_native.py --compiler bin/sn --sanitize
+      - name: Validate canonical Yaml node aliases and unchanged C/Rust callers
+        shell: bash
+        run: python3 sdk/scripts/check_yaml_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument Yaml node ownership and actual shared runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_yaml_native.py --compiler bin/sn --sanitize
       - name: Instrument canonical modules and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
@@ -164,3 +171,5 @@ jobs:
             sdk/.sn/json-sanitizers.json
             sdk/.sn/xml-native.json
             sdk/.sn/xml-sanitizers.json
+            sdk/.sn/yaml-native.json
+            sdk/.sn/yaml-sanitizers.json

@@ -1,0 +1,45 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "kind": "C modules and actual runtime address/undefined/leak",
+      "passed": true
+    }
+  ],
+  "complete_sdk_package": false,
+  "compiler_sha256": "53b73cab676464aaa8c8002396d0ff55dc89adb925637e01ca32e578fed94d29",
+  "runtime_archive_sha256": "d1f84ae5bbae339d5dee3d4155761f0ce3d1318f95053fb0fe358e0c3ff06102",
+  "actual_runtime_source_sha256": {
+    "/home/gavin/code/sindarin/sindarin-compiler/src/runtime/sn_abi.c": "1da31b8d952d7c63116eefca33a5614e26e0c8dc69f2f6c26e566f3ff8d96b36",
+    "/home/gavin/code/sindarin/sindarin-compiler/src/runtime/sn_array.c": "144b720c56431064ea3567d7ac4cd42719ca5a4d9c9f24cd0096456631ecc4c4",
+    "/home/gavin/code/sindarin/sindarin-compiler/src/runtime/sn_string.c": "553e846efa79e7d8dc93d7940bf89566154461ad7cc0135da517db5f30c09da2",
+    "/home/gavin/code/sindarin/sindarin-compiler/src/runtime/sn_byte.c": "9232f6b04692f68c3c7eae51a33385b4317e3950858062f37e2d6dda8d0f6416"
+  },
+  "platform": "Linux",
+  "sources": {
+    "src/encoding/text.native.c": "cafc6bdf07c10f24df7bcc817fa9ff7edda8ccc09b2dfa08bca4dea41e172628",
+    "src/encoding/yaml.sn": "8bbe7915bdd2640f4be3940a6ce0da1dbc0fc0edb94628703a536ab54f6876ec",
+    "src/encoding/zlib.sn": "c423d102335215c5894a8d56f2c8713878b255ec3a198c8889d493f02acd8b5d",
+    "src/encoding/xml.native.c": "9d4ed90eb559cd19689e67a9231b91fed7d82fc51b0df99c145338a856ace833",
+    "src/encoding/text.sn.c": "98e7c4d7f796dcb9c000c488d894cbc4ac6dbb9f48b74880317feaaf0ee70726",
+    "src/encoding/yaml.sn.c": "724f181b4bb9dd2a2893c2c48cc3abf4572baea79735e4927ae371959fec693a",
+    "src/encoding/yaml.native.c": "0f84f644eba9eb10beca397d7e54abdff4520eee148ce82af65161a401df895f",
+    "src/encoding/json.native.c": "981410c5b2c391b7f979339b0c30a961ed7410ec4e70578c719f99ec3fc42ec1",
+    "src/encoding/json.sn": "e229fb2ec2fbe64d1c76ca35f0ee385179b96fe8ad933e4bb668244bb4b0bcec",
+    "src/encoding/yaml.native.h": "67601a76baae081b802321433de55747b3cb05871dd7894399304f4e7be393f1",
+    "src/encoding/xml.sn.c": "a8a4c38daf03784048d5cec2ef15a599761708cd1977ccfb54940ad21fa91cbb",
+    "src/encoding/text.sn": "d693471888b9599e19594611bde496e9cf0cded06cb33b3eac06b726ae355e1f",
+    "src/encoding/xml.sn": "aee568777cc053276c7aa8100af8ca66d06ea1f2efa6db3a67c12c6883134036",
+    "src/encoding/xml.owners.h": "ed2ae149b768cd26ab48057fc272937268e1da4239d66b974d47e7feb0bb1107",
+    "src/encoding/text.native.h": "d67503676a73a1732cae3d89c9e2f52caed86489ad807a9e5fb49bf7852a2f91",
+    "src/encoding/xml.native.h": "87267d98e8457363a292a8611d57984478539803634b0d7316d326c98047ad09",
+    "src/encoding/json.sn.c": "cf1d6feab4e5defd2c14c94843e85612b6a728c050adf98c6f8a1bebc75dd534",
+    "src/encoding/json.native.h": "1903ff75f7817e87a37172b1dca46dd1fcdadae025264e20d0a3efb4ade5b542",
+    "tests/encoding/test_yaml.sn": "dfbee31b3492e2d3c3d1f6ec8221c9b4da808de18edacdad0bf215bf9f7d5370",
+    "tests/encoding/test_yaml.expected": "6de7662d1f347335d59bd4d9fcea05c5038d56dd359ab8fad6d24054711580ed",
+    "tests/native/yaml.c": "370d5ab4a75e4003433997754f5e36e6f07d5bd104647b1a42e905268459bf3a",
+    "tests/native/yaml.rs": "47ace6988fd6ed7cf77e1bc7c0469e9ba06f993209ac7dae9b2a20da0f04ae28",
+    "scripts/check_yaml_native.py": "7f8ad8f6f379ab78b0ee4a78b0162e1d4a0fa13d9a83492389347cc14ecc34f3"
+  },
+  "scope": "Canonical C Yaml storage and unchanged legacy callers; hosted compiler artifact adapters and broader SDK migration remain required"
+}

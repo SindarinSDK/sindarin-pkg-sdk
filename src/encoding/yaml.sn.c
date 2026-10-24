@@ -16,6 +16,25 @@
 
 #include <yaml.h>
 
+#include "yaml.native.h"
+#ifdef SN_SDK_YAML_STANDALONE
+typedef SnSdkYamlRecord __sn__Yaml;
+static __sn__Yaml *sn_sdk_yaml_new(void)
+{
+    __sn__Yaml *value = calloc(1, sizeof(*value));
+    if (value) value->__rc__ = 1;
+    return value;
+}
+#define __sn__Yaml__new sn_sdk_yaml_new
+#else
+typedef char SnSdkYamlSizeCompatible[(sizeof(__sn__Yaml) == sizeof(SnSdkYamlRecord)) ? 1 : -1];
+typedef char SnSdkYamlRefsCompatible[(offsetof(__sn__Yaml, __rc__) == offsetof(SnSdkYamlRecord, __rc__)) ? 1 : -1];
+typedef char SnSdkYamlRootCompatible[(offsetof(__sn__Yaml, root) == offsetof(SnSdkYamlRecord, root)) ? 1 : -1];
+typedef char SnSdkYamlNodeCompatible[(offsetof(__sn__Yaml, node) == offsetof(SnSdkYamlRecord, node)) ? 1 : -1];
+typedef char SnSdkYamlIsRootCompatible[(offsetof(__sn__Yaml, is_root) == offsetof(SnSdkYamlRecord, is_root)) ? 1 : -1];
+typedef char SnSdkYamlHandleCompatible[(offsetof(__sn__Yaml, handle) == offsetof(SnSdkYamlRecord, handle)) ? 1 : -1];
+#endif
+
 /* ============================================================================
  * Internal Tree Data Structures
  * ============================================================================ */
@@ -34,6 +53,9 @@ typedef struct SnYamlPair {
 } SnYamlPair;
 
 struct SnYamlNode {
+#ifdef SN_SDK_YAML_STANDALONE
+    int credits;
+#endif
     SnYamlType type;
     /* Scalar */
     char *scalar_value;
@@ -78,6 +100,19 @@ static SnYamlNode *sn_yaml_node_new(SnYamlType type)
         exit(1);
     }
     node->type = type;
+#ifdef SN_SDK_YAML_STANDALONE
+    node->credits = 1;
+#endif
+    return node;
+}
+
+static void sn_yaml_node_free(SnYamlNode *node);
+
+static SnYamlNode *sn_yaml_node_retain(SnYamlNode *node)
+{
+#ifdef SN_SDK_YAML_STANDALONE
+    if (node) __atomic_fetch_add(&node->credits, 1, __ATOMIC_RELAXED);
+#endif
     return node;
 }
 
@@ -131,6 +166,9 @@ static void sn_yaml_map_set(SnYamlNode *map, const char *key, SnYamlNode *value)
     /* Check if key already exists */
     for (int i = 0; i < map->map_count; i++) {
         if (map->map_pairs[i].key && strcmp(map->map_pairs[i].key, key) == 0) {
+#ifdef SN_SDK_YAML_STANDALONE
+            sn_yaml_node_free(map->map_pairs[i].value);
+#endif
             map->map_pairs[i].value = value;
             return;
         }
@@ -154,6 +192,9 @@ static void sn_yaml_map_set(SnYamlNode *map, const char *key, SnYamlNode *value)
 static void sn_yaml_node_free(SnYamlNode *node)
 {
     if (node == NULL) return;
+#ifdef SN_SDK_YAML_STANDALONE
+    if (__atomic_sub_fetch(&node->credits, 1, __ATOMIC_ACQ_REL) != 0) return;
+#endif
 
     switch (node->type) {
         case SN_YAML_SCALAR:
@@ -194,6 +235,11 @@ static __sn__Yaml *sn_yaml_wrap(SnYamlNode *root, SnYamlNode *node, int is_root)
     }
     YAML_SET_ROOT(y, root);
     YAML_SET_NODE(y, node);
+#ifdef SN_SDK_YAML_STANDALONE
+    /* A borrowed child wrapper keeps its own node alive after removal or
+     * parent cleanup. New root nodes already supply the wrapper's credit. */
+    if (!is_root) sn_yaml_node_retain(node);
+#endif
     y->is_root = is_root;
     y->handle = 0;
     return y;
@@ -593,7 +639,7 @@ void sn_yaml_set(__sn__Yaml *y, char *key, __sn__Yaml *value)
         fprintf(stderr, "Yaml.set: not a mapping\n");
         return;
     }
-    sn_yaml_map_set(node, key, YAML_NODE(value));
+    sn_yaml_map_set(node, key, sn_yaml_node_retain(YAML_NODE(value)));
     /* Transfer ownership: the node is now part of y's tree */
     value->is_root = 0;
     YAML_SET_ROOT(value, NULL);
@@ -609,6 +655,9 @@ void sn_yaml_remove(__sn__Yaml *y, char *key)
     for (int i = 0; i < node->map_count; i++) {
         if (node->map_pairs[i].key && strcmp(node->map_pairs[i].key, key) == 0) {
             free(node->map_pairs[i].key);
+#ifdef SN_SDK_YAML_STANDALONE
+            sn_yaml_node_free(node->map_pairs[i].value);
+#endif
             /* Shift remaining pairs */
             for (int j = i; j < node->map_count - 1; j++) {
                 node->map_pairs[j] = node->map_pairs[j + 1];
@@ -638,7 +687,7 @@ void sn_yaml_append(__sn__Yaml *y, __sn__Yaml *value)
         fprintf(stderr, "Yaml.append: not a sequence\n");
         return;
     }
-    sn_yaml_seq_append(node, YAML_NODE(value));
+    sn_yaml_seq_append(node, sn_yaml_node_retain(YAML_NODE(value)));
     /* Transfer ownership: the node is now part of y's tree */
     value->is_root = 0;
     YAML_SET_ROOT(value, NULL);
@@ -674,7 +723,7 @@ void sn_yaml_prepend(__sn__Yaml *y, __sn__Yaml *value)
     for (int i = node->seq_count; i > 0; i--) {
         node->seq_items[i] = node->seq_items[i - 1];
     }
-    node->seq_items[0] = YAML_NODE(value);
+    node->seq_items[0] = sn_yaml_node_retain(YAML_NODE(value));
     node->seq_count++;
     /* Transfer ownership: the node is now part of y's tree */
     value->is_root = 0;
@@ -688,6 +737,10 @@ void sn_yaml_remove_at(__sn__Yaml *y, long long index)
     if (node == NULL) return;
     if (node->type != SN_YAML_SEQUENCE) return;
     if (index < 0 || index >= node->seq_count) return;
+
+#ifdef SN_SDK_YAML_STANDALONE
+    sn_yaml_node_free(node->seq_items[index]);
+#endif
 
     /* Shift remaining items */
     for (int i = (int)index; i < node->seq_count - 1; i++) {
