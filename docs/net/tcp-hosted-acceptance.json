@@ -1,0 +1,194 @@
+{
+  "status": "Complete own-revision SDK Linux/macOS/Windows hosted acceptance verified. Native TCP foundation accepted; compiler source/sealed TCP artifact integration remains required.",
+  "revision": "9d2e6e792746ce22d4ee3e744bc3f9938b59b104",
+  "CI": 40222092078,
+  "url": "https://github.com/SindarinSDK/sindarin-pkg-sdk/actions/runs/40222092078",
+  "required_jobs": 7,
+  "all_jobs_successful": true,
+  "compiler_source_revision": "5b51af8c769dd6c1bf28fb7b0e97d25b3cdb3596",
+  "compilers": {
+    "Linux": "73d81f2de16ac143f75da47348871a547b54986365bd0856b3111af2b40f525e",
+    "Darwin": "12fd226295795d533c63a4d7340e2e3bef76a5d64fe2dc32fbc4feeb41ea4187",
+    "Windows": "389091f7c4da78a6b4eae0b9e08252023bbac373cce7629716dae781b86df8d8"
+  },
+  "native_and_original_TCP_cases_each_platform": 21,
+  "actual_C_module_and_runtime_sanitizer_cases_Linux": 1,
+  "layout_values": {
+    "Linux": {
+      "legacy": [
+        32,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8,
+        24,
+        8,
+        24,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8
+      ],
+      "canonical": [
+        32,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8,
+        24,
+        8,
+        24,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8
+      ]
+    },
+    "Darwin": {
+      "legacy": [
+        32,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8,
+        24,
+        8,
+        24,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8
+      ],
+      "canonical": [
+        32,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8,
+        24,
+        8,
+        24,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8
+      ]
+    },
+    "Windows": {
+      "legacy": [
+        32,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8,
+        24,
+        8,
+        24,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8
+      ],
+      "canonical": [
+        32,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8,
+        24,
+        8,
+        24,
+        8,
+        0,
+        4,
+        8,
+        8,
+        16,
+        8
+      ]
+    }
+  },
+  "source_checkout_evidence": {
+    "Linux": [
+      "LF"
+    ],
+    "Darwin": [
+      "LF"
+    ],
+    "Windows": [
+      "CRLF checkout"
+    ]
+  },
+  "public_source_and_oracle_files_unchanged": 87,
+  "scope": "C/Rust archive and unchanged original caller behavior, ABI/layout preservation, reference ownership, snapshots, portable shutdown and socket closure on all three platforms; real POSIX disconnect/SIGPIPE behavior on Linux/macOS; C/runtime instrumentation on Linux. Existing primary SDK tests and other native helper jobs also passed. Four separately retained legacy C debug lifetime failures remain open and receive no parity credit. Full Rust/C parity is not complete.",
+  "retained_reports": [
+    {
+      "path": "docs/net/tcp-hosted-ubuntu-latest-tcp-native.json.gz",
+      "sha256": "8de90b68f4decf1a24538854eead56620a671cc0aa5a0a5c116fb0d99e40024c",
+      "raw_sha256": "ee6f28084c610333b0cbea15e0907cac2bf5a374c9fa60651a0cb6153093756d"
+    },
+    {
+      "path": "docs/net/tcp-hosted-macos-latest-tcp-native.json.gz",
+      "sha256": "09ab4d8ca0a35c5cf4544939aea20ff6712baeebe65d03dcb87bdaf5a1c3e861",
+      "raw_sha256": "969c809972a34cd29fbade06692de8c1bbde68ee14da64662ba3f52780bb86de"
+    },
+    {
+      "path": "docs/net/tcp-hosted-windows-latest-tcp-native.json.gz",
+      "sha256": "926e846075cda2d00b55f656e19e63424424b896ae8a59935b00a6f816af1113",
+      "raw_sha256": "b36be555ad2371683a27ee78efaba67e8d940a69c41e1e200ec4ea5ed8ab5895"
+    },
+    {
+      "path": "docs/net/tcp-hosted-linux-tcp-sanitizers.json.gz",
+      "sha256": "aa8ba487eeaadb3fb2c3bb80c325b8ab48103804454a2860784c17618e32eb4a",
+      "raw_sha256": "4174ab660f67438f9226039781bf4bada6e0ad52d9c186756313890be177ff09"
+    },
+    {
+      "path": "docs/net/tcp-hosted-final.json.gz",
+      "sha256": "a54466886bc7e31b0a542b8b20f4edf395bc2cbf96add8ae6062609d2bdd3ba0",
+      "raw_sha256": "b9c827bb9a1a51be84a746445a8d377affc01812823d8009580ac19eb3701986"
+    },
+    {
+      "path": "docs/net/tcp-hosted-artifacts.json.gz",
+      "sha256": "b39759a8e311f14a12f8312a2b7e8bb8baefd708cd3fc2c4fd0b9752f1e763cd",
+      "raw_sha256": "f26a15dd4eae361138eabf04a7e7ca18524b25fcdc6a41b3742c79c4e0a350b0"
+    },
+    {
+      "path": "docs/net/tcp-hosted-retention.py.gz",
+      "sha256": "63126cd68b8a5358aa916e0000e63d849140d118aaf51074bc48b673af69db4e",
+      "raw_sha256": "b17b7e2c1057534975c0838720af2701ff025cfb45941fbfde5e9e7288b9371f"
+    }
+  ]
+}

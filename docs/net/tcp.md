@@ -327,8 +327,10 @@ python3 scripts/check_tcp_native.py --compiler /path/to/compiler/bin/sn --saniti
 The second command instruments the C module and actual shared runtime. The
 normal check compares canonical storage with C generated independently from the
 original Sindarin declarations, including alignment and every field width and
-offset. [Local validation](tcp-native-validation.json) distinguishes this native
-foundation from pending hosted acceptance and compiler package-artifact wiring.
+offset. [Local validation](tcp-native-validation.json) and
+[complete platform acceptance](tcp-hosted-acceptance.json) cover this native
+foundation on Linux, macOS and Windows. Compiler source/sealed package-artifact
+integration is the next step; full Rust/C parity remains open.
 
 ## See Also
 
