@@ -227,6 +227,24 @@ Note: UDP is connectionless, so `sendTo()` succeeds even if no one is listening.
 
 ---
 
+## Native package storage
+
+The reusable C implementation in `src/net/udp.native.c` shares the original
+`udp.sn.c` socket operations. `udp.native.h` defines package-owned socket and
+receive-result layouts, constructors, atomic retain/release operations and layout
+queries. Existing Sindarin imports, types, fields and methods are unchanged.
+
+The final socket owner closes a registered descriptor; explicit `dispose` is
+idempotent. A default zero-field record owns no descriptor. Receive-result
+release frees its array and sender; getter results are independent owned copies.
+The registry and WinSock initialization support simultaneous independent sockets.
+Concurrent operations on the same socket still require caller coordination.
+
+Local independent C/Rust clients, unchanged legacy callers across nine modes,
+and C runtime sanitizers pass. [Retained validation](udp-native-validation.json)
+records the exact compiler and unchanged source hashes. Compiler artifact
+integration and complete hosted platform acceptance remain pending.
+
 ## See Also
 
 - [Net Overview](readme.md) - Network I/O concepts

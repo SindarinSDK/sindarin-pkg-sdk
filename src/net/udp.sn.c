@@ -46,6 +46,18 @@
  * Type Definitions
  * ============================================================================ */
 
+#ifdef SN_SDK_UDP_STANDALONE
+#include "udp.native.h"
+typedef SnSdkUdpSocketRecord __sn__UdpSocket;
+typedef SnSdkUdpReceiveResultRecord __sn__UdpReceiveResult;
+static inline __sn__UdpSocket *__sn__UdpSocket__new(void) {
+    return sn_sdk_udp_socket_create();
+}
+static inline __sn__UdpReceiveResult *__sn__UdpReceiveResult__new(void) {
+    return sn_sdk_udp_result_create();
+}
+#endif
+
 typedef __sn__UdpSocket RtUdpSocket;
 typedef __sn__UdpReceiveResult RtUdpReceiveResult;
 
@@ -61,20 +73,35 @@ static struct {
     UdpSocketInternal *internal;
 } udp_socket_table[MAX_UDP_SOCKETS];
 static int udp_socket_count = 0;
+static int udp_socket_table_lock = 0;
+
+static void udp_lock_table(void) {
+    while (__atomic_exchange_n(&udp_socket_table_lock, 1, __ATOMIC_ACQUIRE)) {}
+}
+
+static void udp_unlock_table(void) {
+    __atomic_store_n(&udp_socket_table_lock, 0, __ATOMIC_RELEASE);
+}
 
 static UdpSocketInternal *udp_get_internal(__sn__UdpSocket *socket) {
+    UdpSocketInternal *internal = NULL;
+    udp_lock_table();
     for (int i = 0; i < udp_socket_count; i++) {
         if (udp_socket_table[i].socket == socket) {
-            return udp_socket_table[i].internal;
+            internal = udp_socket_table[i].internal;
+            break;
         }
     }
-    return NULL;
+    udp_unlock_table();
+    return internal;
 }
 
 static void udp_register_internal(__sn__UdpSocket *socket, UdpSocketInternal *internal) {
+    udp_lock_table();
     for (int i = 0; i < udp_socket_count; i++) {
         if (udp_socket_table[i].socket == socket) {
             udp_socket_table[i].internal = internal;
+            udp_unlock_table();
             return;
         }
     }
@@ -82,20 +109,25 @@ static void udp_register_internal(__sn__UdpSocket *socket, UdpSocketInternal *in
         udp_socket_table[udp_socket_count].socket = socket;
         udp_socket_table[udp_socket_count].internal = internal;
         udp_socket_count++;
+        udp_unlock_table();
     } else {
+        udp_unlock_table();
         fprintf(stderr, "sn_udp: too many open sockets\n");
         exit(1);
     }
 }
 
 static void udp_unregister_internal(__sn__UdpSocket *socket) {
+    udp_lock_table();
     for (int i = 0; i < udp_socket_count; i++) {
         if (udp_socket_table[i].socket == socket) {
             udp_socket_table[i] = udp_socket_table[udp_socket_count - 1];
             udp_socket_count--;
+            udp_unlock_table();
             return;
         }
     }
+    udp_unlock_table();
 }
 
 /* ============================================================================
@@ -106,6 +138,7 @@ static void udp_unregister_internal(__sn__UdpSocket *socket) {
 static int winsock_initialized = 0;
 
 static void ensure_winsock_initialized(void) {
+    udp_lock_table();
     if (!winsock_initialized) {
         WSADATA wsaData;
         int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -115,6 +148,7 @@ static void ensure_winsock_initialized(void) {
         }
         winsock_initialized = 1;
     }
+    udp_unlock_table();
 }
 #else
 #define ensure_winsock_initialized() ((void)0)

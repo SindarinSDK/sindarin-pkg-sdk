@@ -55,7 +55,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: SindarinSDK/sindarin-compiler
-          ref: 4211bf0f37b2941faa4534e349aabf46697ba907
+          ref: 43a6d633c7d72c1ec8cf144ee720ef885f831490
           persist-credentials: false
       - name: Checkout exact SDK revision
         uses: actions/checkout@v7
@@ -93,6 +93,13 @@ jobs:
       - name: Validate canonical Random and unchanged C/Rust callers
         shell: bash
         run: python3 sdk/scripts/check_random_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Validate canonical UDP C/Rust archives and unchanged callers
+        shell: bash
+        run: python3 sdk/scripts/check_udp_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument UDP ownership, registry and actual shared runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_udp_native.py --compiler bin/sn --sanitize
       - name: Instrument Random storage and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
@@ -161,6 +168,8 @@ jobs:
             sdk/.sn/uuid-credit-validation-sanitized.json
             sdk/.sn/random-native.json
             sdk/.sn/random-sanitizers.json
+            sdk/.sn/udp-native.json
+            sdk/.sn/udp-sanitizers.json
             sdk/.sn/uuid-native.json
             sdk/.sn/uuid-sanitizers.json
             sdk/.sn/stringbuilder-native.json
