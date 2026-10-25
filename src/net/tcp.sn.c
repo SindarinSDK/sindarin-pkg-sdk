@@ -53,6 +53,18 @@
  * Type Definitions
  * ============================================================================ */
 
+#ifdef SN_SDK_TCP_STANDALONE
+#include "tcp.native.h"
+typedef SnSdkTcpStreamRecord __sn__TcpStream;
+typedef SnSdkTcpListenerRecord __sn__TcpListener;
+static inline __sn__TcpStream *__sn__TcpStream__new(void) {
+    return sn_sdk_tcp_stream_create();
+}
+static inline __sn__TcpListener *__sn__TcpListener__new(void) {
+    return sn_sdk_tcp_listener_create();
+}
+#endif
+
 typedef __sn__TcpStream RtTcpStream;
 typedef __sn__TcpListener RtTcpListener;
 
@@ -81,17 +93,23 @@ static TcpStreamInternal *get_internal(__sn__TcpStream *stream) {
  * ============================================================================ */
 
 #ifdef _WIN32
+/* 0=uninitialized, 1=initializing, 2=ready. Factory calls may be concurrent. */
 static int winsock_initialized = 0;
 
 static void ensure_winsock_initialized(void) {
-    if (!winsock_initialized) {
+    if (__atomic_load_n(&winsock_initialized, __ATOMIC_ACQUIRE) == 2) return;
+    int expected = 0;
+    if (__atomic_compare_exchange_n(&winsock_initialized, &expected, 1, false,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
         WSADATA wsaData;
         int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
         if (result != 0) {
             fprintf(stderr, "WSAStartup failed: %d\n", result);
             exit(1);
         }
-        winsock_initialized = 1;
+        __atomic_store_n(&winsock_initialized, 2, __ATOMIC_RELEASE);
+    } else {
+        while (__atomic_load_n(&winsock_initialized, __ATOMIC_ACQUIRE) != 2) Sleep(0);
     }
 }
 #else
@@ -222,7 +240,7 @@ static __sn__TcpStream *sn_tcp_stream_create(socket_t sock, char *remote_addr) {
         exit(1);
     }
     SET_SOCK_FD(stream, sock);
-    stream->remote_addr = remote_addr ? strdup(remote_addr) : NULL;
+    stream->remote_addr = remote_addr ? (unsigned char *)strdup(remote_addr) : NULL;
 
     /* Create internal state */
     TcpStreamInternal *internal = (TcpStreamInternal *)calloc(1, sizeof(TcpStreamInternal));
@@ -242,6 +260,9 @@ static __sn__TcpStream *sn_tcp_stream_create(socket_t sock, char *remote_addr) {
     internal->eof_reached = false;
 
     SET_STREAM_INTERNAL(stream, internal);
+#ifdef SN_SDK_TCP_STANDALONE
+    sn_sdk_tcp_stream_mark_owned(stream);
+#endif
 
     return stream;
 }
@@ -653,6 +674,20 @@ void sn_tcp_stream_set_timeout(__sn__TcpStream *stream, long long timeout_ms) {
  * previous behaviour was exit(1), which terminated the entire process
  * on every client disconnect — fatal for long-running servers (HTTP
  * SSE, websockets, anything where peers come and go). */
+/* Keep disconnect handling local to this send/socket. Changing the process's
+ * SIGPIPE disposition would also change unrelated application I/O. */
+static int tcp_send_without_signal(socket_t socket, const char *data, int length) {
+#ifdef MSG_NOSIGNAL
+    return (int)send(socket, data, length, MSG_NOSIGNAL);
+#else
+#ifdef SO_NOSIGPIPE
+    int enabled = 1;
+    if (setsockopt(socket, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled)) != 0) return -1;
+#endif
+    return (int)send(socket, data, length, 0);
+#endif
+}
+
 long long sn_tcp_stream_write(__sn__TcpStream *stream, SnArray *data) {
     if (stream == NULL || data == NULL) return 0;
 
@@ -660,7 +695,7 @@ long long sn_tcp_stream_write(__sn__TcpStream *stream, SnArray *data) {
     if (length == 0) return 0;
 
     socket_t sock = SOCK_FD(stream);
-    int bytes_sent = send(sock, (const char *)data->data, (int)length, 0);
+    int bytes_sent = tcp_send_without_signal(sock, (const char *)data->data, (int)length);
 
     if (bytes_sent < 0) {
         /* Quiet on the common disconnect cases — they are normal in
@@ -694,7 +729,7 @@ void sn_tcp_stream_write_line(__sn__TcpStream *stream, char *text) {
     if (text != NULL) {
         size_t len = strlen(text);
         if (len > 0) {
-            int result = send(sock, text, (int)len, 0);
+            int result = tcp_send_without_signal(sock, text, (int)len);
             if (result < 0) {
                 int err = GET_SOCKET_ERROR();
 #ifdef _WIN32
@@ -711,7 +746,7 @@ void sn_tcp_stream_write_line(__sn__TcpStream *stream, char *text) {
     }
 
     /* Send newline */
-    int result = send(sock, "\r\n", 2, 0);
+    int result = tcp_send_without_signal(sock, "\r\n", 2);
     if (result < 0) {
         int err = GET_SOCKET_ERROR();
 #ifdef _WIN32
@@ -866,6 +901,9 @@ __sn__TcpListener *sn_tcp_listener_bind(char *address) {
     }
     SET_SOCK_FD(listener, sock);
     listener->bound_port = (long long)actual_port;
+#ifdef SN_SDK_TCP_STANDALONE
+    sn_sdk_tcp_listener_mark_owned(listener);
+#endif
 
     return listener;
 }

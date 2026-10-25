@@ -26,7 +26,7 @@ while true =>
     var client: TcpStream = server.accept()
     &handleClient(client)  // handle in background thread
 
-server.close()
+server.dispose()
 ```
 
 ### Static Methods
@@ -58,6 +58,13 @@ var client: TcpStream = server.accept()
 print($"Client connected from {client.remoteAddress()}\n")
 ```
 
+#### acceptOrShutdown(signalFd)
+
+Waits for a connection or a readable shutdown descriptor. A shutdown signal
+returns a stream for which `isValid()` is false. On Windows the descriptor must
+be a socket that can be used with the socket readiness API. The caller owns and
+closes the shutdown descriptor.
+
 #### port()
 
 Returns the bound port number. Useful when binding to `:0` for OS-assigned ports.
@@ -67,12 +74,12 @@ var server: TcpListener = TcpListener.bind(":0")
 print($"Server listening on port {server.port()}\n")
 ```
 
-#### close()
+#### dispose()
 
 Closes the listener socket.
 
 ```sindarin
-server.close()
+server.dispose()
 ```
 
 ---
@@ -89,7 +96,7 @@ conn.writeLine("Host: example.com")
 conn.writeLine("")
 var response: byte[] = conn.readAll()
 print(response.toString())
-conn.close()
+conn.dispose()
 ```
 
 ### Static Methods
@@ -158,12 +165,23 @@ Returns the remote peer's address as a string.
 print($"Connected to: {conn.remoteAddress()}\n")
 ```
 
-#### close()
+#### setTimeout(ms)
+
+Sets the stream's read timeout in milliseconds. A negative value keeps reads
+blocking, zero polls without waiting, and a positive value limits the wait.
+
+#### isValid()
+
+Reports whether the stream stores a descriptor other than the invalid sentinel.
+Use it to check the result of `acceptOrShutdown()`. It does not detect whether a
+peer has disconnected; read/write results provide that information.
+
+#### dispose()
 
 Closes the connection.
 
 ```sindarin
-conn.close()
+conn.dispose()
 ```
 
 ---
@@ -186,7 +204,7 @@ fn main(): int =>
                 break
             client.write(data)
 
-        client.close()
+        client.dispose()
 
     return 0
 ```
@@ -197,7 +215,7 @@ fn main(): int =>
 fn handleClient(client: TcpStream): void =>
     var line: str = client.readLine()
     client.writeLine($"Echo: {line}")
-    client.close()
+    client.dispose()
 
 fn main(): int =>
     var server: TcpListener = TcpListener.bind(":8080")
@@ -228,7 +246,7 @@ fn handleClient(client: TcpStream): void =>
         else =>
             client.writeLine($"Unknown: {line}")
 
-    client.close()
+    client.dispose()
 ```
 
 ### Simple HTTP Request
@@ -249,7 +267,7 @@ fn httpGet(url: str): str =>
     conn.writeLine("")
 
     var response: byte[] = conn.readAll()
-    conn.close()
+    conn.dispose()
     return response.toString()
 ```
 
@@ -263,28 +281,54 @@ var c3: TcpStream = &TcpStream.connect("api3.example.com:80")
 [c1, c2, c3]!
 
 // All connected, use them...
-c1.close()
-c2.close()
-c3.close()
+c1.dispose()
+c2.dispose()
+c3.dispose()
 ```
 
 ---
 
 ## Error Handling
 
-TCP operations panic on errors. Common error conditions:
+Bind, connect and accept failures terminate the process with a diagnostic.
+Reads return empty or accumulated data when they encounter EOF, a timeout or a
+socket error. An empty read alone does not distinguish those conditions.
 
-- `TcpListener.bind()` - Address already in use, permission denied
-- `TcpStream.connect()` - Connection refused, DNS failure, timeout
-- `.read()` / `.write()` - Connection reset, broken pipe
-
-```sindarin
-// Connection may fail - will panic if it does
-var conn: TcpStream = TcpStream.connect("example.com:80")
-// If we reach here, connection succeeded
-```
+`write()` returns the number of bytes sent, which can be less than the input
+length, or `-1` on failure. Broken-pipe and connection-reset errors return quietly.
+`writeLine()` returns no status and stops on a send error. Peer disconnection
+does not terminate the process through `SIGPIPE`; signal handling stays local to
+the send operation or socket. Use `write()` when the caller needs a result.
 
 ---
+
+## Native C module
+
+The reusable [TCP C header](../../src/net/tcp.native.h) exposes streams and
+listeners with the existing Sindarin layouts. Its implementation includes the
+same `tcp.sn.c` backing used by legacy imports. The public Sindarin declarations
+and original callers are unchanged.
+
+Native clients use the `sn_sdk_tcp_*_create`, `retain` and `release` functions.
+Factories return one owned reference. Retained aliases share the same record;
+the last release closes factory-owned resources. Explicit `dispose()` remains
+idempotent. Default records keep zero-valued public fields and releasing them
+does not close standard input. Returned arrays and remote-address/line strings
+own snapshots that survive stream release. Native clients must release those
+results through the matching runtime/allocator API.
+
+Run the C/Rust archive and original-caller checks from the SDK checkout:
+
+```sh
+python3 scripts/check_tcp_native.py --compiler /path/to/compiler/bin/sn
+python3 scripts/check_tcp_native.py --compiler /path/to/compiler/bin/sn --sanitize
+```
+
+The second command instruments the C module and actual shared runtime. The
+normal check compares canonical storage with C generated independently from the
+original Sindarin declarations, including alignment and every field width and
+offset. [Local validation](tcp-native-validation.json) distinguishes this native
+foundation from pending hosted acceptance and compiler package-artifact wiring.
 
 ## See Also
 

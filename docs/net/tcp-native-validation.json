@@ -1,0 +1,311 @@
+{
+  "status": "Complete native C foundation local validation; hosted SDK acceptance and compiler artifact wiring remain required.",
+  "base_revision": "6e796dd36fdaea7d99a7407b19949456fb7e37d4",
+  "compiler_revision": "5b51af8c769dd6c1bf28fb7b0e97d25b3cdb3596",
+  "compiler_sha256": "a99c00a6410811ae42dce4b0005feb8ca0cc4f61f35e9252d01f6269a2651dc3",
+  "normal_native_layout_and_unchanged_legacy_cases": 21,
+  "actual_C_runtime_sanitizer_cases": 1,
+  "full_original_SDK_C_default_cases": 28,
+  "CI_helper_tests": 11,
+  "public_records": 2,
+  "public_functions": 10,
+  "public_methods": 15,
+  "raw_C_backing_entrypoints": 15,
+  "independent_layout_values": {
+    "legacy": [
+      32,
+      8,
+      0,
+      4,
+      8,
+      8,
+      16,
+      8,
+      24,
+      8,
+      24,
+      8,
+      0,
+      4,
+      8,
+      8,
+      16,
+      8
+    ],
+    "canonical": [
+      32,
+      8,
+      0,
+      4,
+      8,
+      8,
+      16,
+      8,
+      24,
+      8,
+      24,
+      8,
+      0,
+      4,
+      8,
+      8,
+      16,
+      8
+    ]
+  },
+  "source_preservation": {
+    "all_tracked_Sindarin_and_expected_files_unchanged": true,
+    "file_count": 87,
+    "sha256": {
+      "src/core/fields.sn": "dd74fe52f13965f14aabf0ad2d84c70560ed0340e2382a42455d93fb4a2146d1",
+      "src/core/math.sn": "a73b50d5573f4139fd29f507187bfab407367a3ce820baf6747e3de8d49b8e60",
+      "src/core/random.sn": "9023a5274348396e41d4af1ff4e47fe2d3fcf24aeb84fb75d51082a1ca54e5dd",
+      "src/core/uuid.sn": "59348996cf1de781fe16e55f1d5663924e40f0c5f8345b8cbc9a40c9073f67be",
+      "src/core/version.sn": "2841affe8659ad124d0178d643b108b8cc54808af4878e434e803528180e1b1f",
+      "src/crypto/crypto.sn": "4dc52e39a930881ae0708a76e56c9a29c40c25240eab2129cad611a4dd125677",
+      "src/encoding/json.sn": "e229fb2ec2fbe64d1c76ca35f0ee385179b96fe8ad933e4bb668244bb4b0bcec",
+      "src/encoding/text.sn": "d693471888b9599e19594611bde496e9cf0cded06cb33b3eac06b726ae355e1f",
+      "src/encoding/xml.sn": "aee568777cc053276c7aa8100af8ca66d06ea1f2efa6db3a67c12c6883134036",
+      "src/encoding/yaml.sn": "8bbe7915bdd2640f4be3940a6ce0da1dbc0fc0edb94628703a536ab54f6876ec",
+      "src/encoding/zlib.sn": "c423d102335215c5894a8d56f2c8713878b255ec3a198c8889d493f02acd8b5d",
+      "src/io/binaryfile.sn": "c717083e18128360f5d3ece675f0475c6509da69bcc9ad36c72f9f789893c4e9",
+      "src/io/bytes.sn": "013490106aad9617bdfc30d7981be573ed1ead4320af4c89298f8d094aab48b6",
+      "src/io/directory.sn": "8999d0d4628d416104a20b8affa6e726c0c9b72fd3970624216fd654e22d67a5",
+      "src/io/path.sn": "64afa4cda538c8f3baa9246c63dff337ec6ca3af83e502cb72f130d434871144",
+      "src/io/stdio.sn": "046a6e151b470c2278166bb63488159ae62cf004cb5a0402914304e6628ce735",
+      "src/io/textfile.sn": "cdff312be708a055409d97d108e77bc050a734fd375bb7fdd1d6b19eb9ef10a7",
+      "src/net/dtls.sn": "772a532faa85a90542b21aba316455aa9e6cb82f7fb09722263c8976d638ac5b",
+      "src/net/git.sn": "69b25cc0f458c5f63506f25ce7eb042e0cc3c8f5e56c10b7582587c0f983f0b7",
+      "src/net/ssh.sn": "9a13b1d27cb9ece5b28326f84e47feb4b21d1585faa795559df34480e9486991",
+      "src/net/tcp.sn": "5aed984e18a9908d930c4696411bc16517cea139d6243e45421ec01fdda49c7a",
+      "src/net/tls.sn": "afa37f9a4ae7ee268cc1575afa9ad3d09dc1280bfd98f0c0610d8f1d39c42d2c",
+      "src/net/udp.sn": "08db07367b13e00ff2ff0e46faf4fa303d7bbc1515e63308d27de0a01302e093",
+      "src/os/env.sn": "e5dd2a21c324b8a09f694d6d51117851f1be555eadeed5722213393a79b0eed4",
+      "src/os/os.sn": "b1327a62beb93463634bdd14afbb581ba82dae883b9100371b67109d86a673bd",
+      "src/os/process.sn": "92a4b7c5b670038e0ddc593a974f505a1d15880b999c055e4e309141ff397b40",
+      "src/time/date.sn": "4f308d5da8903fa170dc4bd459247123239f1f08aaf94e999b472674e80507ea",
+      "src/time/time.sn": "6b494afe070762049ee40734d32a980314ee82fdb9d72d8ce0b10a099bb52d92",
+      "tests/core/test_gc.expected": "4fb6205a7e18a354fdc2d7bbffe3005345b49147ddca95dfcca8ccddee187969",
+      "tests/core/test_math.expected": "3d2dcf0802cdd5631356b8390985c7375db044f7dc9350b652c35d7d77ff895a",
+      "tests/core/test_math.sn": "1dde6ebaa166520f296fd6d549a6e0bd5fda2ae77927e462499bc1a2399afa9c",
+      "tests/core/test_random.expected": "db52e2a6098c2c3b1608eb7c726a64ede0f3e79c592eaf0cbb76eb9788a58286",
+      "tests/core/test_random.sn": "ef21705cdec5cf4105bf1565e0e378acfec8b4dda51dda8daea795d24d85a72f",
+      "tests/core/test_uuid.expected": "d1c5fa414dcf4c8ae3dc9db23ffab5f4a03d7b93999504f58d1b477de5b2b94b",
+      "tests/core/test_uuid.sn": "9905847d9c0b812104ff6495e08824f15f2d766c73ed93f175773b37abda6a05",
+      "tests/core/test_version.expected": "79c2706dd4d9f141097593e2aab8d496f6009a8178b642dbb0551f6a466fb193",
+      "tests/core/test_version.sn": "a45bb7c38530242e8dd72630a2e94716a5dc5c57fb0905d593a97cd33ccd2173",
+      "tests/crypto/test_crypto.expected": "fcd28c127ebcf66b53e9af1fa09f9755f59e3fe5f898b8440332ecc8c4f8d4b9",
+      "tests/crypto/test_crypto.sn": "5ed5372f70810c6cc272f340c71fc37c2ded2da4d219c66cc97da51a9cd23621",
+      "tests/encoding/test_json.expected": "75f283933472a47c638e5c76383feb33a7fd232b17459c7e2d78ca9319e565e5",
+      "tests/encoding/test_json.sn": "6cd7f13d122c2e311333814a15a9a5d5780a4089fd40e3b9721700f8e8f637fd",
+      "tests/encoding/test_text.expected": "0ad24526a50af09f2bdfb1606fd4c691a4bdc8f2e84b56a855b08af062ef8221",
+      "tests/encoding/test_text.sn": "1070e7ca3ee6012d2d012d5c0f50a2b5dfc82a50fd813de90ec3c1b814d76ff9",
+      "tests/encoding/test_xml.expected": "f26cf1c3b88047e42fd9e027089f8462e297e47a5d712a141ea808a86013d5c0",
+      "tests/encoding/test_xml.sn": "b0740c7473f774e92c82c1847f060ef56e1e13395a6504d2aa51b12bdcca3129",
+      "tests/encoding/test_yaml.expected": "6de7662d1f347335d59bd4d9fcea05c5038d56dd359ab8fad6d24054711580ed",
+      "tests/encoding/test_yaml.sn": "dfbee31b3492e2d3c3d1f6ec8221c9b4da808de18edacdad0bf215bf9f7d5370",
+      "tests/encoding/test_zlib.expected": "8b82f8fb4645caa8c4860ab37b2bd4f6e9dfe66f9faa22f946c7e50d4d610dcc",
+      "tests/encoding/test_zlib.sn": "7ae031ae91afcfc2ae540d55ac8fece6b759b670cbbb23b07e754c08db2fd532",
+      "tests/io/test_binaryfile.expected": "e9fb63cea834f5d045bb70696538bbe75873126501eb3205fc9fa1b26c41751f",
+      "tests/io/test_binaryfile.sn": "5de1a3353789676b39332fa9bb893f9019b7e5ceaa28c3f734314e69ce4adf48",
+      "tests/io/test_bytes.expected": "b2f19f23ccc60f35c2dce2b24a60d59ea946bd0f16f6c8c4a9dbe70aa2ab2993",
+      "tests/io/test_bytes.sn": "22b80bcdcfe7caff2d95f3de26c75dc9aa6584f1c5de2c7553d667e15f20297d",
+      "tests/io/test_directory.expected": "d2d8d140ff55f2cc5c65bd4e733de14482b6c330a9cedbd8dc64ee56f94ae958",
+      "tests/io/test_directory.sn": "dd9b54c3bf7041db33803f946bc40e6c4eeefa04f2d4f256850b8c7e8c61c7e0",
+      "tests/io/test_path.expected": "fc76a996e2195a7b6457d31899bf547276851edebbad196e888d3289e0bbb225",
+      "tests/io/test_path.sn": "d33f2500d569e23f973e0f9304046da75a844e1b93b5f2c817c87518b1893910",
+      "tests/io/test_stdio.expected": "1aab9ec47f4b2ddf26d38a89fd743406b048beb80a769db7ca114207677dbdec",
+      "tests/io/test_stdio.sn": "7456205aab57ec4d7a7a4e66ddb08e9a28b4b1748471bb9d3dce128d833ca07f",
+      "tests/io/test_textfile.expected": "0ad4c6e2ded7f3f35b79cf32719f18b25dc7e285336f9309fee5aaf3ef373ed4",
+      "tests/io/test_textfile.sn": "40436a5a8b3ba61a818e738bac531b147b173f5a55f293fe17489dc925691ea4",
+      "tests/native/textfile_fields.expected": "d00adc006e75537416eb39599a90371807e71c2332e7ec00c04a302cd32b1630",
+      "tests/net/test_dtls.expected": "fdc0de46ceb695dc88ac44ff0a6a01b7ca5bbaf8bdd0fd16aaa76828db6bc1ec",
+      "tests/net/test_dtls.sn": "05b2378ff63382affd37323adcf0df69afb2189f5b5f982a5121e633c9bef27d",
+      "tests/net/test_git.expected": "b9a43db727d2170146f8f9036033c38b7624bb79fbf7edc2e7b64e3c1294aa22",
+      "tests/net/test_git.sn": "29c9cdcb0efbedf6bba8480b11fb3a9dfe309e0109717f53cb46366501cf1eef",
+      "tests/net/test_ssh_server.expected": "a90474718c168549750c1776c6c5c4e1890232a13bdac5b5873a5c24120c8151",
+      "tests/net/test_ssh_server.sn": "d519640fce9179c36421adbffac400806c30ecb47a2b3ce85cb0bf9cec192b23",
+      "tests/net/test_tcp.expected": "370e12d69ba1d54dd14fbe0f6dcf3881f804caa5dcd0cf6d1dfc950b7691c4bc",
+      "tests/net/test_tcp.sn": "40e80b802a40c162b61c1cb3184a368a24846d7c5567ffa23108ca4a786896b4",
+      "tests/net/test_tls.expected": "ee786807def5de165c4caf50fb7d9dda165dc5428f9d3cdae82aacd873b5f969",
+      "tests/net/test_tls.sn": "9e61936581aaffcaceb9ededc2732d5dd543065de2231ef68be91ed1b4c86968",
+      "tests/net/test_tls_listener.expected": "70c5bd356f8df0524f0f18b941fabf01f900f55d0c1ca464e52572a26f8b0784",
+      "tests/net/test_tls_listener.sn": "806e0beda83fab44330d15936c87882781beff0cfafefe775c9a62023fd1d4a0",
+      "tests/net/test_udp.expected": "81e2851e6ad72a1ceaf04b2bb59f491b713d413eedf84eae4cdc92419281cd7c",
+      "tests/net/test_udp.sn": "ac68747e94dbf37fcbbf8ec6447ac8b0e34930a39df3c0349451e9596b85e6a1",
+      "tests/os/debug_process.sn": "64453bc862ee2ebba53c9bbe225b44c54478e83294b2a26c72468bbe66cf767f",
+      "tests/os/test_env.expected": "46ac14909016913a2372d315165f447404fb203c9d822c0c2d7695e46652c899",
+      "tests/os/test_env.sn": "844cea0f3a0b7371a7691cfafd3916a3dcf941586db67ef10cdf41965eaf694e",
+      "tests/os/test_os.expected": "80017fd6f92247792e8f8fae33e49b6346fc052defb67f9f5b09527aca096a06",
+      "tests/os/test_os.sn": "421c0214e02ffd8d5411d51c36eba9125c07af3dfd613ae1b29302ae89303e0b",
+      "tests/os/test_process.expected": "d250ab50a079b77f58c30f74b99ea193c3011f273499a5504c87bdef533f3b74",
+      "tests/os/test_process.sn": "e381f973f619cb9115cb8fc1f568d24a958b9a8b10133b94aefe843986ef75d5",
+      "tests/time/test_date.expected": "796ff20c468f890ea0dec4ee17f7201975785942c824502337f5e27205f2fe17",
+      "tests/time/test_date.sn": "413835df398076d2c6df6f2ebe2631415ba60c9cb112e08a5f59b2f0bb431289",
+      "tests/time/test_time.expected": "51d71ef285aaf5a6830f63be783eae7136c6332e0110c62feda012c563611a62",
+      "tests/time/test_time.sn": "1bf85b5bb1ea1c24165397a8fd3f99b453ee53a95cca9ed04765461826a50a94"
+    }
+  },
+  "source_and_client_sha256": {
+    "src/net/tcp.sn.c": "b5ec99dd65366b246ac86a433112abdbf991f0bd9d27edb41f935834d4fe483a",
+    "src/net/tcp.native.c": "9454236c5754f431d4d2d1380a3232b3bc1ec7ea5459c3594fe504af23425eeb",
+    "src/net/tcp.native.h": "fabde9415de60c4f275f7276b8aa820c2d5691ac9554126c4e784ef2ad126699",
+    "tests/native/tcp.c": "84d4298cb3486d394af3bff68d9ab13274467398789a5dc3c50ffc233f601687",
+    "tests/native/tcp.rs": "df8e7612e62de6c522abe39c03b4902542a4e47e1a95b135d026718ac58f22a3",
+    "scripts/check_tcp_native.py": "cb8f53560641fa70e114e89fb7a693c60e0bcaa61082884f6498674157a08a04",
+    ".github/workflows/ci.yml": "b5768c5723fd41c39c2b2f6ce4c1e224a6410ba540b474df02fa7f1530e72c98"
+  },
+  "implementation": "One C TCP implementation shared by standalone archives and legacy imports. Canonical records retain visible layouts and fields; private allocation prefixes distinguish factory-owned resources from zero/default records. Atomic credits close factory resources on last release, preserve aliases and permit idempotent explicit disposal. WinSock initialization is serialized. Peer disconnects use per-send/per-socket SIGPIPE prevention, without changing process signal disposition.",
+  "independent_controls": "C/Rust archive clients cover all15 raw entrypoints, live aliases, owned snapshots after owner release, binary/NUL/high bytes, line/buffer reads, EOF, timeouts, disposal, zero/default/nil states, stdin preservation, repeated loopback and parallel independent factories. The checker includes platform socket/descriptor closure checks, a portable readable-socket shutdown test and a POSIX default-SIGPIPE child test. Generated legacy C is independently compared with canonical storage for sizes, alignments and all field offsets/widths.",
+  "legacy_debug_findings": {
+    "accepted_5b_full_C_debug_passed": 23,
+    "accepted_5b_full_C_debug_total": 28,
+    "same_five_fail_on_unchanged_SDK_baseline": true,
+    "current_correction_compiler": "61633bb80d15bc0df80b4aee2d86ac2bbe75082e",
+    "current_Zlib_debug_passes": true,
+    "open_C_lifetime_failures": [
+      {
+        "source": "tests/core/test_random.sn",
+        "summary": [
+          "640 byte(s) leaked in 20 allocation(s)."
+        ],
+        "status": "Open legacy C debug lifetime failure; no parity credit"
+      },
+      {
+        "source": "tests/encoding/test_yaml.sn",
+        "summary": [
+          "215 byte(s) leaked in 8 allocation(s)."
+        ],
+        "status": "Open legacy C debug lifetime failure; no parity credit"
+      },
+      {
+        "source": "tests/net/test_git.sn",
+        "summary": [
+          "578 byte(s) leaked in 29 allocation(s)."
+        ],
+        "status": "Open legacy C debug lifetime failure; no parity credit"
+      },
+      {
+        "source": "tests/net/test_ssh_server.sn",
+        "summary": [
+          "5516 byte(s) leaked in 27 allocation(s)."
+        ],
+        "status": "Open legacy C debug lifetime failure; no parity credit"
+      }
+    ],
+    "scope": "Debug enables the compiler default ASAN/UBSAN. Failed modes are retained and never counted as parity. These failures are separate from successful normal C28 and canonical TCP C/runtime SAN1. Older Zlib74 is repaired by the pending compiler correction."
+  },
+  "retained_reports": [
+    {
+      "path": "docs/net/tcp-native.json.gz",
+      "sha256": "d23b81d939f2f8c491f93e742843ecdca4ff3991c569372c7121f70c1dbb63c9",
+      "raw_sha256": "cc22c6e468b640d6e8befa2ac0dda9fb23876e0db566c07ebba8f70959f46139"
+    },
+    {
+      "path": "docs/net/tcp-sanitizers.json.gz",
+      "sha256": "a05cbb0d5ef506fa1fda0eeafcea677cc53aac93c63f1b3a062f3478569faef0",
+      "raw_sha256": "3e27fd5ff0828887d18724338ffea257893d4695e1f46bbe244ecb780fff3687"
+    },
+    {
+      "path": "docs/net/tcp-final-native-normal.log.gz",
+      "sha256": "141e25b56a14e7e6c7f6362678fca135fbfbbb8ab509b267100b0e15122d5aae",
+      "raw_sha256": "29fe21f1357cc2974108f9b19f0360446d8d4b1dc10628697a95620414de21a0"
+    },
+    {
+      "path": "docs/net/tcp-final-native-sanitized.log.gz",
+      "sha256": "c215de7903edec24b3573e8155b2ccfc6bb547bff9073d3e8f20abce6260a92c",
+      "raw_sha256": "08d543dbe35c1f9edbf93a2b37b580faaa7b5ff93512b02744bbaddf50a50c04"
+    },
+    {
+      "path": "docs/net/tcp-check-original-C.py.gz",
+      "sha256": "1e240b30e70e5ac4204d53352351a7c0ab1ab1d182f1db4c249f1831b6286fee",
+      "raw_sha256": "10f7a1fd45f57b7ffb4e9d97598ac1f034a598486ee1f6d10e2389b83d163fbb"
+    },
+    {
+      "path": "docs/net/tcp-check-original-C-initial.py.gz",
+      "sha256": "bc4872aa936d6f82d909dfdef18dc927ea5eb8a29e25a44dad78ef156a64a6d6",
+      "raw_sha256": "48b5daa1654783925d41873abf3d11a0c5c4f38c0063c70b9bfcf061d53a8353"
+    },
+    {
+      "path": "docs/net/tcp-check-original-C-modes.py.gz",
+      "sha256": "b21c92e9ae72091a2880838812fbd42aa977cfbfd89b64c4d42454cb56c5ce3c",
+      "raw_sha256": "9d92a461d4132e2aaf98118bacabc3f0ecf79789367a9f0f3770758e32cf70c7"
+    },
+    {
+      "path": "docs/net/tcp-check-original-C-compiler-selection.py.gz",
+      "sha256": "be495e1ce1be7ff00a966ff869e7e99389be6cd2e5d9edd0efde01d0683563df",
+      "raw_sha256": "6cc285d9d99dcac7bdbc49376ebf0c2a0514ab1eb68b9c1c4df256d1d95213b7"
+    },
+    {
+      "path": "docs/net/tcp-original-C.json.gz",
+      "sha256": "de69a73e44e426b88f6d54dc819a917e77f83085890d277845cabd1b3d99b73d",
+      "raw_sha256": "c5867d5fa48d8ae74c12b14be9c27e6f6778c16eab5ba30520e4f08b8b6e9580"
+    },
+    {
+      "path": "docs/net/tcp-original-C.log.gz",
+      "sha256": "c5d41e5e241598bcd2d84c86ed1bd813885f1252df27c1c7c6cde1716deb5890",
+      "raw_sha256": "1a9aac1fb768e0ddf7f21c9b6d0ba424798ff31e6663b73c41fd246247d8a2e7"
+    },
+    {
+      "path": "docs/net/tcp-original-C-default.json.gz",
+      "sha256": "aaa1a845e822e268f19243f000886ab1f7194ced94b001e2a6ef97a295af6a2b",
+      "raw_sha256": "8ab052045da7ba6d1c122b9578811007d4001f4ffdd08478a5bfb3ce80c11b02"
+    },
+    {
+      "path": "docs/net/tcp-final-original-C-default.log.gz",
+      "sha256": "7c685a01a93b72228ab41cba6ec294bdf10d50b120881a37a1ac9f049d659a13",
+      "raw_sha256": "6c784f79921dccf98101b6e415ba964a9629351ea84d129c6137ca066fc91e78"
+    },
+    {
+      "path": "docs/net/tcp-original-C-baseline-debug.json.gz",
+      "sha256": "922b418015d2824747464009ce27389de524ec6d4c769ae007a8cb0e376c1ef7",
+      "raw_sha256": "31e08dfa38166b23c2afffb53232ff277374bbdc402769ae0ba8f86630bfbc9c"
+    },
+    {
+      "path": "docs/net/tcp-original-C-baseline-debug.log.gz",
+      "sha256": "fcf50a78a56a3ee317a02165246854788fba8e66a7eea3adbdee2b1641e7be4d",
+      "raw_sha256": "c236839d6d18aaf1bc4cf213bad3235ed10e23fa550177e681d4b290bd28617a"
+    },
+    {
+      "path": "docs/net/tcp-original-C-current-baseline-debug.json.gz",
+      "sha256": "e6e4f9332bd6209c4bcc8d8bef61f011b97ade3228250baae8dda9561e2d3850",
+      "raw_sha256": "47f1fbd3782dd0938125e3c3bb12ac363bd5818abbf4e2d216835dc1e015d5db"
+    },
+    {
+      "path": "docs/net/tcp-original-C-current-baseline-debug.log.gz",
+      "sha256": "20b54dc3d0661bb8a736c9b1f508d90bcd104e0bdf6aab7aa9bbd0d1dac0d0b7",
+      "raw_sha256": "c6774ee9e7c7b64a26c201748a60e433b7da27a2f0f48ff301847c009f03fccd"
+    },
+    {
+      "path": "docs/net/tcp-runtime-before-disconnect.json.gz",
+      "sha256": "560ef29a97aed7215569103cf991a25ca644ad8dc187e3f5b21b54cabc21de15",
+      "raw_sha256": "3db2183245c6ffb96c131fb2fff5199599064d77cb3ea299746d933612d05782"
+    },
+    {
+      "path": "docs/net/tcp-runtime-after-disconnect.log.gz",
+      "sha256": "231ecaac0d23182acdd31bd6a936764e7823f98f281b0ab845fd889ea2d2b606",
+      "raw_sha256": "01b4fe6c6dec59c5a06b9dfdd1509856e9379a1ddfb89b28dea6657748078312"
+    },
+    {
+      "path": "docs/net/tcp-native-oracle-contract.log.gz",
+      "sha256": "5cbbde954e04d697135a8e4923dd40c0894a9c1f6bcfdab090e36a297ec3d09f",
+      "raw_sha256": "9740af3844fb1c3a9cf7468206dcc1e44ef04bb15b2b83682b5775c5fd928e5d"
+    },
+    {
+      "path": "docs/net/tcp-public-api-model.json.gz",
+      "sha256": "26e7dcc864daebbe606810609fae285c360464cc7bf0516865236f0fa48351f2",
+      "raw_sha256": "298a80b196cd90e5f07b474b1a2cff41281af527d1ed93a1190b7cea29ce1290"
+    },
+    {
+      "path": "docs/net/tcp-native-client-before-shutdown-expansion.c.gz",
+      "sha256": "f8b5ad7ca3f01f0fee1247884727a0d74034f6538a8629fd6c731fb482de6b42",
+      "raw_sha256": "50cac1ec39e4faeb405ce0f1671d7f7ab5758c778dc10441da438fe4cc7df2b2"
+    },
+    {
+      "path": "docs/net/tcp-retain-native-proof.py.gz",
+      "sha256": "0cdd812b16b20ca85c8d8a48a0537d8639b30ff567d63c13ac43a756f5d432ae",
+      "raw_sha256": "a2d7654afe524badbf06e03007457c7323a1d1c4f1f80bd2a2c7132c9ded6a5f"
+    }
+  ],
+  "scope": "No existing Sindarin source or behavioral oracle changed. Native foundation only; complete Linux/macOS/Windows SDK acceptance, compiler source/sealed TCP artifact adapters and broader Rust/C ownership/language/lifecycle parity remain open."
+}
