@@ -55,7 +55,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: SindarinSDK/sindarin-compiler
-          ref: 5b51af8c769dd6c1bf28fb7b0e97d25b3cdb3596
+          ref: 61633bb80d15bc0df80b4aee2d86ac2bbe75082e
           persist-credentials: false
       - name: Checkout exact SDK revision
         uses: actions/checkout@v7
@@ -107,6 +107,13 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: python3 sdk/scripts/check_tcp_native.py --compiler bin/sn --sanitize
+      - name: Validate canonical TLS C/Rust archives, trust and unchanged callers
+        shell: bash
+        run: python3 sdk/scripts/check_tls_native.py --compiler "bin/sn${{ matrix.exe_ext }}"
+      - name: Instrument TLS ownership, encryption and actual shared runtime
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python3 sdk/scripts/check_tls_native.py --compiler bin/sn --sanitize
       - name: Instrument Random storage and actual shared runtime
         if: runner.os == 'Linux'
         shell: bash
@@ -179,6 +186,8 @@ jobs:
             sdk/.sn/udp-sanitizers.json
             sdk/.sn/tcp-native.json
             sdk/.sn/tcp-sanitizers.json
+            sdk/.sn/tls-native.json
+            sdk/.sn/tls-sanitizers.json
             sdk/.sn/uuid-native.json
             sdk/.sn/uuid-sanitizers.json
             sdk/.sn/stringbuilder-native.json

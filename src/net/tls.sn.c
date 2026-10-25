@@ -72,6 +72,10 @@
     #define GET_SOCKET_ERROR() errno
 #endif
 
+#ifndef _WIN32
+#include <sched.h>
+#endif
+
 /* ============================================================================
  * Constants
  * ============================================================================ */
@@ -81,6 +85,18 @@
 /* ============================================================================
  * Type Definitions
  * ============================================================================ */
+
+#ifdef SN_SDK_TLS_STANDALONE
+#include "tls.native.h"
+typedef SnSdkTlsStreamRecord __sn__TlsStream;
+typedef SnSdkTlsListenerRecord __sn__TlsListener;
+static inline __sn__TlsStream *__sn__TlsStream__new(void) {
+    return sn_sdk_tls_stream_create();
+}
+static inline __sn__TlsListener *__sn__TlsListener__new(void) {
+    return sn_sdk_tls_listener_create();
+}
+#endif
 
 typedef __sn__TlsStream RtTlsStream;
 typedef __sn__TlsListener RtTlsListener;
@@ -100,6 +116,21 @@ typedef struct TlsStreamInternal {
     bool eof_reached;
 } TlsStreamInternal;
 
+static void tls_wait_yield(void) {
+#ifdef _WIN32
+    Sleep(0);
+#else
+    sched_yield();
+#endif
+}
+static int tls_registry_busy;
+static void tls_registry_lock(void) {
+    while (__atomic_exchange_n(&tls_registry_busy, 1, __ATOMIC_ACQUIRE)) tls_wait_yield();
+}
+static void tls_registry_unlock(void) {
+    __atomic_store_n(&tls_registry_busy, 0, __ATOMIC_RELEASE);
+}
+
 /* Global table to associate stream pointers with internal state */
 #define MAX_TLS_STREAMS 1024
 static struct {
@@ -108,42 +139,47 @@ static struct {
 } tls_stream_table[MAX_TLS_STREAMS];
 static int tls_stream_count = 0;
 
-static TlsStreamInternal *tls_get_internal(__sn__TlsStream *stream) {
+static TlsStreamInternal *tls_get_internal(__sn__TlsStream *value) {
+    TlsStreamInternal *result = NULL;
+    tls_registry_lock();
     for (int i = 0; i < tls_stream_count; i++) {
-        if (tls_stream_table[i].stream == stream) {
-            return tls_stream_table[i].internal;
-        }
+        if (tls_stream_table[i].stream == value) { result = tls_stream_table[i].internal; break; }
     }
-    return NULL;
+    tls_registry_unlock();
+    return result;
 }
 
-static void tls_register_internal(__sn__TlsStream *stream, TlsStreamInternal *internal) {
-    /* Check if slot already exists */
+static void tls_register_internal(__sn__TlsStream *value, TlsStreamInternal *internal) {
+    tls_registry_lock();
     for (int i = 0; i < tls_stream_count; i++) {
-        if (tls_stream_table[i].stream == stream) {
+        if (tls_stream_table[i].stream == value) {
             tls_stream_table[i].internal = internal;
+            tls_registry_unlock();
             return;
         }
     }
     if (tls_stream_count < MAX_TLS_STREAMS) {
-        tls_stream_table[tls_stream_count].stream = stream;
+        tls_stream_table[tls_stream_count].stream = value;
         tls_stream_table[tls_stream_count].internal = internal;
         tls_stream_count++;
-    } else {
-        fprintf(stderr, "sn_tls: too many open streams\n");
-        exit(1);
+        tls_registry_unlock();
+        return;
     }
+    tls_registry_unlock();
+    fprintf(stderr, "sn_tls: too many open streams\n");
+    exit(1);
 }
 
-static void tls_unregister_internal(__sn__TlsStream *stream) {
+static void tls_unregister_internal(__sn__TlsStream *value) {
+    tls_registry_lock();
     for (int i = 0; i < tls_stream_count; i++) {
-        if (tls_stream_table[i].stream == stream) {
-            /* Swap with last */
+        if (tls_stream_table[i].stream == value) {
             tls_stream_table[i] = tls_stream_table[tls_stream_count - 1];
             tls_stream_count--;
-            return;
+            break;
         }
     }
+    tls_registry_unlock();
 }
 
 /* Listener internal state */
@@ -158,40 +194,47 @@ static struct {
 } tls_listener_table[MAX_TLS_LISTENERS];
 static int tls_listener_count = 0;
 
-static TlsListenerInternal *tls_listener_get_internal(__sn__TlsListener *listener) {
+static TlsListenerInternal *tls_listener_get_internal(__sn__TlsListener *value) {
+    TlsListenerInternal *result = NULL;
+    tls_registry_lock();
     for (int i = 0; i < tls_listener_count; i++) {
-        if (tls_listener_table[i].listener == listener) {
-            return tls_listener_table[i].internal;
-        }
+        if (tls_listener_table[i].listener == value) { result = tls_listener_table[i].internal; break; }
     }
-    return NULL;
+    tls_registry_unlock();
+    return result;
 }
 
-static void tls_listener_register_internal(__sn__TlsListener *listener, TlsListenerInternal *internal) {
+static void tls_listener_register_internal(__sn__TlsListener *value, TlsListenerInternal *internal) {
+    tls_registry_lock();
     for (int i = 0; i < tls_listener_count; i++) {
-        if (tls_listener_table[i].listener == listener) {
+        if (tls_listener_table[i].listener == value) {
             tls_listener_table[i].internal = internal;
+            tls_registry_unlock();
             return;
         }
     }
     if (tls_listener_count < MAX_TLS_LISTENERS) {
-        tls_listener_table[tls_listener_count].listener = listener;
+        tls_listener_table[tls_listener_count].listener = value;
         tls_listener_table[tls_listener_count].internal = internal;
         tls_listener_count++;
-    } else {
-        fprintf(stderr, "sn_tls: too many open listeners\n");
-        exit(1);
+        tls_registry_unlock();
+        return;
     }
+    tls_registry_unlock();
+    fprintf(stderr, "sn_tls: too many open listeners\n");
+    exit(1);
 }
 
-static void tls_listener_unregister_internal(__sn__TlsListener *listener) {
+static void tls_listener_unregister_internal(__sn__TlsListener *value) {
+    tls_registry_lock();
     for (int i = 0; i < tls_listener_count; i++) {
-        if (tls_listener_table[i].listener == listener) {
+        if (tls_listener_table[i].listener == value) {
             tls_listener_table[i] = tls_listener_table[tls_listener_count - 1];
             tls_listener_count--;
-            return;
+            break;
         }
     }
+    tls_registry_unlock();
 }
 
 /* ============================================================================
@@ -201,7 +244,9 @@ static void tls_listener_unregister_internal(__sn__TlsListener *listener) {
 static int openssl_initialized = 0;
 
 static void ensure_openssl_initialized(void) {
-    if (!openssl_initialized) {
+    int expected = 0;
+    if (__atomic_compare_exchange_n(&openssl_initialized, &expected, 1, false,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         SSL_library_init();
         SSL_load_error_strings();
@@ -210,10 +255,12 @@ static void ensure_openssl_initialized(void) {
         OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS | OPENSSL_INIT_LOAD_CRYPTO_STRINGS, NULL);
 #endif
 #ifndef _WIN32
-        /* Ignore SIGPIPE to prevent crashes when writing to closed connections */
+        /* Preserve the existing TLS initialization policy. */
         signal(SIGPIPE, SIG_IGN);
 #endif
-        openssl_initialized = 1;
+        __atomic_store_n(&openssl_initialized, 2, __ATOMIC_RELEASE);
+    } else {
+        while (__atomic_load_n(&openssl_initialized, __ATOMIC_ACQUIRE) != 2) tls_wait_yield();
     }
 }
 
@@ -225,14 +272,18 @@ static void ensure_openssl_initialized(void) {
 static int winsock_initialized = 0;
 
 static void ensure_winsock_initialized(void) {
-    if (!winsock_initialized) {
+    int expected = 0;
+    if (__atomic_compare_exchange_n(&winsock_initialized, &expected, 1, false,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
         WSADATA wsaData;
         int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
         if (result != 0) {
             fprintf(stderr, "TlsStream: WSAStartup failed: %d\n", result);
             exit(1);
         }
-        winsock_initialized = 1;
+        __atomic_store_n(&winsock_initialized, 2, __ATOMIC_RELEASE);
+    } else {
+        while (__atomic_load_n(&winsock_initialized, __ATOMIC_ACQUIRE) != 2) tls_wait_yield();
     }
 }
 #else
@@ -495,7 +546,7 @@ static __sn__TlsStream *sn_tls_stream_create(socket_t sock,
 
     stream->socket_fd = (long long)sock;
     SET_SSL_PTR(stream, ssl);
-    stream->remote_addr = remote_addr ? strdup(remote_addr) : NULL;
+    stream->remote_addr = remote_addr ? (unsigned char *)strdup(remote_addr) : NULL;
 
     /* Create internal state */
     TlsStreamInternal *internal = (TlsStreamInternal *)calloc(1, sizeof(TlsStreamInternal));
@@ -516,6 +567,9 @@ static __sn__TlsStream *sn_tls_stream_create(socket_t sock,
     internal->eof_reached = false;
 
     tls_register_internal(stream, internal);
+#ifdef SN_SDK_TLS_STANDALONE
+    sn_sdk_tls_stream_mark_owned(stream);
+#endif
 
     return stream;
 }
@@ -1140,12 +1194,19 @@ __sn__TlsListener *sn_tls_listener_bind(char *address,
     if (lint == NULL) {
         CLOSE_SOCKET(sock);
         SSL_CTX_free(ctx);
+#ifdef SN_SDK_TLS_STANDALONE
+        sn_sdk_tls_listener_release(listener);
+#else
         free(listener);
+#endif
         fprintf(stderr, "TlsListener.bind: internal allocation failed\n");
         exit(1);
     }
     lint->ssl_ctx = ctx;
     tls_listener_register_internal(listener, lint);
+#ifdef SN_SDK_TLS_STANDALONE
+    sn_sdk_tls_listener_mark_owned(listener);
+#endif
 
     return listener;
 }
