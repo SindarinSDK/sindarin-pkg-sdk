@@ -1,5 +1,5 @@
 {
-  "status": "Complete native TLS foundation local validation only. Feature publication is frozen pending the compiler path correction; no hosted TLS SDK or compiler artifact acceptance.",
+  "status": "Complete native TLS foundation local validation. Own SDK hosted acceptance and compiler TLS artifact wiring remain required.",
   "base_revision": "9d2e6e792746ce22d4ee3e744bc3f9938b59b104",
   "compiler_revision": "61633bb80d15bc0df80b4aee2d86ac2bbe75082e",
   "compiler_sha256": "d8a5e3a83c7d605ad23aec2177557098078046b9026cd41c5be4ebc94ac14329",
@@ -309,5 +309,6 @@
     "Own SDK Linux/macOS/Windows acceptance after compiler freeze lifts.",
     "Compiler TLS artifact builds, bindings, source/sealed adapters and lifecycle matrices.",
     "Remaining SDK modules and broader language/ownership/mixed-package/final platform goal work."
-  ]
+  ],
+  "compiler_freeze_resolution": "Compiler correction7a3e646b passed own CI40241868422 all49 jobs/540 executions/41 groups. This clears the feature publication freeze; it is not TLS SDK acceptance."
 }
